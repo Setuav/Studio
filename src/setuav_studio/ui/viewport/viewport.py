@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeyEvent, QResizeEvent, QShowEvent
@@ -65,10 +65,47 @@ def _as_bool(value: Any, default: bool = True) -> bool:
     return str(value).lower() in {"1", "true", "yes", "on"}
 
 
-def _call_method(target: object, name: str, *args: Any) -> None:
-    fn = getattr(target, name, None)
-    if callable(fn):
-        fn(*args)
+class ViewportRenderer(Protocol):
+    """The widget that draws a :class:`StudioViewport` (``OpenGLViewer``)."""
+
+    # A Qt ``Signal(object)``; pyright cannot match signal descriptors structurally.
+    componentPicked: Any
+
+    def update_theme_style(self) -> None: ...
+    def set_scene_objects(self, objects: dict[str, Any]) -> None: ...
+    def set_overlays(
+        self,
+        overlay_id: str,
+        primitives: list[VisualPrimitive] | tuple[VisualPrimitive, ...],
+    ) -> None: ...
+    def clear_overlays(self, overlay_id: str) -> None: ...
+    def set_selected_component(self, component_id: str | None) -> None: ...
+    def set_selected_section(
+        self,
+        component_id: str | None,
+        segment_index: int | None = None,
+        section_index: int | None = None,
+        color: tuple[float, float, float] | str | None = None,
+    ) -> None: ...
+    def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None: ...
+    def fit_view(self) -> None: ...
+    def set_view(self, azimuth: float, elevation: float) -> None: ...
+    def set_orthographic(self, enabled: bool) -> None: ...
+    def set_show_solid(self, show: bool) -> None: ...
+    def set_show_wireframe(self, show: bool) -> None: ...
+    def set_wire_mode(self, mode: str) -> None: ...
+    def set_show_grid(self, show: bool) -> None: ...
+    def set_transparent(self, transparent: bool) -> None: ...
+    def set_face_style(self, face_style: str) -> None: ...
+    def capture_screenshot(
+        self, width: int, height: int, transparent_background: bool = False
+    ) -> QImage | None: ...
+
+
+def _renderer_widget(renderer: ViewportRenderer) -> QWidget:
+    if not isinstance(renderer, QWidget):
+        raise TypeError(f"A viewport renderer must be a QWidget, not {type(renderer).__name__}.")
+    return renderer
 
 
 class StudioViewport(QWidget):
@@ -96,7 +133,7 @@ class StudioViewport(QWidget):
         self,
         parent: QWidget | None = None,
         api: Any | None = None,
-        renderer: QWidget | None = None,
+        renderer: ViewportRenderer | None = None,
     ) -> None:
         super().__init__(parent)
         self._api: Any | None = None
@@ -128,27 +165,22 @@ class StudioViewport(QWidget):
         # Overlays drawn directly by the renderer: overlay_id -> (layer, primitives)
         self._overlays: dict[str, tuple[str, list[VisualPrimitive]]] = {}
 
-        # Reference to the low-level OpenGL widget (defaulting to embedded OpenGLViewer)
-        self._renderer: QWidget | None = None
+        # Layers: layer_id -> Layer
+        self._layers: dict[str, Layer] = {}
 
         self._grid_layout = QGridLayout(self)
         self._grid_layout.setContentsMargins(0, 0, 0, 0)
         self._grid_layout.setSpacing(0)
 
-        # Layers: layer_id -> Layer
-        self._layers: dict[str, Layer] = {}
+        self._renderer: ViewportRenderer = renderer if renderer is not None else OpenGLViewer(self)
+        self._install_renderer()
+
         self.add_layer(DEFAULT_LAYER, name="Default")
         self.add_layer(MASS_LAYER, name="Center of Gravity")
 
         # Floating bottom HUD bar
         self.hud = StudioViewportHUD(self)
         self._reposition_hud()
-
-        # Attach renderer
-        if renderer is not None:
-            self.attach_renderer(renderer)
-        else:
-            self.attach_renderer(OpenGLViewer(self))
 
         if api is not None:
             self.bind_api(api)
@@ -167,8 +199,6 @@ class StudioViewport(QWidget):
         QTimer.singleShot(0, self._reposition_hud)
 
     def _reposition_hud(self) -> None:
-        if not hasattr(self, "hud"):
-            return
         hint = self.hud.sizeHint()
         margin_bottom = 12  # Floating offset from bottom edge
         w = hint.width()
@@ -182,42 +212,42 @@ class StudioViewport(QWidget):
         """Propagate theme styling to the HUD bar and attached renderer."""
         self.hud.update_theme_style()
         self._reposition_hud()
-        _call_method(self._renderer, "update_theme_style")
+        self._renderer.update_theme_style()
 
     # ------------------------------------------------------------------
     # Renderer & API binding
     # ------------------------------------------------------------------
 
-    def attach_renderer(self, renderer: QWidget) -> None:
-        """Embed or replace the low-level OpenGL viewer widget."""
-        if self._renderer is not None and self._renderer is not renderer:
-            self._grid_layout.removeWidget(self._renderer)
-            old_renderer = self._renderer
-            self._renderer = None
-            old_renderer.setParent(None)
-            old_renderer.deleteLater()
+    def attach_renderer(self, renderer: ViewportRenderer) -> None:
+        """Replace the renderer widget that draws the viewport."""
+        old = _renderer_widget(self._renderer)
+        self._grid_layout.removeWidget(old)
+        old.setParent(None)
+        old.deleteLater()
         self._renderer = renderer
-        self._grid_layout.addWidget(renderer, 0, 0)
+        self._install_renderer()
+        self._sync_renderer()
+        for overlay_id in self._overlays:
+            self._push_overlay(overlay_id)
         self._reposition_hud()
 
-        # Apply initial display state to the renderer
-        _call_method(renderer, "set_orthographic", self._orthographic)
-        _call_method(renderer, "set_show_solid", self._show_solid)
-        _call_method(renderer, "set_show_wireframe", self._show_wireframe)
-        _call_method(renderer, "set_wire_mode", self._wire_mode)
-        _call_method(renderer, "set_show_grid", self._show_grid)
-        _call_method(renderer, "set_transparent", self._transparent)
-        _call_method(renderer, "set_face_style", self._face_style)
-        _call_method(renderer, "set_view", self._azimuth, self._elevation)
-
-        # Connect renderer picking signal if present
-        comp_picked = getattr(renderer, "componentPicked", None)
-        if comp_picked is not None and hasattr(comp_picked, "connect"):
-            comp_picked.connect(self._on_renderer_component_picked)
+    def _install_renderer(self) -> None:
+        """Embed the renderer and give it the current display state."""
+        renderer = self._renderer
+        self._grid_layout.addWidget(_renderer_widget(renderer), 0, 0)
+        renderer.set_orthographic(self._orthographic)
+        renderer.set_show_solid(self._show_solid)
+        renderer.set_show_wireframe(self._show_wireframe)
+        renderer.set_wire_mode(self._wire_mode)
+        renderer.set_show_grid(self._show_grid)
+        renderer.set_transparent(self._transparent)
+        renderer.set_face_style(self._face_style)
+        renderer.set_view(self._azimuth, self._elevation)
+        renderer.componentPicked.connect(self._on_renderer_component_picked)
 
     @property
-    def renderer(self) -> QWidget | None:
-        """Return the attached renderer widget, or *None*."""
+    def renderer(self) -> ViewportRenderer:
+        """Return the attached renderer widget."""
         return self._renderer
 
     @property
@@ -372,10 +402,7 @@ class StudioViewport(QWidget):
         if self._selected_object_id == object_id:
             return
         self._selected_object_id = object_id
-        if self._renderer is not None:
-            set_sel = getattr(self._renderer, "set_selected_component", None)
-            if callable(set_sel):
-                set_sel(object_id)
+        self._renderer.set_selected_component(object_id)
         self.selection_changed.emit(object_id)
 
     def selected_object_id(self) -> str | None:
@@ -399,10 +426,7 @@ class StudioViewport(QWidget):
             self._selected_section = (component_id, seg, section_index)
         else:
             self._selected_section = None
-        if self._renderer is not None:
-            set_sec = getattr(self._renderer, "set_selected_section", None)
-            if callable(set_sec):
-                set_sec(component_id, segment_index, section_index, color=color)
+        self._renderer.set_selected_section(component_id, segment_index, section_index, color=color)
 
     def selected_section(self) -> tuple[str, int, int] | None:
         """Return the currently selected section tuple, or None."""
@@ -414,19 +438,13 @@ class StudioViewport(QWidget):
 
     def fit_view(self) -> None:
         """Fit the camera to frame all visible objects in the viewport."""
-        if self._renderer is not None:
-            fit_fn = getattr(self._renderer, "fit_view", None)
-            if callable(fit_fn):
-                fit_fn()
+        self._renderer.fit_view()
 
     def set_view(self, azimuth: float, elevation: float) -> None:
         """Set the camera orbit angles in degrees."""
         self._azimuth = azimuth
         self._elevation = max(-89.0, min(89.0, elevation))
-        if self._renderer is not None:
-            view_fn = getattr(self._renderer, "set_view", None)
-            if callable(view_fn):
-                view_fn(self._azimuth, self._elevation)
+        self._renderer.set_view(self._azimuth, self._elevation)
 
     def view_angles(self) -> tuple[float, float]:
         """Return the current camera (azimuth, elevation) angles."""
@@ -445,10 +463,7 @@ class StudioViewport(QWidget):
         """Switch between orthographic (True) and perspective (False) projection."""
         self._orthographic = bool(enabled)
         QSettings().setValue(_SETTING_ORTHO, self._orthographic)
-        if self._renderer is not None:
-            ortho_fn = getattr(self._renderer, "set_orthographic", None)
-            if callable(ortho_fn):
-                ortho_fn(self._orthographic)
+        self._renderer.set_orthographic(self._orthographic)
 
     def is_orthographic(self) -> bool:
         """Return whether orthographic projection is active."""
@@ -458,10 +473,7 @@ class StudioViewport(QWidget):
         """Toggle solid surface rendering."""
         self._show_solid = bool(show)
         QSettings().setValue(_SETTING_SOLID, self._show_solid)
-        if self._renderer is not None:
-            solid_fn = getattr(self._renderer, "set_show_solid", None)
-            if callable(solid_fn):
-                solid_fn(self._show_solid)
+        self._renderer.set_show_solid(self._show_solid)
 
     def is_show_solid(self) -> bool:
         """Return whether solid surfaces are visible."""
@@ -471,10 +483,7 @@ class StudioViewport(QWidget):
         """Toggle wireframe lines."""
         self._show_wireframe = bool(show)
         QSettings().setValue(_SETTING_WIRE, self._show_wireframe)
-        if self._renderer is not None:
-            wire_fn = getattr(self._renderer, "set_show_wireframe", None)
-            if callable(wire_fn):
-                wire_fn(self._show_wireframe)
+        self._renderer.set_show_wireframe(self._show_wireframe)
 
     def is_show_wireframe(self) -> bool:
         """Return whether wireframes are visible."""
@@ -486,10 +495,7 @@ class StudioViewport(QWidget):
             raise ValueError(f"Unknown wire mode: {mode}. Must be 'feature' or 'full'.")
         self._wire_mode = mode
         QSettings().setValue(_SETTING_WIRE_MODE, self._wire_mode)
-        if self._renderer is not None:
-            mode_fn = getattr(self._renderer, "set_wire_mode", None)
-            if callable(mode_fn):
-                mode_fn(mode)
+        self._renderer.set_wire_mode(mode)
 
     def wire_mode(self) -> WireMode:
         """Return the current wireframe mode."""
@@ -499,10 +505,7 @@ class StudioViewport(QWidget):
         """Toggle 3D ground reference grid."""
         self._show_grid = bool(show)
         QSettings().setValue(_SETTING_GRID, self._show_grid)
-        if self._renderer is not None:
-            grid_fn = getattr(self._renderer, "set_show_grid", None)
-            if callable(grid_fn):
-                grid_fn(self._show_grid)
+        self._renderer.set_show_grid(self._show_grid)
 
     def is_show_grid(self) -> bool:
         """Return whether the ground grid is visible."""
@@ -511,10 +514,7 @@ class StudioViewport(QWidget):
     def set_transparent(self, transparent: bool) -> None:
         """Toggle transparency / X-ray mode."""
         self._transparent = bool(transparent)
-        if self._renderer is not None:
-            trans_fn = getattr(self._renderer, "set_transparent", None)
-            if callable(trans_fn):
-                trans_fn(self._transparent)
+        self._renderer.set_transparent(self._transparent)
 
     def is_transparent(self) -> bool:
         """Return whether transparency mode is active."""
@@ -526,10 +526,7 @@ class StudioViewport(QWidget):
             raise ValueError(f"Unknown face style: {style}. Must be 'colored' or 'monochrome'.")
         self._face_style = style
         QSettings().setValue(_SETTING_FACE_STYLE, self._face_style)
-        if self._renderer is not None:
-            style_fn = getattr(self._renderer, "set_face_style", None)
-            if callable(style_fn):
-                style_fn(style)
+        self._renderer.set_face_style(style)
 
     def face_style(self) -> str:
         """Return the current face style."""
@@ -542,13 +539,9 @@ class StudioViewport(QWidget):
         transparent_background: bool = False,
     ) -> QImage | None:
         """Capture an off-screen screenshot at the specified resolution."""
-        if self._renderer is not None:
-            capture_fn = getattr(self._renderer, "capture_screenshot", None)
-            if callable(capture_fn):
-                result = capture_fn(width, height, transparent_background=transparent_background)
-                if isinstance(result, QImage):
-                    return result
-        return None
+        return self._renderer.capture_screenshot(
+            width, height, transparent_background=transparent_background
+        )
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle keyboard shortcuts (e.g. 'F' to fit view)."""
@@ -860,34 +853,15 @@ class StudioViewport(QWidget):
     # Internal renderer synchronisation
     # ------------------------------------------------------------------
 
-    def _collect_visible_primitives(self) -> list[VisualPrimitive]:
-        """Gather all primitives from visible objects on visible layers."""
-        result: list[VisualPrimitive] = []
-        for obj in self._objects.values():
-            if not obj.visible:
-                continue
-            if not self.is_layer_visible(obj.layer):
-                continue
-            result.extend(obj.primitives)
-        return result
-
     def _sync_renderer(self) -> None:
-        """Push the current scene state to the attached OpenGL renderer."""
-        if self._renderer is None:
-            return
-        visible_objs = {
-            oid: obj
-            for oid, obj in self._objects.items()
-            if obj.visible and self.is_layer_visible(obj.layer)
-        }
-        set_scene_objects = getattr(self._renderer, "set_scene_objects", None)
-        if callable(set_scene_objects):
-            set_scene_objects(visible_objs)
-
-        primitives = self._collect_visible_primitives()
-        set_overlays = getattr(self._renderer, "set_overlays", None)
-        if callable(set_overlays):
-            set_overlays("_viewport_api", primitives)
+        """Push the visible scene objects to the renderer."""
+        self._renderer.set_scene_objects(
+            {
+                oid: obj
+                for oid, obj in self._objects.items()
+                if obj.visible and self.is_layer_visible(obj.layer)
+            }
+        )
 
     def set_overlays(
         self, overlay_id: str, primitives: Sequence[VisualPrimitive], *, layer: str
@@ -904,14 +878,14 @@ class StudioViewport(QWidget):
     def clear_overlays(self, overlay_id: str) -> None:
         """Remove overlay *overlay_id*."""
         self._overlays.pop(overlay_id, None)
-        _call_method(self._renderer, "clear_overlays", overlay_id)
+        self._renderer.clear_overlays(overlay_id)
 
     def _push_overlay(self, overlay_id: str) -> None:
         layer, primitives = self._overlays[overlay_id]
         if self.is_layer_visible(layer):
-            _call_method(self._renderer, "set_overlays", overlay_id, primitives)
+            self._renderer.set_overlays(overlay_id, primitives)
         else:
-            _call_method(self._renderer, "clear_overlays", overlay_id)
+            self._renderer.clear_overlays(overlay_id)
 
     def set_selected_cg(self, component_id: str | None) -> None:
         """Update 3D CG marker overlay for the selected component."""
@@ -933,17 +907,14 @@ class StudioViewport(QWidget):
 
     def update_component_cg(self) -> None:
         """Refresh the active component CG marker (e.g. after mass/geometry edit)."""
-        if getattr(self, "_selected_cg_component_id", None):
+        if self._selected_cg_component_id:
             self.set_selected_cg(self._selected_cg_component_id)
 
     def set_selected_envelope(self, component_id: str | None) -> None:
         """Show the envelope wireframe of the selected component and its subparts."""
         self._selected_envelope_component_id = component_id
         if component_id is None or self._api is None:
-            if self._renderer is not None:
-                set_env = getattr(self._renderer, "set_selected_envelope", None)
-                if callable(set_env):
-                    set_env(None)
+            self._renderer.set_selected_envelope(None)
             return
 
         target_ids = [component_id]
@@ -954,10 +925,7 @@ class StudioViewport(QWidget):
             for subpart in get_component_subparts(component_id, project, self._api.subpart_types):
                 target_ids.append(str(subpart["id"]))
 
-        if self._renderer is not None:
-            set_env = getattr(self._renderer, "set_selected_envelope", None)
-            if callable(set_env):
-                set_env(target_ids if len(target_ids) > 1 else component_id)
+        self._renderer.set_selected_envelope(target_ids if len(target_ids) > 1 else component_id)
 
     def update_aircraft_cg(self) -> None:
         """Refresh the aircraft total CG marker overlay."""

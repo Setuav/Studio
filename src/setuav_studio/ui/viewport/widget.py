@@ -269,7 +269,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_solid_count = 0
         self._primitive_wire_count = 0
         self._primitive_annotation_count = 0
-        self._overlay_layers: dict[str, list[VisualPrimitive]] = {}
+        self._overlays: dict[str, list[VisualPrimitive]] = {}
         self._scene_objects: dict[str, Any] = {}
         self._show_solid = True
         self._show_wireframe = True
@@ -958,11 +958,7 @@ class OpenGLViewer(QOpenGLWidget):
                     )
                 )
 
-        overlay_prims: list[VisualPrimitive] = []
-        for layer_id, layer_prims in self._overlay_layers.items():
-            if layer_id == "_viewport_api" and self._scene_objects:
-                continue
-            overlay_prims.extend(layer_prims)
+        overlay_prims = [prim for prims in self._overlays.values() for prim in prims]
 
         if overlay_prims:
             primitive_solid_values.extend(
@@ -1237,20 +1233,17 @@ class OpenGLViewer(QOpenGLWidget):
 
     def set_overlays(
         self,
-        layer_id: str,
+        overlay_id: str,
         primitives: list[VisualPrimitive] | tuple[VisualPrimitive, ...],
     ) -> None:
-        """Set or update a named overlay layer with visual primitives."""
-        self._overlay_layers[layer_id] = list(primitives)
+        """Draw *primitives* as the overlay *overlay_id*."""
+        self._overlays[overlay_id] = list(primitives)
         self._mesh_dirty = True
         self.update()
 
-    def clear_overlays(self, layer_id: str | None = None) -> None:
-        """Remove a named overlay layer, or clear all overlays if layer_id is None."""
-        if layer_id is None:
-            self._overlay_layers.clear()
-        else:
-            self._overlay_layers.pop(layer_id, None)
+    def clear_overlays(self, overlay_id: str) -> None:
+        """Stop drawing the overlay *overlay_id*."""
+        self._overlays.pop(overlay_id, None)
         self._mesh_dirty = True
         self.update()
 

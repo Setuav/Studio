@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from collections.abc import Sequence
 from typing import Any, cast
 
 from PySide6.QtCore import QSettings, Signal
@@ -35,7 +36,7 @@ class MockRenderer(QWidget):
         self.scene_objects: dict[str, Any] = {}
         self.selected_component: str | None = None
         self.selected_section: tuple[str, int, int] | None = None
-        self.selected_envelope: str | None = None
+        self.selected_envelope: str | Sequence[str] | None = None
         self.fit_view_called: bool = False
         self.view_angles: tuple[float, float] | None = None
         self.orthographic: bool = True
@@ -46,14 +47,17 @@ class MockRenderer(QWidget):
         self.transparent: bool = False
         self.face_style: str = "colored"
 
+    def update_theme_style(self) -> None:
+        pass
+
     def set_scene_objects(self, objects: dict[str, Any]) -> None:
         self.scene_objects = dict(objects)
 
-    def set_overlays(self, layer_id: str, primitives: list) -> None:
-        self.overlays[layer_id] = list(primitives)
+    def set_overlays(self, overlay_id: str, primitives: list | tuple) -> None:
+        self.overlays[overlay_id] = list(primitives)
 
-    def clear_overlays(self, layer_id: str) -> None:
-        self.overlays.pop(layer_id, None)
+    def clear_overlays(self, overlay_id: str) -> None:
+        self.overlays.pop(overlay_id, None)
 
     def set_selected_component(self, component_id: str | None) -> None:
         self.selected_component = component_id
@@ -70,7 +74,7 @@ class MockRenderer(QWidget):
         else:
             self.selected_section = None
 
-    def set_selected_envelope(self, component_id: str | None) -> None:
+    def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None:
         self.selected_envelope = component_id
 
     def fit_view(self) -> None:
@@ -97,8 +101,8 @@ class MockRenderer(QWidget):
     def set_transparent(self, transparent: bool) -> None:
         self.transparent = transparent
 
-    def set_face_style(self, style: str) -> None:
-        self.face_style = style
+    def set_face_style(self, face_style: str) -> None:
+        self.face_style = face_style
 
     def capture_screenshot(
         self,
@@ -161,8 +165,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsInstance(obj.primitives[0], BoxPrimitive)
         self.assertIn("geometry", self.viewport.layers())
         self.assertEqual(self.viewport.object_ids(), ["box-1"])
-        self.assertIn("_viewport_api", self.mock_renderer.overlays)
-        self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 1)
+        self.assertEqual(list(self.mock_renderer.scene_objects), ["box-1"])
 
     def test_add_cylinder(self) -> None:
         self.viewport.add_layer("propulsion")
@@ -256,17 +259,17 @@ class TestStudioViewport(unittest.TestCase):
         self.viewport.add_box("box-mfg", (10, 0, 0), (10, 10, 10), layer="manufacturing")
 
         # Both visible by default
-        self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 2)
+        self.assertEqual(len(self.mock_renderer.scene_objects), 2)
         self.assertTrue(self.viewport.is_layer_visible("manufacturing"))
 
         # Hide manufacturing layer
         self.viewport.set_layer_visible("manufacturing", False)
         self.assertFalse(self.viewport.is_layer_visible("manufacturing"))
-        self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 1)
+        self.assertEqual(len(self.mock_renderer.scene_objects), 1)
 
         # Re-enable
         self.viewport.set_layer_visible("manufacturing", True)
-        self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 2)
+        self.assertEqual(len(self.mock_renderer.scene_objects), 2)
 
     def test_unregistered_layers_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
@@ -300,7 +303,7 @@ class TestStudioViewport(unittest.TestCase):
         # Clear all
         self.viewport.clear()
         self.assertEqual(self.viewport.object_ids(), [])
-        self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 0)
+        self.assertEqual(self.mock_renderer.scene_objects, {})
 
     def test_overlays_follow_their_layer(self) -> None:
         ring = RingPrimitive(center=(0.0, 0.0, 0.0))
