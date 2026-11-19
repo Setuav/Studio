@@ -35,13 +35,15 @@ from setuav_studio.ui.viewport.types import (
     LoftGeometry,
     Section,
 )
-from setuav_studio.ui.viewport.viewport import StudioViewport
+from setuav_studio.ui.viewport.viewport import DEFAULT_LAYER, MASS_LAYER, StudioViewport
 from setuav_studio.ui.viewport.widget import OpenGLViewer
 
 __all__ = [
+    "DEFAULT_LAYER",
     "FACE_COLORED",
     "FACE_MONOCHROME",
     "FACE_TRANSPARENT",
+    "MASS_LAYER",
     "VIEW_PRESETS",
     "WIRE_FEATURE",
     "WIRE_FULL",

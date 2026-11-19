@@ -52,6 +52,9 @@ class MockRenderer(QWidget):
     def set_overlays(self, layer_id: str, primitives: list) -> None:
         self.overlays[layer_id] = list(primitives)
 
+    def clear_overlays(self, layer_id: str) -> None:
+        self.overlays.pop(layer_id, None)
+
     def set_selected_component(self, component_id: str | None) -> None:
         self.selected_component = component_id
 
@@ -136,7 +139,7 @@ class TestStudioViewport(unittest.TestCase):
         super().tearDown()
 
     def test_initial_state(self) -> None:
-        self.assertEqual(self.viewport.layers(), ["default", "geometry", "mass"])
+        self.assertEqual(self.viewport.layers(), ["default", "mass"])
         self.assertEqual(self.viewport.object_ids(), [])
         self.assertIs(self.viewport.renderer, self.mock_renderer)
 
@@ -279,6 +282,26 @@ class TestStudioViewport(unittest.TestCase):
         self.viewport.clear()
         self.assertEqual(self.viewport.object_ids(), [])
         self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 0)
+
+    def test_overlays_follow_their_layer(self) -> None:
+        ring = RingPrimitive(center=(0.0, 0.0, 0.0))
+        with self.assertRaises(ValueError):
+            self.viewport.set_overlays("marks", [ring], layer="analysis")
+
+        self.viewport.add_layer("analysis", name="CFD Analysis")
+        self.viewport.set_overlays("marks", [ring], layer="analysis")
+        self.assertEqual(self.mock_renderer.overlays["marks"], [ring])
+
+        self.viewport.set_layer_visible("analysis", False)
+        self.assertNotIn("marks", self.mock_renderer.overlays)
+        self.viewport.set_overlays("marks", [ring, ring], layer="analysis")
+        self.assertNotIn("marks", self.mock_renderer.overlays, "a hidden layer draws nothing")
+
+        self.viewport.set_layer_visible("analysis", True)
+        self.assertEqual(self.mock_renderer.overlays["marks"], [ring, ring])
+
+        self.viewport.remove_layer("analysis")
+        self.assertNotIn("marks", self.mock_renderer.overlays)
 
     def test_add_and_remove_layer(self) -> None:
         # Explicitly add layer
@@ -591,13 +614,16 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsNotNone(hud.layers_button)
         self.assertIsNotNone(hud.layers_menu)
 
-        # Initial layers should be 'default' and 'geometry'
+        # Initial layers are the viewport's own: 'default' and 'mass'
         action_map = {action.data(): action for action in hud.layers_menu.actions()}
-        self.assertIn("default", action_map)
-        self.assertIn("geometry", action_map)
+        self.assertEqual(set(action_map), {"default", "mass"})
         self.assertTrue(action_map["default"].isCheckable())
         self.assertTrue(action_map["default"].isChecked())
-        self.assertTrue(action_map["geometry"].isChecked())
+        self.assertTrue(action_map["mass"].isChecked())
+
+        # A plugin's layer appears once the plugin registers it
+        self.viewport.add_layer("geometry", name="Geometry")
+        action_map = {action.data(): action for action in hud.layers_menu.actions()}
 
         # Test clicking geometry action toggles layer visibility in viewport
         visibility_events: list[tuple[str, bool]] = []

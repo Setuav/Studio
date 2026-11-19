@@ -10,13 +10,13 @@ from setuav_studio.ui.viewport import (
     VisualPrimitive,
 )
 
+GEOMETRY_LAYER = "geometry"
+GEOMETRY_LAYER_NAME = "Geometry"
+
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
     from .engine.scene import GeometryProvider
-
-AIRFRAME_LAYER = "airframe"
-AIRFRAME_LAYER_NAME = "Airframe Design"
 
 
 def _to_rgba(c: Any) -> tuple[float, float, float, float]:
@@ -72,12 +72,12 @@ class AirframeSceneController:
         if viewport is None:
             return
 
-        if not viewport.has_layer(AIRFRAME_LAYER):
-            viewport.add_layer(AIRFRAME_LAYER, name=AIRFRAME_LAYER_NAME, visible=True)
+        if not viewport.has_layer(GEOMETRY_LAYER):
+            viewport.add_layer(GEOMETRY_LAYER, name=GEOMETRY_LAYER_NAME, visible=True)
 
         doc = project if project is not None else self._api.project
         if doc is None:
-            viewport.clear(layer=AIRFRAME_LAYER)
+            viewport.clear(layer=GEOMETRY_LAYER)
             return
 
         from .engine.scene import build_project_geometry
@@ -87,7 +87,7 @@ class AirframeSceneController:
         except ValueError as exc:
             # Invalid geometry data in the project: drop the stale airframe and tell
             # the user why it is not drawn.
-            viewport.clear(layer=AIRFRAME_LAYER)
+            viewport.clear(layer=GEOMETRY_LAYER)
             self._api.show_status(f"Airframe geometry error: {exc}", "error", 6000)
             return
 
@@ -99,7 +99,7 @@ class AirframeSceneController:
         }
 
         active_ids = set(comp_primitives.keys()) | set(comp_envelopes.keys())
-        existing_ids = set(viewport.object_ids(layer=AIRFRAME_LAYER))
+        existing_ids = set(viewport.object_ids(layer=GEOMETRY_LAYER))
 
         for removed_id in existing_ids - active_ids:
             viewport.remove(removed_id)
@@ -110,7 +110,7 @@ class AirframeSceneController:
             name = comp_names.get(comp_id, comp_id)
             obj = SceneObject(
                 object_id=comp_id,
-                layer=AIRFRAME_LAYER,
+                layer=GEOMETRY_LAYER,
                 name=name,
                 primitives=prims,
                 envelope=env,
@@ -127,4 +127,4 @@ class AirframeSceneController:
         """Clean up geometry objects from viewport."""
         viewport = self._api.viewport
         if viewport is not None:
-            viewport.clear(layer=AIRFRAME_LAYER)
+            viewport.clear(layer=GEOMETRY_LAYER)

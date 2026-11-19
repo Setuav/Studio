@@ -44,6 +44,10 @@ from .widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
 
+# Layers the viewport itself provides: objects without a layer, and the CG markers.
+DEFAULT_LAYER = "default"
+MASS_LAYER = "mass"
+
 _SETTING_PREFIX = "studio_viewport"
 _SETTING_ORTHO = f"{_SETTING_PREFIX}_orthographic"
 _SETTING_SOLID = f"{_SETTING_PREFIX}_show_solid"
@@ -102,7 +106,6 @@ class StudioViewport(QWidget):
         self._selected_section: tuple[str, int, int] | None = None
         self._selected_cg_component_id: str | None = None
         self._selected_envelope_component_id: str | None = None
-        self._show_aircraft_cg: bool = False
 
         # Camera & Display state
         settings = QSettings()
@@ -122,6 +125,8 @@ class StudioViewport(QWidget):
 
         # Scene graph: object_id -> SceneObject
         self._objects: dict[str, SceneObject] = {}
+        # Overlays drawn directly by the renderer: overlay_id -> (layer, primitives)
+        self._overlays: dict[str, tuple[str, list[VisualPrimitive]]] = {}
 
         # Reference to the low-level OpenGL widget (defaulting to embedded OpenGLViewer)
         self._renderer: QWidget | None = None
@@ -132,9 +137,8 @@ class StudioViewport(QWidget):
 
         # Layers: layer_id -> Layer
         self._layers: dict[str, Layer] = {}
-        self.add_layer("default", name="Default")
-        self.add_layer("geometry", name="Geometry")
-        self.add_layer("mass", name="Center of Gravity")
+        self.add_layer(DEFAULT_LAYER, name="Default")
+        self.add_layer(MASS_LAYER, name="Center of Gravity")
 
         # Floating bottom HUD bar
         self.hud = StudioViewportHUD(self)
@@ -228,6 +232,7 @@ class StudioViewport(QWidget):
         api.on_selection_changed(self._on_api_selection_changed)
         api.on_section_selection_changed(self._on_api_section_selection_changed)
         self.object_picked.connect(self._on_object_picked_to_api)
+        self.layer_visibility_changed.connect(lambda _layer, _visible: api.refresh_toolbar_states())
         api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
 
     def _on_project_content_changed(self) -> None:
@@ -270,7 +275,7 @@ class StudioViewport(QWidget):
         return layer
 
     def remove_layer(self, layer_id: str) -> bool:
-        """Remove a registered layer and all objects belonging to it.
+        """Remove a registered layer and all objects and overlays belonging to it.
 
         Args:
             layer_id: Identifier of the layer to remove.
@@ -282,6 +287,8 @@ class StudioViewport(QWidget):
             return False
         del self._layers[layer_id]
         self._objects = {oid: obj for oid, obj in self._objects.items() if obj.layer != layer_id}
+        for overlay_id in [oid for oid, (layer, _p) in self._overlays.items() if layer == layer_id]:
+            self.clear_overlays(overlay_id)
         self._sync_renderer()
         self.layers_changed.emit()
         return True
@@ -299,12 +306,15 @@ class StudioViewport(QWidget):
         return sorted(self._layers.keys())
 
     def set_layer_visible(self, layer: str, visible: bool) -> None:
-        """Show or hide all objects belonging to *layer*."""
+        """Show or hide all objects and overlays belonging to *layer*."""
         if layer in self._layers:
             self._layers[layer].visible = visible
         else:
             self.add_layer(layer, visible=visible)
         self._sync_renderer()
+        for overlay_id, (overlay_layer, _primitives) in self._overlays.items():
+            if overlay_layer == layer:
+                self._push_overlay(overlay_id)
         self.layer_visibility_changed.emit(layer, visible)
 
     def is_layer_visible(self, layer: str) -> bool:
@@ -896,19 +906,30 @@ class StudioViewport(QWidget):
         if callable(set_overlays):
             set_overlays("_viewport_api", primitives)
 
-    def set_overlays(self, layer_id: str, primitives: Sequence[VisualPrimitive]) -> None:
-        """Set an overlay primitive layer directly on the underlying renderer."""
-        if self._renderer is not None:
-            set_ov = getattr(self._renderer, "set_overlays", None)
-            if callable(set_ov):
-                set_ov(layer_id, list(primitives))
+    def set_overlays(
+        self, overlay_id: str, primitives: Sequence[VisualPrimitive], *, layer: str
+    ) -> None:
+        """Set the primitives the renderer draws as overlay *overlay_id*.
 
-    def clear_overlays(self, layer_id: str | None = None) -> None:
-        """Clear an overlay layer on the underlying renderer."""
-        if self._renderer is not None:
-            clear_ov = getattr(self._renderer, "clear_overlays", None)
-            if callable(clear_ov):
-                clear_ov(layer_id)
+        The overlay belongs to *layer*, which its owner registers with
+        :meth:`add_layer`; it is drawn only while that layer is visible.
+        """
+        if layer not in self._layers:
+            raise ValueError(f"Overlay {overlay_id!r} names unregistered layer {layer!r}.")
+        self._overlays[overlay_id] = (layer, list(primitives))
+        self._push_overlay(overlay_id)
+
+    def clear_overlays(self, overlay_id: str) -> None:
+        """Remove overlay *overlay_id*."""
+        self._overlays.pop(overlay_id, None)
+        _call_method(self._renderer, "clear_overlays", overlay_id)
+
+    def _push_overlay(self, overlay_id: str) -> None:
+        layer, primitives = self._overlays[overlay_id]
+        if self.is_layer_visible(layer):
+            _call_method(self._renderer, "set_overlays", overlay_id, primitives)
+        else:
+            _call_method(self._renderer, "clear_overlays", overlay_id)
 
     def set_selected_cg(self, component_id: str | None) -> None:
         """Update 3D CG marker overlay for the selected component."""
@@ -924,7 +945,7 @@ class StudioViewport(QWidget):
 
         prims = build_component_cg_primitives(component_id, project, self._api.subpart_types)
         if prims:
-            self.set_overlays("component_cg", prims)
+            self.set_overlays("component_cg", prims, layer=MASS_LAYER)
         else:
             self.clear_overlays("component_cg")
 
@@ -961,20 +982,9 @@ class StudioViewport(QWidget):
         active = getattr(self, "_selected_envelope_component_id", None)
         return bool(active and active == component_id)
 
-    def set_show_aircraft_cg(self, show: bool) -> None:
-        """Toggle visualization of the aircraft total center of gravity."""
-        self._show_aircraft_cg = bool(show)
-        self.update_aircraft_cg()
-        if self._api is not None:
-            self._api.refresh_toolbar_states()
-
-    def is_show_aircraft_cg(self) -> bool:
-        """Return whether aircraft total CG marker is currently displayed."""
-        return getattr(self, "_show_aircraft_cg", False)
-
     def update_aircraft_cg(self) -> None:
         """Refresh the aircraft total CG marker overlay."""
-        if not getattr(self, "_show_aircraft_cg", False) or self._api is None:
+        if self._api is None:
             self.clear_overlays("aircraft_cg")
             return
         project = self._api.project
@@ -985,7 +995,7 @@ class StudioViewport(QWidget):
 
         prims = build_aircraft_cg_primitives(project)
         if prims:
-            self.set_overlays("aircraft_cg", prims)
+            self.set_overlays("aircraft_cg", prims, layer=MASS_LAYER)
         else:
             self.clear_overlays("aircraft_cg")
 

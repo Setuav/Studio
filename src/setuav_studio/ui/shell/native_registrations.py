@@ -11,6 +11,7 @@ from setuav_studio.api import (
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
+from setuav_studio.ui.viewport import MASS_LAYER
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -136,14 +137,13 @@ def _on_add_point_mass_triggered(api: StudioAPI) -> None:
     api.set_selection(component)
 
 
-def _on_toggle_aircraft_cg(api: StudioAPI) -> None:
-    """Toggle visibility of the aircraft aggregate Center of Gravity marker in the Viewport."""
+def _on_toggle_cg(api: StudioAPI) -> None:
+    """Show or hide the Center of Gravity layer of the viewport."""
     viewport = api.viewport
     if viewport is not None:
-        current = bool(viewport.is_show_aircraft_cg())
-        viewport.set_show_aircraft_cg(not current)
-        state_label = "enabled" if not current else "disabled"
-        api.show_status(f"Aircraft CG visualization {state_label}.", "info", 2000)
+        visible = not viewport.is_layer_visible(MASS_LAYER)
+        viewport.set_layer_visible(MASS_LAYER, visible)
+        api.show_status(f"Center of gravity {'shown' if visible else 'hidden'}.", "info", 2000)
     else:
         api.show_status("3D Viewport is not ready.", "info", 2000)
 
@@ -250,13 +250,13 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
     api.register_toolbar_item(
         ToolbarContribution(
-            id="org.setuav.studio.toolbar.toggle_aircraft_cg",
-            title="Toggle Aircraft CG",
-            callback=lambda: _on_toggle_aircraft_cg(api),
+            id="org.setuav.studio.toolbar.toggle_cg",
+            title="Show Center of Gravity",
+            callback=lambda: _on_toggle_cg(api),
             icon="point_mass",
             checkable=True,
             checked_when=lambda: bool(
-                api.viewport is not None and api.viewport.is_show_aircraft_cg()
+                api.viewport is not None and api.viewport.is_layer_visible(MASS_LAYER)
             ),
             group="view",
             order=50,
