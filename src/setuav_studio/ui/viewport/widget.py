@@ -382,13 +382,8 @@ class OpenGLViewer(QOpenGLWidget):
         if gl is None:
             return
         if self._mesh_dirty:
-            try:
-                self._upload_meshes()
-                self._mesh_dirty = False
-            except Exception:
-                # Keep the data dirty so a later, valid paint context can
-                # retry instead of leaving the viewer permanently empty.
-                logger.exception("Geometry OpenGL mesh upload failed")
+            self._upload_meshes()
+            self._mesh_dirty = False
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
@@ -1140,11 +1135,8 @@ class OpenGLViewer(QOpenGLWidget):
 
             # Re-upload meshes so the FBO gets the latest data
             if self._mesh_dirty:
-                try:
-                    self._upload_meshes()
-                    self._mesh_dirty = False
-                except Exception:
-                    logger.exception("Mesh upload failed during screenshot")
+                self._upload_meshes()
+                self._mesh_dirty = False
 
             # Clear
             if transparent_background:
@@ -1179,9 +1171,6 @@ class OpenGLViewer(QOpenGLWidget):
             # Restore widget viewport
             gl.functions.glViewport(0, 0, self.width(), self.height())
             return image
-        except Exception:
-            logger.exception("Screenshot capture failed")
-            return None
         finally:
             self.doneCurrent()
 
