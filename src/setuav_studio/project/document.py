@@ -41,6 +41,10 @@ class ProjectDocument:
     read_only: bool = field(default=False, compare=False)
     untitled: bool = field(default=False, compare=False)
     expression_diagnostics: list[dict[str, str]] = field(default_factory=list, compare=False)
+    # Deserialized solver results by id, kept in step with data["solver_results"].
+    _solver_results_cache: dict[str, SolverResult] = field(
+        default_factory=dict, init=False, compare=False, repr=False
+    )
 
     @property
     def location(self) -> Path:
@@ -64,9 +68,6 @@ class ProjectDocument:
         """Return the dictionary of SolverResult objects stored in the project data."""
         from setuav_studio.solver.results import SolverResult
 
-        if not hasattr(self, "_solver_results_cache"):
-            self._solver_results_cache: dict[str, SolverResult] = {}
-
         raw_results = self.data.get("solver_results")
         if not isinstance(raw_results, dict):
             self._solver_results_cache.clear()
@@ -85,8 +86,6 @@ class ProjectDocument:
 
     def add_solver_result(self, result: SolverResult) -> None:
         """Add or update a SolverResult in the project data."""
-        if not hasattr(self, "_solver_results_cache"):
-            self._solver_results_cache = {}
         self._solver_results_cache[result.id] = result
         if "solver_results" not in self.data or not isinstance(self.data["solver_results"], dict):
             self.data["solver_results"] = {}
@@ -99,8 +98,7 @@ class ProjectDocument:
 
     def remove_solver_result(self, result_id: str) -> bool:
         """Remove a SolverResult by ID if present."""
-        if hasattr(self, "_solver_results_cache") and result_id in self._solver_results_cache:
-            del self._solver_results_cache[result_id]
+        self._solver_results_cache.pop(result_id, None)
         raw_results = self.data.get("solver_results")
         if isinstance(raw_results, dict) and result_id in raw_results:
             del raw_results[result_id]
@@ -110,8 +108,7 @@ class ProjectDocument:
 
     def clear_solver_results(self) -> None:
         """Clear all solver results from the project data."""
-        if hasattr(self, "_solver_results_cache"):
-            self._solver_results_cache.clear()
+        self._solver_results_cache.clear()
         if "solver_results" in self.data:
             self.data["solver_results"] = {}
             self.modified = True
