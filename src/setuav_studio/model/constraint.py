@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -20,6 +19,17 @@ def parse_path_segments(path: str) -> list[str | int]:
         else:
             segments.append(token)
     return segments
+
+
+def _mapped_number(project_data: dict[str, Any], name: str, path: str) -> float:
+    """The number a constraint variable maps to at ``path`` in the project data."""
+    try:
+        value = get_by_path(project_data, path)
+    except (KeyError, IndexError) as exc:
+        raise ExpressionEvaluationError(f"Variable '{name}': {exc}") from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ExpressionEvaluationError(f"Variable '{name}': '{path}' is not a number")
+    return float(value)
 
 
 def get_by_path(target: Any, path: str) -> Any:
@@ -131,18 +141,14 @@ class ConstraintChecker:
             else self.extract_context(project_data, api=api, config_id=config_id)
         )
 
-        # Apply explicit variable mappings if specified in constraint
         var_mappings = constraint.get("variables")
         resolved_values: dict[str, Any] = {}
-        if isinstance(var_mappings, dict):
-            for var_name, path in var_mappings.items():
-                with contextlib.suppress(Exception):
-                    val = get_by_path(project_data, str(path))
-                    if isinstance(val, (int, float)):
-                        eval_ctx[var_name] = val
 
         # Evaluate boolean expression
         try:
+            if isinstance(var_mappings, dict):
+                for var_name, path in var_mappings.items():
+                    eval_ctx[var_name] = _mapped_number(project_data, str(var_name), str(path))
             val = self.evaluator.evaluate(expr, eval_ctx)
             # Find symbols used in expression for reporting
             used_symbols = self.evaluator.extract_symbols(expr)

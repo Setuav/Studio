@@ -329,6 +329,27 @@ def test_constraint_syntax_or_unknown_variable() -> None:
     assert res.error is not None
 
 
+def test_constraint_variables_map_to_project_numbers() -> None:
+    checker = ConstraintChecker()
+    project_data = {"parameters": {}, "limits": {"mass": 2.5, "label": "light"}}
+
+    def constraint(path: str) -> dict[str, object]:
+        return {
+            "id": "c",
+            "name": "Mass",
+            "expression": "m < 3",
+            "variables": {"m": path},
+        }
+
+    assert checker.check_constraint(constraint("limits.mass"), project_data).passed
+    missing = checker.check_constraint(constraint("limits.weight"), project_data)
+    assert not missing.passed
+    assert "Variable 'm'" in missing.message
+    text = checker.check_constraint(constraint("limits.label"), project_data)
+    assert not text.passed
+    assert "is not a number" in text.message
+
+
 # ==============================================================================
 # 4. Universal Hierarchical Scope Tests
 # ==============================================================================
