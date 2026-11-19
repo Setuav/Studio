@@ -55,4 +55,7 @@ Operating instructions for coding agents working on Setuav Studio. Keep this fil
 
 Append a concrete one-line rule when corrected (`Always/Never X for Y`). Prune rules that no longer prevent real mistakes. Keep the full file under 120 lines.
 
-- (empty)
+- Always reuse existing Studio APIs, `ui/widget` helpers and native editor patterns in plugins; grep before writing a helper, and never add visuals native editors lack.
+- Always build numeric fields with `ParameterField` + `bind_parametric_properties`, and save formulas via `set_expression`, never just the evaluated number.
+- The manufacturing plugin uses `plugins.geometry.engine` and core `resolve_world_transform` for geometry; never duplicate geometry math.
+- Never let project listeners raise domain errors (report via `api.show_status`), and run background work only through `api.tasks.submit`.

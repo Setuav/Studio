@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping
 from itertools import pairwise
 
-from .loft_mesh import _centroid, _tessellated_loops
+from .loft_mesh import _centroid, tessellated_loops
 from .primitives import (
     BoxPrimitive,
     CylinderPrimitive,
@@ -250,7 +250,7 @@ def _ray_primitive_intersection(  # noqa: C901
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
-            loops = _tessellated_loops(loft)
+            loops = tessellated_loops(loft)
             if loops:
                 for current, following in pairwise(loops):
                     for index in range(len(current)):

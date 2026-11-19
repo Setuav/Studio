@@ -145,7 +145,9 @@ def build_section_ring_vertices(
     return vertices
 
 
-def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
+def tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
+    """The loops the viewport draws ``loft`` with: its sections and the stations
+    interpolated between them."""
     sections = [section.points for section in loft.sections]
     if len(sections) < 2:
         return []

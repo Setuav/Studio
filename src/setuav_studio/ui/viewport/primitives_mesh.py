@@ -24,7 +24,7 @@ from .loft_mesh import (
     _append_loft_wire,
     _append_ring,
     _cap_loop,
-    _tessellated_loops,
+    tessellated_loops,
 )
 from .primitives import (
     BoxPrimitive,
@@ -140,7 +140,7 @@ def build_primitive_solid_vertices(  # noqa: C901
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
-            loops = _tessellated_loops(loft)
+            loops = tessellated_loops(loft)
             if len(loops) >= 2:
                 for first, second in pairwise(loops):
                     _add_quad_strip(vertices, first, second, color)
@@ -267,7 +267,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
-            loops = _tessellated_loops(loft)
+            loops = tessellated_loops(loft)
             if loops:
                 if wire_mode == WIRE_FEATURE:
                     _append_loft_feature_wire(vertices, loft, loops, color)
@@ -433,7 +433,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
-            loops = _tessellated_loops(loft)
+            loops = tessellated_loops(loft)
             if loops:
                 if wire_mode == WIRE_FEATURE:
                     _append_loft_feature_wire(vertices, loft, loops, color)
