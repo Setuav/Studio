@@ -139,31 +139,6 @@ class UnitManager(QObject):
 
     from_display = to_base
 
-    def get_inertia_display(self, base_val_kg_m2: float) -> tuple[float, str]:
-        """Convert standard kg*m^2 inertia tensor value based on active inertia unit."""
-        disp_val = self.to_display(base_val_kg_m2, "inertia")
-        symbol = self.get_unit_symbol("inertia")
-        return disp_val, symbol
-
-    def get_wing_loading_display(self, base_val_g_dm2: float) -> tuple[float, str]:
-        """Convert standard g/dm^2 wing loading based on active mass & area units."""
-        mass_u_id = self.get_display_unit("mass")
-        area_u_id = self.get_display_unit("area")
-
-        mass_u = QUANTITIES["mass"].units.get(mass_u_id)
-        area_u = QUANTITIES["area"].units.get(area_u_id)
-
-        if not mass_u or not area_u:
-            return base_val_g_dm2, "g/dm²"
-
-        mass_scale = mass_u.from_base if not callable(mass_u.from_base) else 1.0
-        area_scale = area_u.from_base if not callable(area_u.from_base) else 1.0
-
-        scale = mass_scale / area_scale if area_scale != 0 else 1.0
-        disp_val = base_val_g_dm2 * scale
-        symbol = f"{mass_u.symbol}/{area_u.symbol}"
-        return disp_val, symbol
-
 
 _unit_manager_instance: UnitManager | None = None
 

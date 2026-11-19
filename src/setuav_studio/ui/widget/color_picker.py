@@ -244,10 +244,6 @@ class ColorPickerWidget(QWidget):
         """Get the current QColor."""
         return self._current_color
 
-    def rgb_tuple(self) -> tuple[int, int, int]:
-        """Get the current RGB values as an (r, g, b) integer tuple."""
-        return (self._current_color.red(), self._current_color.green(), self._current_color.blue())
-
     def rgb_text(self) -> str:
         """Get the current RGB string formatted as 'r, g, b'."""
         return color_to_rgb_str(self._current_color)

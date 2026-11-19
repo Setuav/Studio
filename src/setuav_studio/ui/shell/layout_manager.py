@@ -23,11 +23,6 @@ class LayoutManager:
         self.layout_save_scheduled = False
         self.layout_persistence_enabled = False
 
-    def restore_window_layout(self) -> None:
-        """Restore the window geometry and unified dock layout."""
-        self.restore_window_geometry()
-        self.restore_dock_layout()
-
     def restore_window_geometry(self) -> None:
         """Restore only the top-level window geometry."""
         settings = QSettings()
@@ -137,19 +132,6 @@ class LayoutManager:
 
     def dock(self, panel_id: str) -> QDockWidget | None:
         return self._window.findChild(QDockWidget, panel_id)
-
-    def resize_visible_docks(
-        self,
-        docks: tuple[QDockWidget | None, ...],
-        widths: list[int],
-    ) -> None:
-        visible_docks = [d for d in docks if d is not None and not d.isHidden()]
-        if visible_docks:
-            self._window.resizeDocks(
-                visible_docks,
-                widths[: len(visible_docks)],
-                Qt.Orientation.Horizontal,
-            )
 
 
 __all__ = ["LayoutManager"]

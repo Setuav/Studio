@@ -119,38 +119,22 @@ def test_save_folder_as_archive_with_assets(tmp_path: Path) -> None:
         assert zf.read("assets/airfoil.dat") == b"airfoil data"
 
 
-def test_plugin_data_and_extensions_roundtrip(tmp_path: Path) -> None:
+def test_extensions_roundtrip(tmp_path: Path) -> None:
     project = create_project(tmp_path / "ext_test.suav")
     project.data["components"] = [
         {
             "id": "wing-1",
             "name": "Main Wing",
             "type": "org.setuav.core:lifting-surface",
+            "extensions": {"aero_plugin": {"cl_max": 1.4}},
         }
     ]
+    project.data["extensions"] = {"mission_plugin": {"waypoints": [1, 2, 3]}}
 
-    # 1. Set & Get Root Plugin Data
-    project.set_plugin_data("mission_plugin", {"waypoints": [1, 2, 3]})
-    assert project.get_plugin_data("mission_plugin") == {"waypoints": [1, 2, 3]}
-    assert project.get_plugin_data("unknown", default="fallback") == "fallback"
-
-    # 2. Set & Get Component Plugin Data
-    project.set_component_plugin_data("wing-1", "aero_plugin", {"cl_max": 1.4})
-    assert project.get_component_plugin_data("wing-1", "aero_plugin") == {"cl_max": 1.4}
-    assert project.get_component_plugin_data("wing-1", "missing", default=None) is None
-    assert (
-        project.get_component_plugin_data("missing-comp", "aero_plugin", default="missing")
-        == "missing"
-    )
-
-    # 3. Remove Plugin Data
-    project.remove_plugin_data("mission_plugin")
-    assert project.get_plugin_data("mission_plugin") is None
-
-    # 4. Save and reload
     save_project(project)
     reloaded = open_project(project.path)
-    assert reloaded.get_component_plugin_data("wing-1", "aero_plugin") == {"cl_max": 1.4}
+    assert reloaded.data["extensions"] == {"mission_plugin": {"waypoints": [1, 2, 3]}}
+    assert reloaded.data["components"][0]["extensions"] == {"aero_plugin": {"cl_max": 1.4}}
 
 
 def test_component_lookup_helpers() -> None:
@@ -203,7 +187,7 @@ def test_save_project_validation_prevents_corrupt_hierarchy(tmp_path: Path) -> N
         save_project(project)
 
 
-def test_typed_component_and_mass_properties() -> None:
+def test_mass_properties() -> None:
     doc = ProjectDocument(
         Path("test.json"),
         "json",
@@ -219,11 +203,6 @@ def test_typed_component_and_mass_properties() -> None:
             ]
         },
     )
-    typed = doc.get_typed_component("c1")
-    assert typed is not None
-    assert typed.name == "Main Wing"
-    assert doc.get_typed_component("nonexistent") is None
-
     mass_props = doc.mass_properties
     assert mass_props is not None
     assert math.isclose(mass_props.mass_kg, 2.5)

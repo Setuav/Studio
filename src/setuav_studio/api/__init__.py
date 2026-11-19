@@ -26,7 +26,6 @@ from .contributions import (
     ToolContribution,
 )
 from .events import StudioEvents
-from .hooks import HookRegistry
 from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand
 
@@ -40,7 +39,6 @@ __all__ = [
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "ComponentTypeContribution",
-    "HookRegistry",
     "PanelContribution",
     "ParameterField",
     "ProjectTreeNodeContribution",

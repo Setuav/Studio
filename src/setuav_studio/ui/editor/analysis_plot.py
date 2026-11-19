@@ -451,9 +451,6 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
             {"result_id": self._result_id, "plot_id": self._plot_id, "action": "reset_plot"},
         )
 
-    def _on_reset_view_clicked(self) -> None:
-        self._on_reset_plot_clicked()
-
     def _on_export_png_clicked(self) -> None:
         self._api.publish(
             str(StudioEvents.ANALYSIS_PLOT_ACTION),

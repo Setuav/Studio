@@ -8,7 +8,7 @@ import pytest
 from pythrust.battery import BatteryState
 
 from plugins.electrical_propulsion.chemistry import CHEMISTRIES, chemistry_profile
-from plugins.electrical_propulsion.models.battery import battery_pack, default_battery_pack
+from plugins.electrical_propulsion.models.battery import battery_pack
 
 
 def _params(chemistry: str = "LiPo", **values: Any) -> dict[str, Any]:
@@ -99,7 +99,7 @@ def test_rate_map_resistance_is_the_cell_resistance_at_half_usable_dod() -> None
 def test_overrides_replace_the_derived_values() -> None:
     params = _params(charge_voltage=4.35, cell_resistance=0.003, c_rate=25.0, pack_mass=700.0)
     pack = battery_pack(params)
-    defaults = default_battery_pack(params)
+    defaults = battery_pack(_params())
 
     assert pack.charge_voltage_v == 4.35
     assert pack.cell_resistance_ohm == 0.003

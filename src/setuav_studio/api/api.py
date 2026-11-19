@@ -11,7 +11,6 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.style.icons import get_icon
 
@@ -134,7 +133,6 @@ class StudioAPI:
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
-        self._hooks = HookRegistry()
         from setuav_studio.task.manager import TaskManager
 
         self._tasks = TaskManager(self)
@@ -160,11 +158,6 @@ class StudioAPI:
     def viewport(self) -> StudioViewport | None:
         """Return the central :class:`StudioViewport` instance, or *None*."""
         return self._viewport
-
-    @property
-    def hooks(self) -> HookRegistry:
-        """Central extensible lifecycle hooks registry."""
-        return self._hooks
 
     @property
     def tasks(self) -> TaskManager:

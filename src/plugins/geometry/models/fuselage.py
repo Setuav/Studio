@@ -89,16 +89,6 @@ class FuselageModel(Component):
         return all_sections
 
     @property
-    def nose_section(self) -> FuselageSectionModel | None:
-        secs = self.sections
-        return secs[0] if secs else None
-
-    @property
-    def tail_section(self) -> FuselageSectionModel | None:
-        secs = self.sections
-        return secs[-1] if secs else None
-
-    @property
     def length(self) -> float:
         secs = self.sections
         if secs:

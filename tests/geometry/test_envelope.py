@@ -535,7 +535,8 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertGreater(len(fuse_env.lines), 0)
 
     def test_build_envelope_wire_vertices_and_colors(self) -> None:
-        from plugins.geometry.engine.data import EnvelopeWireGeometry, GeometryData
+        from plugins.geometry.engine.data import EnvelopeWireGeometry
+        from setuav_studio.ui.viewport import SceneObject
         from setuav_studio.ui.viewport.mesh import (
             ENVELOPE_HIGHLIGHT,
             build_envelope_wire_vertices,
@@ -548,14 +549,14 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 ((100.0, 0.0, 0.0), (100.0, 50.0, 0.0)),
             ),
         )
-        data = GeometryData(envelopes=(env,))
+        scene_objects = {"fuse-1": SceneObject(object_id="fuse-1", envelope=env)}
 
         # Not selected -> empty
-        self.assertEqual(build_envelope_wire_vertices(data, None), [])
-        self.assertEqual(build_envelope_wire_vertices(data, "other"), [])
+        self.assertEqual(build_envelope_wire_vertices(scene_objects, None), [])
+        self.assertEqual(build_envelope_wire_vertices(scene_objects, "other"), [])
 
         # Selected -> returns line vertices with bright green color
-        verts = build_envelope_wire_vertices(data, "fuse-1")
+        verts = build_envelope_wire_vertices(scene_objects, "fuse-1")
         # 2 lines * 2 vertices * 6 floats (x, y, z, r, g, b) = 24 floats
         self.assertEqual(len(verts), 24)
         # Check green channel

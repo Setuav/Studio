@@ -16,7 +16,6 @@ from setuav_studio.model.expression import (
     set_expression,
 )
 from setuav_studio.model.parameter import (
-    CircularDependencyError,
     ParameterResolver,
 )
 from setuav_studio.model.scope import DotDict, to_dot_dict
@@ -121,15 +120,13 @@ def test_resolve_derived_parameters() -> None:
     assert math.isclose(resolved["mean_chord"], 0.5)
 
 
-def test_evaluation_order() -> None:
+def test_resolve_all_follows_dependencies() -> None:
     resolver = ParameterResolver()
     params = {
         "c": "= b * 2",
         "a": 10,
         "b": "= a + 5",
     }
-    order = resolver.get_evaluation_order(params)
-    assert order == ["a", "b", "c"]
     assert resolver.resolve_all(params).values == {"a": 10, "b": 15, "c": 30}
 
 
@@ -141,8 +138,6 @@ def test_detect_circular_dependency() -> None:
     }
     cycles = resolver.detect_cycles(params)
     assert len(cycles) > 0
-    with pytest.raises(CircularDependencyError):
-        resolver.get_evaluation_order(params)
 
 
 def test_resolve_all_reports_cycles_and_dependents() -> None:
@@ -171,19 +166,6 @@ def test_resolve_all_reports_failed_expression() -> None:
         "parameters.uses_bad",
     ]
     assert resolution.diagnostics[0]["expression"] == "= missing + 1"
-
-
-def test_get_dependents() -> None:
-    resolver = ParameterResolver()
-    params = {
-        "a": 10,
-        "b": "= a * 2",
-        "c": "= b + 5",
-        "d": 20,
-    }
-    deps_of_a = resolver.get_dependents(params, "a")
-    assert deps_of_a == {"b", "c"}
-    assert resolver.get_dependents(params, "d") == set()
 
 
 def test_evaluate_component_parameters(tmp_path: Path) -> None:
@@ -414,8 +396,6 @@ def test_component_referencing_expression_evaluates_and_readers_use_stored_value
     # Readers must read stored values directly without re-evaluating component expressions.
     scope_before = proj.get_scope()
     assert math.isclose(scope_before["ballast"].mass, 10.0)
-    models_before = proj.get_component_models()
-    assert math.isclose(next(m for m in models_before if m.id == "ballast").mass, 10.0)
     scene_before = build_project_geometry(proj, {})
     assert scene_before is not None
 

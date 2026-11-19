@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QLabel,
     QMainWindow,
-    QPushButton,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -66,14 +65,6 @@ class ResultPanel(QWidget):
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(4)
 
-        self._toolbar = QWidget(self)
-        self._toolbar.hide()
-        self._count_label = QLabel()
-        self._tabify_btn = QPushButton()
-        self._tile_h_btn = QPushButton()
-        self._tile_v_btn = QPushButton()
-        self._clear_btn = QPushButton()
-
         # Stacked Widget: Page 0 = Empty state, Page 1 = Dock Container
         self._stack = QStackedWidget()
         main_layout.addWidget(self._stack)
@@ -103,12 +94,6 @@ class ResultPanel(QWidget):
 
         self._stack.addWidget(self._dock_container)
         self._stack.setCurrentWidget(self._empty_view)
-        self._update_toolbar()
-
-    @property
-    def open_pane_keys(self) -> tuple[str, ...]:
-        """Return tuple of currently open pane identifier keys."""
-        return tuple(self._panes.keys())
 
     def show_plot(
         self,
@@ -166,7 +151,6 @@ class ResultPanel(QWidget):
         self._place_dock_progressive(dock)
 
         self._stack.setCurrentWidget(self._dock_container)
-        self._update_toolbar()
 
     def show_table(
         self,
@@ -222,7 +206,6 @@ class ResultPanel(QWidget):
         self._place_dock_progressive(dock)
 
         self._stack.setCurrentWidget(self._dock_container)
-        self._update_toolbar()
 
     def _place_dock_progressive(self, dock: ResultDockWidget) -> None:
         """Place dock into a 2-row x 3-column progressive layout."""
@@ -291,10 +274,6 @@ class ResultPanel(QWidget):
         dock.show()
         self._layout_docks.append(dock)
 
-    def _add_dock(self, dock: ResultDockWidget) -> None:
-        """Add a dock widget to the inner docking window."""
-        self._place_dock_progressive(dock)
-
     def close_pane(self, key: str) -> None:
         """Close and remove a specific dock pane."""
         if key not in self._panes:
@@ -309,44 +288,12 @@ class ResultPanel(QWidget):
         if not self._panes:
             self._layout_docks.clear()
             self._stack.setCurrentWidget(self._empty_view)
-        self._update_toolbar()
 
     def clear_all(self) -> None:
         """Close all open result dock panes and reset to empty state."""
         self._layout_docks.clear()
         for key in list(self._panes.keys()):
             self.close_pane(key)
-
-    def tabify_all(self) -> None:
-        """Tabify all currently open dock widgets together."""
-        docks = [d for d in self._dock_window.findChildren(QDockWidget) if not d.isHidden()]
-        if len(docks) >= 2:
-            first = docks[0]
-            for other in docks[1:]:
-                self._dock_window.tabifyDockWidget(first, other)
-            first.raise_()
-
-    def tile_horizontally(self) -> None:
-        """Tile all open dock widgets side-by-side horizontally."""
-        docks = [d for d in self._dock_window.findChildren(QDockWidget) if not d.isHidden()]
-        if len(docks) >= 2:
-            first = docks[0]
-            for other in docks[1:]:
-                self._dock_window.splitDockWidget(first, other, Qt.Orientation.Horizontal)
-                first = other
-
-    def tile_vertically(self) -> None:
-        """Tile all open dock widgets vertically (stacked)."""
-        docks = [d for d in self._dock_window.findChildren(QDockWidget) if not d.isHidden()]
-        if len(docks) >= 2:
-            first = docks[0]
-            for other in docks[1:]:
-                self._dock_window.splitDockWidget(first, other, Qt.Orientation.Vertical)
-                first = other
-
-    def equalize_sizes(self) -> None:
-        """Distribute available space equally between open panes."""
-        self.tile_horizontally()
 
     def get_chart_panel(self, result_id: str, plot_id: str) -> AnalysisChartPanel | None:
         """Return the active AnalysisChartPanel instance for a given plot if open."""
@@ -355,16 +302,6 @@ class ResultPanel(QWidget):
         if dock is not None:
             widget = dock.widget()
             if isinstance(widget, AnalysisChartPanel):
-                return widget
-        return None
-
-    def get_table_panel(self, result_id: str, table_id: str) -> AnalysisTablePanel | None:
-        """Return the active AnalysisTablePanel instance for a given table if open."""
-        key = f"table:{result_id}:{table_id}"
-        dock = self._panes.get(key)
-        if dock is not None:
-            widget = dock.widget()
-            if isinstance(widget, AnalysisTablePanel):
                 return widget
         return None
 
@@ -466,16 +403,6 @@ class ResultPanel(QWidget):
             self._handle_export_png_action(res, chart, result_id, plot_id)
         elif action == "export_csv":
             self._handle_export_csv_action(res, chart, plot_id)
-
-    def _update_toolbar(self) -> None:
-        """Update toolbar visibility, badges, and controls based on open pane count."""
-        count = len(self._panes)
-        self._count_label.setText(f"{count} view{'s' if count != 1 else ''}")
-        self._tabify_btn.setEnabled(count > 1)
-        self._tile_h_btn.setEnabled(count > 1)
-        self._tile_v_btn.setEnabled(count > 1)
-        self._clear_btn.setEnabled(True)
-        self._toolbar.setVisible(False)
 
     def _open_plots_group(self, result: SolverResult, mode: str = "add") -> None:
         """Open all plots belonging to a solver result."""

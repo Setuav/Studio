@@ -59,27 +59,6 @@ class ProjectDocument:
     def degraded(self) -> bool:
         return bool(self.plugin_issues)
 
-    def get_plugin_data(self, namespace: str, default: Any = None) -> Any:
-        """Retrieve root-level extension data for a given namespace."""
-        extensions = self.data.get("extensions")
-        if isinstance(extensions, dict) and namespace in extensions:
-            return extensions[namespace]
-        return default
-
-    def set_plugin_data(self, namespace: str, value: Any) -> None:
-        """Set root-level extension data for a given namespace."""
-        if "extensions" not in self.data or not isinstance(self.data["extensions"], dict):
-            self.data["extensions"] = {}
-        self.data["extensions"][namespace] = value
-        self.modified = True
-
-    def remove_plugin_data(self, namespace: str) -> None:
-        """Remove root-level extension data for a given namespace."""
-        extensions = self.data.get("extensions")
-        if isinstance(extensions, dict) and namespace in extensions:
-            del extensions[namespace]
-            self.modified = True
-
     @property
     def solver_results(self) -> dict[str, SolverResult]:
         """Return the dictionary of SolverResult objects stored in the project data."""
@@ -177,17 +156,6 @@ class ProjectDocument:
             self.data["solver_configs"] = {}
             self.modified = True
 
-    def get_typed_component(self, comp_id: str, api: Any | None = None) -> Any:
-        """Find a component by ID and return its live typed Component model."""
-        comp = self.get_component(comp_id)
-        if comp is None:
-            return None
-        if api is not None:
-            return api.create_component_model(comp)
-        from setuav_studio.model.component import Component
-
-        return Component(comp)
-
     def get_component(self, comp_id: str) -> dict[str, Any] | None:
         """Find a component by its ID."""
         components = self.data.get("components")
@@ -201,34 +169,6 @@ class ProjectDocument:
         from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
         return resolve_aircraft_mass_properties(self)
-
-    def get_component_plugin_data(self, comp_id: str, namespace: str, default: Any = None) -> Any:
-        """Retrieve component-level extension data for a given namespace."""
-        comp = self.get_component(comp_id)
-        if comp is None:
-            return default
-        extensions = comp.get("extensions")
-        if isinstance(extensions, dict) and namespace in extensions:
-            return extensions[namespace]
-        return default
-
-    def set_component_plugin_data(self, comp_id: str, namespace: str, value: Any) -> None:
-        """Set component-level extension data for a given namespace."""
-        comp = self.get_component(comp_id)
-        if comp is None:
-            raise KeyError(f"Component '{comp_id}' not found in project")
-        if "extensions" not in comp or not isinstance(comp["extensions"], dict):
-            comp["extensions"] = {}
-        comp["extensions"][namespace] = value
-        self.modified = True
-
-    def get_component_models(
-        self, api: Any | None = None, config_id: str | None = None
-    ) -> list[Any]:
-        """Return the list of typed domain model instances for all project components."""
-        from setuav_studio.model.symbol import build_component_models
-
-        return build_component_models(self.data.get("components", []), api)
 
     def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
         """Return the complete runtime evaluation scope containing resolved parameters and live component models."""

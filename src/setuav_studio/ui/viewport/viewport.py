@@ -357,10 +357,6 @@ class StudioViewport(QWidget):
             self._objects = {oid: obj for oid, obj in self._objects.items() if obj.layer != layer}
         self._sync_renderer()
 
-    def clear_layer(self, layer: str) -> None:
-        """Convenience alias for ``clear(layer=...)``."""
-        self.clear(layer=layer)
-
     def object_ids(self, *, layer: str | None = None) -> list[str]:
         """Return IDs of all objects, optionally filtered by *layer*."""
         if layer is None:
@@ -406,20 +402,7 @@ class StudioViewport(QWidget):
         if self._renderer is not None:
             set_sec = getattr(self._renderer, "set_selected_section", None)
             if callable(set_sec):
-                try:
-                    set_sec(component_id, segment_index, section_index, color=color)
-                except TypeError:
-                    set_sec(component_id, segment_index, section_index)
-
-    def set_wire_color(
-        self,
-        object_id: str | None,
-        section_index: int | None = None,
-        color: tuple[float, float, float] | str = "cyan",
-        segment_index: int | None = None,
-    ) -> None:
-        """Set the wire color for a specific section wire loop of an object."""
-        self.set_selected_section(object_id, segment_index, section_index, color=color)
+                set_sec(component_id, segment_index, section_index, color=color)
 
     def selected_section(self) -> tuple[str, int, int] | None:
         """Return the currently selected section tuple, or None."""
@@ -976,11 +959,6 @@ class StudioViewport(QWidget):
             set_env = getattr(self._renderer, "set_selected_envelope", None)
             if callable(set_env):
                 set_env(target_ids if len(target_ids) > 1 else component_id)
-
-    def is_selected_envelope(self, component_id: str) -> bool:
-        """Return True if component_id matches the active envelope wireframe selection."""
-        active = getattr(self, "_selected_envelope_component_id", None)
-        return bool(active and active == component_id)
 
     def update_aircraft_cg(self) -> None:
         """Refresh the aircraft total CG marker overlay."""

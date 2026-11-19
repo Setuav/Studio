@@ -10,12 +10,11 @@ from PySide6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem
 
 from plugins.debug import DebugPlugin
 from plugins.debug.components.loft import (
-    LoftComponent,
     LoftComponentEditor,
     add_loft_to_viewport,
     create_loft_component,
 )
-from setuav_studio.api import StudioAPI, TableParameterField
+from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 from setuav_studio.ui.viewport import LoftPrimitive, StudioViewport
 
@@ -53,12 +52,6 @@ class TestDebugLoft(unittest.TestCase):
         loft = create_loft_component("loft-1", "My Loft")
         self.assertEqual(loft.id, "loft-1")
         self.assertEqual(loft.name, "My Loft")
-
-        # TableParameterField descriptors
-        table_fields = LoftComponent.get_table_fields()
-        self.assertEqual(len(table_fields), 1)
-        self.assertIsInstance(table_fields[0], TableParameterField)
-        self.assertEqual(table_fields[0].key, "sections")
 
         # Initial default stations, stored under parameters["sections"]
         self.assertEqual(len(loft.stations), 3)

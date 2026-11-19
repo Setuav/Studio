@@ -1,4 +1,4 @@
-"""International Standard Atmosphere (ISA) and Airspeed Conversion Engine.
+"""International Standard Atmosphere (ISA).
 
 Independent pure-Python implementation of the U.S. Standard Atmosphere 1976 /
 ICAO Standard Atmosphere / ESDU 77022 without external solver dependencies.
@@ -127,92 +127,10 @@ class Atmosphere:
         standard = cls.isa(altitude_m)
         return cls.isa(altitude_m, temperature_c + 273.15 - standard.temperature_k)
 
-    # -------------------------------------------------------------------------
-    # Dimensionless Ratios
-    # -------------------------------------------------------------------------
-
     @property
     def temperature_c(self) -> float:
         """Atmospheric temperature in Celsius."""
         return self.temperature_k - 273.15
-
-    @property
-    def density_ratio_sigma(self) -> float:
-        """Density ratio relative to sea-level standard: sigma = rho / rho0."""
-        return self.density_kg_m3 / RHO0
-
-    @property
-    def pressure_ratio_delta(self) -> float:
-        """Pressure ratio relative to sea-level standard: delta = P / P0."""
-        return self.pressure_pa / P0
-
-    @property
-    def temperature_ratio_theta(self) -> float:
-        """Temperature ratio relative to sea-level standard: theta = T / T0."""
-        return self.temperature_k / T0
-
-    # -------------------------------------------------------------------------
-    # Flight Performance Helpers
-    # -------------------------------------------------------------------------
-
-    def dynamic_pressure(self, speed_mps: float) -> float:
-        """Compute dynamic pressure q = 0.5 * rho * V^2 (Pa)."""
-        return 0.5 * self.density_kg_m3 * (speed_mps**2)
-
-    def mach_number(self, speed_mps: float) -> float:
-        """Compute flight Mach number M = V / a."""
-        return speed_mps / max(self.speed_of_sound_mps, 1.0)
-
-    def reynolds_number(self, speed_mps: float, length_m: float) -> float:
-        """Compute characteristic Reynolds number Re = rho * V * L / mu."""
-        return (self.density_kg_m3 * abs(speed_mps) * max(length_m, 0.0)) / max(
-            self.dynamic_viscosity_pa_s, 1e-9
-        )
-
-    # -------------------------------------------------------------------------
-    # Airspeed Conversions (TAS, EAS, CAS)
-    # -------------------------------------------------------------------------
-
-    def tas_to_eas(self, tas_mps: float) -> float:
-        """Convert True Airspeed (TAS) to Equivalent Airspeed (EAS): EAS = TAS * sqrt(sigma)."""
-        return tas_mps * math.sqrt(max(self.density_ratio_sigma, 1e-9))
-
-    def eas_to_tas(self, eas_mps: float) -> float:
-        """Convert Equivalent Airspeed (EAS) to True Airspeed (TAS): TAS = EAS / sqrt(sigma)."""
-        return eas_mps / math.sqrt(max(self.density_ratio_sigma, 1e-9))
-
-    def tas_to_cas(self, tas_mps: float) -> float:
-        """Convert True Airspeed (TAS) to Calibrated Airspeed (CAS) via compressible isentropic flow.
-
-        Follows standard subsonic compressible pitot formulation (Raymer Ch. 5 / ESDU).
-        """
-        if tas_mps <= 0.0:
-            return 0.0
-
-        mach = self.mach_number(tas_mps)
-        # Impact dynamic pressure (compressible pitot-static equation for subsonic flow)
-        gamma_fac = (GAMMA - 1.0) / 2.0
-        qc = self.pressure_pa * ((1.0 + gamma_fac * (mach**2)) ** (GAMMA / (GAMMA - 1.0)) - 1.0)
-
-        # Standard sea-level CAS equation
-        cas_squared = (2.0 * (A0**2) / (GAMMA - 1.0)) * (
-            (1.0 + qc / P0) ** ((GAMMA - 1.0) / GAMMA) - 1.0
-        )
-        return math.sqrt(max(cas_squared, 0.0))
-
-    def cas_to_tas(self, cas_mps: float) -> float:
-        """Convert Calibrated Airspeed (CAS) to True Airspeed (TAS) via compressible isentropic flow."""
-        if cas_mps <= 0.0:
-            return 0.0
-
-        gamma_fac = (GAMMA - 1.0) / 2.0
-        qc = P0 * ((1.0 + gamma_fac * ((cas_mps / A0) ** 2)) ** (GAMMA / (GAMMA - 1.0)) - 1.0)
-
-        mach_squared = (2.0 / (GAMMA - 1.0)) * (
-            (1.0 + qc / self.pressure_pa) ** ((GAMMA - 1.0) / GAMMA) - 1.0
-        )
-        mach = math.sqrt(max(mach_squared, 0.0))
-        return mach * self.speed_of_sound_mps
 
     # -------------------------------------------------------------------------
     # Interoperability

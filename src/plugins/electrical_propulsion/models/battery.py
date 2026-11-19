@@ -114,11 +114,6 @@ def battery_pack(parameters: Mapping[str, Any]) -> BatteryPack:
     )
 
 
-def default_battery_pack(parameters: Mapping[str, Any]) -> BatteryPack:
-    """Return the pack of ``parameters`` with every override cleared."""
-    return battery_pack({**parameters, **dict.fromkeys(BATTERY_OVERRIDES)})
-
-
 class BatteryModel(Component):
     """Domain model for Battery (org.setuav.core:battery).
 

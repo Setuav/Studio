@@ -66,9 +66,6 @@ class ContentFitTableWidget(QTableWidget):
         self._column_fit_pending = True
         QTimer.singleShot(0, self._fit_columns_to_viewport)
 
-    def fit_columns_to_viewport(self) -> None:
-        self._fit_columns_to_viewport()
-
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self.schedule_column_fit()
@@ -160,9 +157,6 @@ class FocusAwareLineEdit(QLineEdit):
         self._completer: Any | None = None
         self.installEventFilter(self)
         self.textChanged.connect(self._on_text_changed)
-
-    def set_api(self, api: Any) -> None:
-        self._api = api
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         super().focusInEvent(event)
@@ -399,10 +393,6 @@ class FocusAwareLineEdit(QLineEdit):
             items.append((insert_t, disp_t))
 
         return items
-
-    def _get_symbols(self) -> list[str]:
-        """Return list of insertable symbols."""
-        return [insert_text for insert_text, _ in self._build_completion_items()]
 
     def _ensure_completer(self) -> None:
         if self._completer is not None:

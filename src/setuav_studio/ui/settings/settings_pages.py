@@ -502,13 +502,6 @@ class SettingsDialog(PropertyTableMixin, QDialog):
             except Exception:
                 logger.exception("Could not apply settings page %s", contribution.id)
 
-    def save_all(self) -> None:
-        """Persist all application settings, units, and plugin pages."""
-        values = self.values()
-        values.save()
-        self.apply_units()
-        self.apply_plugin_pages()
-
 
 def _as_bool(value: object) -> bool:
     if isinstance(value, bool):

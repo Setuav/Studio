@@ -130,7 +130,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 method=AnalysisMethod.AERO_BUILDUP,
             )
 
-        self.assertEqual(result.converged_point_count, 1)
+        self.assertEqual([p.converged for p in result.polar_points], [True])
         self.assertIsNone(result.stability_derivatives)
         self.assertEqual(result.raw["stability_status"], "failed")
         self.assertEqual(result.raw["stability_error"], "stability exploded")
@@ -216,7 +216,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertIsNotNone(result.sweep_result)
         assert result.sweep_result is not None
         self.assertEqual(len(result.sweep_result.points), 7)
-        self.assertEqual(result.sweep_result.variable_names, ["alpha"])
+        self.assertEqual([v.name for v in result.sweep_result.variables], ["alpha"])
 
         # Verify serialization
         d = result.to_dict()
@@ -228,7 +228,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         original_forces = result.polar_points[0].forces_moments
         assert restored_forces is not None
         assert original_forces is not None
-        self.assertEqual(restored_forces.force_wind, original_forces.force_wind)
+        self.assertEqual(restored_forces, original_forces)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_vlm_single_point_with_6dof(self) -> None:
@@ -401,12 +401,12 @@ class AeroSandboxEngineTests(unittest.TestCase):
             "cn": "Cn",
         }
         frame_vector_map = {
-            "force_body": "F_b",
-            "force_wind": "F_w",
-            "force_geometry": "F_g",
-            "moment_body": "M_b",
-            "moment_wind": "M_w",
-            "moment_geometry": "M_g",
+            ("fx_b", "fy_b", "fz_b"): "F_b",
+            ("fx_w", "fy_w", "fz_w"): "F_w",
+            ("fx_g", "fy_g", "fz_g"): "F_g",
+            ("mx_b", "my_b", "mz_b"): "M_b",
+            ("mx_w", "my_w", "mz_w"): "M_w",
+            ("mx_g", "my_g", "mz_g"): "M_g",
         }
         aerodynamic_force_map = {
             "lift": "L",
@@ -469,8 +469,8 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 self.assertIsNotNone(forces_moments)
                 assert forces_moments is not None
 
-                for studio_field, native_field in frame_vector_map.items():
-                    actual_vector = getattr(forces_moments, studio_field)
+                for studio_fields, native_field in frame_vector_map.items():
+                    actual_vector = [getattr(forces_moments, name) for name in studio_fields]
                     expected_vector = asb_np.ravel(native_result[native_field])
                     assert isinstance(expected_vector, np.ndarray)
                     self.assertEqual(len(actual_vector), 3)
@@ -493,7 +493,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 abs_tol=force_abs_tol,
                             ),
                             msg=(
-                                f"{method.value} {studio_field}[{axis}] at "
+                                f"{method.value} {studio_fields[axis]} at "
                                 f"alpha={studio_point.alpha:g} differs from native "
                                 f"AeroSandbox: expected {float(expected_value):.12g}, "
                                 f"got {float(actual_value):.12g}"

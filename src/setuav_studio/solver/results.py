@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import datetime
 import io
-import json
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -160,13 +159,6 @@ class TableDefinition:
             ]
         return values
 
-    def get_column_display_unit(self, key: str, use_display_units: bool = True) -> str:
-        """Return the active display unit symbol for a column."""
-        col = self.get_column_def(key)
-        if not col:
-            return ""
-        return col.display_unit(use_display_units)
-
     def get_column_def(self, key: str) -> TableColumn | None:
         """Find the column definition for a key."""
         for col in self.columns:
@@ -299,13 +291,6 @@ class PlotDefinition:
         if not self.title:
             object.__setattr__(self, "title", self.id.replace("_", " ").title())
 
-    def get_x_label_and_unit(self, table: TableDefinition) -> tuple[str, str]:
-        """Resolve x-axis label and unit from table column unless explicitly overridden."""
-        col = table.get_column_def(self.x_column)
-        label = self.x_label or (col.label if col else self.x_column)
-        unit = col.unit if col else ""
-        return (label, unit)
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -403,61 +388,6 @@ class SolverResult:
     # ------------------------------------------------------------------
     # Convenience Builder Helpers
     # ------------------------------------------------------------------
-
-    def add_summary(
-        self,
-        key: str,
-        value: float | int | str | bool,
-        label: str = "",
-        unit: str = "",
-        quantity_id: str | None = None,
-    ) -> SummaryItem:
-        """Add a summary metric to the result."""
-        item = SummaryItem(
-            key=key,
-            value=value,
-            label=label,
-            unit=unit,
-            quantity_id=quantity_id,
-        )
-        self.summary[key] = item
-        return item
-
-    def add_table(
-        self,
-        table_id: str,
-        title: str = "",
-        columns: list[TableColumn | tuple[str, str, str]] | None = None,
-        data: dict[str, list[Any]] | list[dict[str, Any]] | None = None,
-    ) -> TableDefinition:
-        """Create, add, and return a TableDefinition."""
-        parsed_cols: list[TableColumn] = []
-        if columns:
-            for c in columns:
-                if isinstance(c, TableColumn):
-                    parsed_cols.append(c)
-                elif isinstance(c, (tuple, list)) and len(c) >= 2:
-                    k, lbl = c[0], c[1]
-                    u = c[2] if len(c) > 2 else ""
-                    parsed_cols.append(TableColumn(key=k, label=lbl, unit=u))
-
-        columnar_data: dict[str, list[Any]] = {}
-        if isinstance(data, dict):
-            columnar_data = dict(data)
-        elif isinstance(data, list):
-            for row in data:
-                if isinstance(row, dict):
-                    for k, v in row.items():
-                        columnar_data.setdefault(k, []).append(v)
-
-        table = TableDefinition(
-            id=table_id,
-            title=title or table_id.replace("_", " ").title(),
-            columns=parsed_cols,
-            data=columnar_data,
-        )
-        self.tables[table_id] = table
-        return table
 
     def add_plot(
         self,
@@ -605,11 +535,4 @@ class SolverResult:
             writer.writerow([item.key, item.label, val, unit])
 
         target.write_text(output.getvalue(), encoding="utf-8")
-        return target
-
-    def export_json(self, target_file: Path | str) -> Path:
-        """Export entire analysis result as a standalone JSON file."""
-        target = Path(target_file).resolve()
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
         return target

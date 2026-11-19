@@ -17,6 +17,7 @@ from setuav_studio.solver.results import (
     SolverResult,
     SummaryItem,
     TableColumn,
+    TableDefinition,
 )
 from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.panels.results import (
@@ -82,24 +83,26 @@ def test_solver_result_tables_plots_serialization() -> None:
     )
 
     # 1. Summary items
-    result.add_summary("cl_max", 1.55, label="Max CL")
-    result.add_summary("stall_speed", 13.8, label="Stall Speed", unit="m/s")
+    result.summary["stall_speed"] = SummaryItem(
+        key="stall_speed", value=13.8, label="Stall Speed", unit="m/s"
+    )
 
     # 2. Table
-    table = result.add_table(
-        table_id="polar",
+    table = TableDefinition(
+        id="polar",
         title="Lift-Drag Polar",
         columns=[
             TableColumn(key="alpha", label="Alpha", unit="deg"),
             TableColumn(key="cl", label="Lift Coeff"),
             TableColumn(key="cd", label="Drag Coeff"),
         ],
-        data=[
-            {"alpha": 0.0, "cl": 0.25, "cd": 0.021},
-            {"alpha": 5.0, "cl": 0.75, "cd": 0.038},
-            {"alpha": 10.0, "cl": 1.25, "cd": 0.082},
-        ],
+        data={
+            "alpha": [0.0, 5.0, 10.0],
+            "cl": [0.25, 0.75, 1.25],
+            "cd": [0.021, 0.038, 0.082],
+        },
     )
+    result.tables[table.id] = table
     assert len(table.get_column("cl")) == 3
 
     # 3. Plot
@@ -145,44 +148,31 @@ def test_solver_result_tables_plots_serialization() -> None:
     assert restored_plot.series[0].y_column == "cl"
 
 
-def test_solver_result_csv_and_json_export(tmp_path: Path) -> None:
+def test_solver_result_csv_export(tmp_path: Path) -> None:
     config = SolverConfig(solver_id="aero", name="Export Case")
     result = SolverResult(
         solver_id="aero",
         config=config,
         name="Export Result",
         status=SolverStatus.COMPLETED,
-    )
-    result.add_summary("cl_max", 1.45, label="Max CL")
-    result.add_table(
-        table_id="sweep",
-        columns=[
-            TableColumn(key="alpha", label="AoA", unit="deg"),
-            TableColumn(key="cl", label="CL"),
-        ],
-        data={"alpha": [0.0, 5.0], "cl": [0.2, 0.7]},
+        summary={"cl_max": SummaryItem(key="cl_max", value=1.45, label="Max CL")},
+        tables={
+            "sweep": TableDefinition(
+                id="sweep",
+                columns=[
+                    TableColumn(key="alpha", label="AoA", unit="deg"),
+                    TableColumn(key="cl", label="CL"),
+                ],
+                data={"alpha": [0.0, 5.0], "cl": [0.2, 0.7]},
+            )
+        },
     )
 
-    # 1. Export CSV
     exported_csvs = result.export_csv(tmp_path)
     assert len(exported_csvs) == 2  # summary.csv and sweep.csv
     assert (tmp_path / "summary.csv").is_file()
     assert (tmp_path / "sweep.csv").is_file()
     assert "AoA [deg],CL" in (tmp_path / "sweep.csv").read_text(encoding="utf-8")
-
-    # 2. Export JSON
-    json_path = tmp_path / "result.json"
-    result.export_json(json_path)
-    assert json_path.is_file()
-
-    # 3. Reload from exported JSON
-    import json
-
-    with open(json_path, encoding="utf-8") as f:
-        loaded = json.load(f)
-    from_json = SolverResult.from_dict(loaded)
-    assert from_json.id == result.id
-    assert from_json.tables["sweep"].get_column("cl") == [0.2, 0.7]
 
 
 # ==============================================================================
@@ -285,17 +275,18 @@ def test_result_panel_and_child_views() -> None:
         config=config,
         name="Result A",
         status=SolverStatus.COMPLETED,
-        summary={"efficiency": SummaryItem(key="efficiency", value=0.88)},
-    )
-    result.add_summary("efficiency", 0.88, label="Efficiency")
-    result.add_table(
-        table_id="summary_tbl",
-        title="Summary Table",
-        columns=[
-            TableColumn(key="param", label="Parameter"),
-            TableColumn(key="val", label="Value"),
-        ],
-        data=[{"param": "eta", "val": 0.88}],
+        summary={"efficiency": SummaryItem(key="efficiency", value=0.88, label="Efficiency")},
+        tables={
+            "summary_tbl": TableDefinition(
+                id="summary_tbl",
+                title="Summary Table",
+                columns=[
+                    TableColumn(key="param", label="Parameter"),
+                    TableColumn(key="val", label="Value"),
+                ],
+                data={"param": ["eta"], "val": [0.88]},
+            )
+        },
     )
     result.add_plot(
         plot_id="curve",
@@ -355,22 +346,22 @@ def test_chart_draws_right_axis_series_and_shades_invalid_ranges() -> None:
     get_qapp()
     config = SolverConfig(solver_id="org.setuav.propulsion", name="Sweep")
     result = SolverResult(solver_id=config.solver_id, config=config)
-    table = result.add_table(
-        table_id="sweep",
+    table = TableDefinition(
+        id="sweep",
         columns=[
             TableColumn(key="speed", label="Speed", unit="m/s"),
             TableColumn(key="power", label="Power", unit="W"),
             TableColumn(key="current", label="Current", unit="A"),
             TableColumn(key="ok", label="Feasible"),
         ],
-        data=[
-            {"speed": 0.0, "power": 10.0, "current": 1.0, "ok": False},
-            {"speed": 1.0, "power": 20.0, "current": 2.0, "ok": True},
-            {"speed": 2.0, "power": 30.0, "current": 3.0, "ok": True},
-            {"speed": 3.0, "power": 40.0, "current": 4.0, "ok": False},
-            {"speed": 4.0, "power": 50.0, "current": 5.0, "ok": False},
-        ],
+        data={
+            "speed": [0.0, 1.0, 2.0, 3.0, 4.0],
+            "power": [10.0, 20.0, 30.0, 40.0, 50.0],
+            "current": [1.0, 2.0, 3.0, 4.0, 5.0],
+            "ok": [False, True, True, False, False],
+        },
     )
+    result.tables[table.id] = table
     plot = PlotDefinition(
         id="power_current",
         table_id="sweep",

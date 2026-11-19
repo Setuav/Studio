@@ -679,19 +679,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         self._refresh_section_row()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
 
-    def _on_property_spin_changed(self, key: str, value: float) -> None:
-        if self._loading:
-            return
-        section = self._current_section()
-        if section is None:
-            return
-        profile = self._object(section, "profile")
-        self._edit_component(
-            "Edit section profile",
-            lambda: profile.__setitem__(key, float(value)),
-        )
-        self._refresh_section_row()
-
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
         is_polygon = profile.get("type") == "polygon"
         self.vertices_table.setVisible(is_polygon)

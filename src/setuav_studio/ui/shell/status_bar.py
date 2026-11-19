@@ -104,10 +104,6 @@ class ElidedStatusLabel(QLabel):
     def text(self) -> str:
         return self._full_text
 
-    def displayed_text(self) -> str:
-        """Return the visible, elided text currently rendered."""
-        return super().text()
-
     def clear(self) -> None:
         self._full_text = ""
         self.setToolTip("")
@@ -412,9 +408,6 @@ class StatusBarManager:
         self._task_manager_window.show()
         self._task_manager_window.raise_()
         self._task_manager_window.activateWindow()
-
-    def show_degraded_details(self, project: ProjectDocument | None = None) -> None:
-        self.open_problems_window()
 
 
 __all__ = ["ElidedStatusLabel", "ProblemsBadge", "StatusBarManager", "StudioStatusBar"]

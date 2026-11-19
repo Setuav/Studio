@@ -210,13 +210,7 @@ def test_component_parameters_and_attributes() -> None:
             },
         }
     )
-    # Getter / setter helpers
-    assert comp.get_parameter("max_current") == 60.0
-    assert comp.get_parameter("unknown", default="none") == "none"
-
-    comp.set_parameter("max_current", 80.0)
-    assert comp.get_parameter("max_current") == 80.0
-    assert comp.parameters["max_current"] == 80.0
+    comp.parameters["max_current"] = 80.0
 
     # __getattr__ parameter routing
     assert comp.max_current == 80.0

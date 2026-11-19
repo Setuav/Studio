@@ -7,39 +7,18 @@ from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any
 
-from .constants import (
-    FACE_COLORED,
-    FACE_TRANSPARENT,
-    WIRE_FEATURE,
-    WIRE_FULL,
-)
 from .primitives import Point3D
-from .types import GeometryData, LoftGeometry, Section
+from .types import LoftGeometry
 
 SELECTED_WIRE: Point3D = (0.95, 0.58, 0.28)
-HOVERED_WIRE: Point3D = (1.0, 1.0, 1.0)
 SECTION_RING: Point3D = (0.0, 0.85, 1.0)
-CS_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
-AIRFOIL_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
-AIRFOIL_CHORD_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
 
 _LONGITUDINAL_LINES = 12
 _WIRE_GREY: Point3D = (0.82, 0.82, 0.82)
 _SOLID_GREY: Point3D = (0.44, 0.44, 0.44)
 FEATURE_EDGE_COLOR: Point3D = (0.22, 0.24, 0.28)
-_SOLID_TINT = 0.88
-_WIRE_TINT = 0.30
 _MIN_STATIONS = 1
 _MAX_STATIONS = 32
-
-
-def _wire_tint(color: Point3D) -> Point3D:
-    base = 0.82
-    return (
-        color[0] + (base - color[0]) * _WIRE_TINT,
-        color[1] + (base - color[1]) * _WIRE_TINT,
-        color[2] + (base - color[2]) * _WIRE_TINT,
-    )
 
 
 def _lerp(start: Point3D, end: Point3D, fraction: float) -> Point3D:
@@ -70,57 +49,6 @@ def _append_ring(
 ) -> None:
     for index, point in enumerate(loop):
         _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
-
-
-def _matches_subpart(
-    base_id: str,
-    subparts: list[str],
-    target_lower: str,
-    target_clean: str,
-) -> bool:
-    if target_lower in subparts or target_clean in subparts:
-        return True
-
-    target_suffixes = (
-        target_clean.removeprefix(f"{base_id}:"),
-        target_clean.removeprefix(f"{base_id}-"),
-        target_clean.removeprefix(f"{base_id}_"),
-    )
-    for subpart in subparts:
-        qualified_names = (
-            f"{base_id}:{subpart}",
-            f"{base_id}-{subpart}",
-            f"{base_id}_{subpart}",
-        )
-        if target_clean in qualified_names or subpart in target_suffixes:
-            return True
-    return False
-
-
-def _is_matching_component(loft_component_id: str, target_component_id: str | None) -> bool:
-    if target_component_id is None:
-        return False
-    if loft_component_id == target_component_id:
-        return True
-
-    loft_lower = loft_component_id.lower()
-    target_lower = target_component_id.lower()
-    if loft_lower == target_lower:
-        return True
-
-    loft_clean = loft_lower.replace(":mirror", "")
-    target_clean = target_lower.replace(":mirror", "")
-    if loft_clean == target_clean:
-        return True
-
-    parts_lower = [p.lower() for p in loft_component_id.split(":")]
-    base_id = parts_lower[0]
-    subparts = [p for p in parts_lower if p not in (base_id, "mirror", "stations")]
-
-    if subparts and _matches_subpart(base_id, subparts, target_lower, target_clean):
-        return True
-
-    return base_id == target_clean
 
 
 def _append_loft_feature_wire(
@@ -185,244 +113,35 @@ def _append_loft_wire(
             _add_line(vertices, current[point_index], following[point_index], color)
 
 
-def _control_surface_lofts(
-    data: GeometryData,
-    component_id: str,
-) -> tuple[list[LoftGeometry], list[str]]:
-    lofts: list[LoftGeometry] = []
-    distinct_tags: list[str] = []
-    ignored_parts = (component_id.lower(), "mirror", "stations", "tip-cap", "winglet")
-    for loft in data.lofts:
-        if not _is_matching_component(loft.component_id, component_id):
-            continue
-        parts = loft.component_id.split(":")
-        subtags = [part for part in parts if part.lower() not in ignored_parts]
-        if not subtags:
-            continue
-        lofts.append(loft)
-        tag = subtags[0]
-        if tag not in distinct_tags:
-            distinct_tags.append(tag)
-    return lofts, distinct_tags
-
-
-def _build_control_surface_highlight(
-    data: GeometryData,
-    component_id: str,
-    section_index: int,
-    color: Point3D = CS_HIGHLIGHT,
-    wire_mode: str = WIRE_FEATURE,
-) -> list[float]:
-    control_lofts, distinct_tags = _control_surface_lofts(data, component_id)
-    if 0 <= section_index < len(distinct_tags):
-        target_tag = distinct_tags[section_index]
-        selected_lofts = [loft for loft in control_lofts if target_tag in loft.component_id]
-    else:
-        selected_lofts = control_lofts
-
-    vertices: list[float] = []
-    for loft in selected_lofts:
-        loops = _tessellated_loops(loft)
-        if loops:
-            if wire_mode == WIRE_FEATURE:
-                _append_loft_feature_wire(vertices, loft, loops, color)
-            else:
-                _append_loft_wire(vertices, loops, color)
-    return vertices
-
-
-def _matching_station_lofts(
-    data: GeometryData,
-    component_id: str,
-    is_mirror: bool,
-) -> list[LoftGeometry]:
-    excluded_parts = (":cs-", ":hinge-", ":tip-cap")
-    return [
-        loft
-        for loft in data.lofts
-        if _is_matching_component(loft.component_id, component_id)
-        and ((":mirror" in loft.component_id) == is_mirror)
-        and not any(part in loft.component_id for part in excluded_parts)
-    ]
-
-
-def _station_sections(lofts: list[LoftGeometry]) -> list[Section]:
-    seen_y: list[float] = []
-    sections: list[Section] = []
-    for loft in lofts:
-        for section in loft.sections:
-            if not getattr(section, "is_station", True):
-                continue
-            y_coord = section.points[0][1] if section.points else 0.0
-            if any(abs(y_coord - seen) < 1e-2 for seen in seen_y):
-                continue
-            seen_y.append(y_coord)
-            sections.append(section)
-    sections.sort(key=lambda s: abs(s.points[0][1]))
-    return sections
-
-
-def _build_station_highlight(
-    data: GeometryData,
-    component_id: str,
-    section_index: int,
-    color: Point3D = SECTION_RING,
-) -> list[float]:
-    vertices: list[float] = []
-    for is_mirror in (False, True):
-        sections = _station_sections(_matching_station_lofts(data, component_id, is_mirror))
-        if not 0 <= section_index < len(sections):
-            continue
-        loop = sections[section_index].points
-        _append_ring(vertices, loop, color)
-    return vertices
-
-
-def _build_panel_highlight(
-    data: GeometryData,
-    component_id: str,
-    section_index: int,
-    color: Point3D = SECTION_RING,
-) -> list[float]:
-    vertices: list[float] = []
-    for is_mirror in (False, True):
-        sections = _station_sections(_matching_station_lofts(data, component_id, is_mirror))
-        if not 0 <= section_index < len(sections):
-            continue
-        loop = sections[section_index].points
-        _append_ring(vertices, loop, color)
-    return vertices
-
-
 def build_section_ring_vertices(
-    data: GeometryData | None,
+    scene_objects: dict[str, Any],
     component_id: str | None,
     segment_index: int | None,
     section_index: int | None,
     color: Point3D = SECTION_RING,
-    wire_mode: str = WIRE_FEATURE,
-    scene_objects: dict[str, Any] | None = None,
 ) -> list[float]:
+    """Ring around one section of the component's loft primitive."""
     if component_id is None or section_index is None:
         return []
 
-    # 1. Query SceneObjects
-    if scene_objects:
-        from .primitives import LoftPrimitive
-        from .scene_object import is_scene_object_matching
+    from .primitives import LoftPrimitive
+    from .scene_object import is_scene_object_matching
 
-        vertices: list[float] = []
-        for obj_id, obj in scene_objects.items():
-            if not is_scene_object_matching(obj_id, component_id):
-                continue
-            prims = [
-                p
-                for p in getattr(obj, "primitives", ())
-                if isinstance(p, LoftPrimitive) and p.sections
-            ]
-            if not prims:
-                continue
-
-            target_prim: LoftPrimitive | None = None
-            if segment_index is not None and 0 <= segment_index < len(prims):
-                target_prim = prims[segment_index]
-            elif prims:
-                target_prim = prims[0]
-
-            if target_prim and 0 <= section_index < len(target_prim.sections):
-                _append_ring(vertices, target_prim.sections[section_index], color)
-
-        if vertices:
-            return vertices
-
-    # 2. Query GeometryData
-    if data is not None and data.lofts:
-        if segment_index == 1:
-            control_lofts, _ = _control_surface_lofts(data, component_id)
-            if control_lofts:
-                return _build_control_surface_highlight(
-                    data, component_id, section_index, color=color, wire_mode=wire_mode
-                )
-        return _build_station_highlight(data, component_id, section_index, color=color)
-
-    return []
-
-
-def build_loft_wire_vertices(
-    data: GeometryData,
-    selected_component_id: str | None = None,
-    hovered_component_id: str | None = None,
-    face_style: str = FACE_COLORED,
-    wire_mode: str = WIRE_FULL,
-) -> list[float]:
     vertices: list[float] = []
-    for loft in data.lofts:
-        if ":stations" in loft.component_id:
+    for obj_id, obj in scene_objects.items():
+        if not is_scene_object_matching(obj_id, component_id):
             continue
-        if _is_matching_component(
-            loft.component_id, selected_component_id
-        ) or _is_matching_component(loft.component_id, hovered_component_id):
+        prims = [
+            p for p in getattr(obj, "primitives", ()) if isinstance(p, LoftPrimitive) and p.sections
+        ]
+        if not prims:
             continue
-        loops = _tessellated_loops(loft)
-        if not loops:
-            continue
-        color = FEATURE_EDGE_COLOR if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
-        if wire_mode == WIRE_FEATURE:
-            _append_loft_feature_wire(vertices, loft, loops, color)
+        if segment_index is not None and 0 <= segment_index < len(prims):
+            target_prim = prims[segment_index]
         else:
-            _append_loft_wire(vertices, loops, color)
-    return vertices
-
-
-def build_component_wire_vertices(
-    data: GeometryData,
-    component_id: str | None,
-    color: Point3D = SELECTED_WIRE,
-    wire_mode: str = WIRE_FULL,
-) -> list[float]:
-    vertices: list[float] = []
-    if component_id is None:
-        return vertices
-    for loft in data.lofts:
-        if ":stations" in loft.component_id:
-            continue
-        if not _is_matching_component(loft.component_id, component_id):
-            continue
-        loops = _tessellated_loops(loft)
-        if not loops:
-            continue
-        if wire_mode == WIRE_FEATURE:
-            _append_loft_feature_wire(vertices, loft, loops, color)
-        else:
-            _append_loft_wire(vertices, loops, color)
-    return vertices
-
-
-def build_loft_solid_vertices(
-    data: GeometryData,
-    selected_component_id: str | None = None,
-    hovered_component_id: str | None = None,
-    face_style: str = FACE_COLORED,
-) -> list[float]:
-    vertices: list[float] = []
-    for loft in data.lofts:
-        if ":stations" in loft.component_id:
-            continue
-        loops = _tessellated_loops(loft)
-        if not loops:
-            continue
-        color: Point3D
-        if face_style in (FACE_COLORED, FACE_TRANSPARENT):
-            red, green, blue = loft.color
-            color = (red * _SOLID_TINT, green * _SOLID_TINT, blue * _SOLID_TINT)
-        else:
-            color = _SOLID_GREY
-
-        for current, following in pairwise(loops):
-            _add_quad_strip(vertices, current, following, color)
-        if loft.closed_ends:
-            _cap_loop(vertices, loops[0], color, flip=True)
-            _cap_loop(vertices, loops[-1], color, flip=False)
+            target_prim = prims[0]
+        if 0 <= section_index < len(target_prim.sections):
+            _append_ring(vertices, target_prim.sections[section_index], color)
     return vertices
 
 

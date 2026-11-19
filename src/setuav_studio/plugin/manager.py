@@ -39,16 +39,6 @@ class PluginManager:
         api._host.bind_project_requirement_checker(self.check_project_requirements)
 
     @property
-    def active_plugins(self) -> tuple[StudioPlugin, ...]:
-        """Return active plugins ordered by priority and plugin ID."""
-        return tuple(
-            sorted(
-                self._plugins.values(),
-                key=_plugin_sort_key,
-            )
-        )
-
-    @property
     def load_issues(self) -> tuple[PluginLoadIssue, ...]:
         """Return issues from the most recent discovery pass."""
         return tuple(self._load_issues)
@@ -163,11 +153,6 @@ class PluginManager:
                 )
         return issues
 
-    def _discover_bundled(self) -> list[PluginLoadIssue]:
-        issues, candidates = self._collect_bundled_candidates()
-        self._activate_candidates(candidates, issues)
-        return issues
-
     def _collect_bundled_candidates(
         self,
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
@@ -189,11 +174,6 @@ class PluginManager:
             logger.warning("Failed to load plugins package: %s", exc)
             issues.append(PluginLoadIssue("plugins", str(exc)))
         return issues, candidates
-
-    def _discover_entry_points(self) -> list[PluginLoadIssue]:
-        issues, candidates = self._collect_entry_point_candidates()
-        self._activate_candidates(candidates, issues)
-        return issues
 
     def _collect_entry_point_candidates(
         self,

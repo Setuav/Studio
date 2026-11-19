@@ -1,4 +1,4 @@
-"""Unit tests for the independent Atmosphere model and airspeed conversions."""
+"""Unit tests for the independent Atmosphere model."""
 
 from __future__ import annotations
 
@@ -15,9 +15,6 @@ def test_sea_level_standard_isa() -> None:
     assert math.isclose(atm.pressure_pa, 101325.0, abs_tol=1.0)
     assert math.isclose(atm.density_kg_m3, 1.225, abs_tol=0.001)
     assert math.isclose(atm.speed_of_sound_mps, 340.294, abs_tol=0.1)
-    assert math.isclose(atm.density_ratio_sigma, 1.0, abs_tol=0.0001)
-    assert math.isclose(atm.pressure_ratio_delta, 1.0, abs_tol=0.0001)
-    assert math.isclose(atm.temperature_ratio_theta, 1.0, abs_tol=0.0001)
     assert math.isclose(atm.dynamic_viscosity_pa_s, 1.789e-5, abs_tol=1e-7)
 
 
@@ -29,8 +26,6 @@ def test_troposphere_lapse() -> None:
     assert atm_1k.pressure_pa < 101325.0
     assert atm_1k.density_kg_m3 < 1.225
     assert atm_1k.speed_of_sound_mps < 340.294
-    assert atm_1k.density_ratio_sigma < 1.0
-    assert atm_1k.pressure_ratio_delta < 1.0
 
 
 def test_temperature_offset_delta_isa() -> None:
@@ -54,42 +49,6 @@ def test_stratosphere_isothermal_layer() -> None:
     assert math.isclose(atm_15k.temperature_k, 216.65, abs_tol=0.01)
     assert atm_15k.pressure_pa < atm_11k.pressure_pa
     assert atm_15k.density_kg_m3 < atm_11k.density_kg_m3
-
-
-def test_flight_helpers() -> None:
-    atm = Atmosphere.isa(1000.0)
-    v = 25.0  # m/s (~90 km/h)
-    q = atm.dynamic_pressure(v)
-    expected_q = 0.5 * atm.density_kg_m3 * (v**2)
-    assert math.isclose(q, expected_q, rel_tol=1e-4)
-
-    mach = atm.mach_number(v)
-    assert math.isclose(mach, v / atm.speed_of_sound_mps, rel_tol=1e-4)
-
-    re = atm.reynolds_number(v, length_m=0.2)
-    expected_re = (atm.density_kg_m3 * v * 0.2) / atm.dynamic_viscosity_pa_s
-    assert math.isclose(re, expected_re, rel_tol=1e-3)
-
-
-def test_airspeed_conversions_sea_level() -> None:
-    atm = Atmosphere.isa(0.0)
-    v = 30.0  # m/s
-    # At sea level standard, TAS == EAS == CAS
-    assert math.isclose(atm.tas_to_eas(v), v, abs_tol=0.001)
-    assert math.isclose(atm.eas_to_tas(v), v, abs_tol=0.001)
-    assert math.isclose(atm.tas_to_cas(v), v, abs_tol=0.01)
-    assert math.isclose(atm.cas_to_tas(v), v, abs_tol=0.01)
-
-
-def test_airspeed_conversions_altitude_roundtrip() -> None:
-    atm = Atmosphere.isa(3000.0)
-    tas = 45.0  # m/s
-    eas = atm.tas_to_eas(tas)
-    assert eas < tas  # EAS is lower than TAS at altitude
-    assert math.isclose(atm.eas_to_tas(eas), tas, rel_tol=1e-4)
-
-    cas = atm.tas_to_cas(tas)
-    assert math.isclose(atm.cas_to_tas(cas), tas, rel_tol=1e-3)
 
 
 def test_to_environment_and_serialization() -> None:

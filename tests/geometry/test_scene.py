@@ -9,13 +9,14 @@ from unittest import mock
 
 from PySide6.QtCore import Qt
 
-from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.engine.data import LoftGeometry
 from plugins.geometry.engine.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
 from plugins.geometry.engine.scene import GeometryProvider, build_project_geometry
 from setuav_studio.project import open_project
-from setuav_studio.ui.viewport.mesh import build_loft_solid_vertices
+from setuav_studio.ui.viewport import LoftPrimitive
+from setuav_studio.ui.viewport.mesh import build_primitive_solid_vertices
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
@@ -48,19 +49,14 @@ class GeometrySceneTests(unittest.TestCase):
             set_active_palette("nonexistent")
 
     def test_solid_mesh_contains_triangle_vertices(self) -> None:
-        data = GeometryData(
-            (
-                LoftGeometry(
-                    "body",
-                    (
-                        Section(((0, 0, 0), (0, 1, 0), (0, 0, 1))),
-                        Section(((1, 0, 0), (1, 1, 0), (1, 0, 1))),
-                    ),
-                    station_spacing=0.0,
-                ),
-            )
+        loft = LoftPrimitive(
+            sections=(
+                ((0, 0, 0), (0, 1, 0), (0, 0, 1)),
+                ((1, 0, 0), (1, 1, 0), (1, 0, 1)),
+            ),
+            station_spacing=0.0,
         )
-        vertices = build_loft_solid_vertices(data)
+        vertices = build_primitive_solid_vertices([loft])
         self.assertGreater(len(vertices), 0)
         self.assertEqual(len(vertices) % 9, 0)
         self.assertEqual((len(vertices) // 9) % 3, 0)
@@ -176,8 +172,10 @@ class GeometrySceneTests(unittest.TestCase):
     # AirfoilDialog coverage (Faz 3.11)
     # -------------------------------------------------------------------------
 
-    def test_3d_section_and_control_surface_selection_highlight(self) -> None:
-        """Verify 3D section ring vertices highlight both bounding stations and control surfaces."""
+    def test_3d_section_selection_highlight(self) -> None:
+        """A selected wing section is ringed on the wing's scene object."""
+        from plugins.geometry.scene_controller import _collect_primitives
+        from setuav_studio.ui.viewport import SceneObject
         from setuav_studio.ui.viewport.mesh import build_section_ring_vertices
 
         doc = open_project(TEST_PROJECT_PATH)
@@ -185,18 +183,14 @@ class GeometrySceneTests(unittest.TestCase):
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry
         }
         geom_data = build_project_geometry(doc, providers)
+        scene_objects = {
+            object_id: SceneObject(object_id=object_id, primitives=primitives)
+            for object_id, primitives in _collect_primitives(geom_data.lofts).items()
+        }
 
-        # 1. Wing Section (Panel) Selection: highlights root station, tip station, and connecting rails
-        panel_verts = build_section_ring_vertices(geom_data, "main-wing", 0, 0)
-        self.assertGreater(len(panel_verts), 0)
-
-        # 2. Control Surface Selection: highlights flap wireframe loops and hinge lines
-        cs_verts = build_section_ring_vertices(geom_data, "main-wing", 1, 0)
-        self.assertGreater(len(cs_verts), 0)
-
-        # 3. Single Station / Airfoil Selection: highlights individual station ring and chord
-        station_verts = build_section_ring_vertices(geom_data, "main-wing", 2, 0)
-        self.assertGreater(len(station_verts), 0)
+        ring = build_section_ring_vertices(scene_objects, "main-wing", 0, 0)
+        self.assertGreater(len(ring), 0)
+        self.assertEqual(build_section_ring_vertices(scene_objects, "main-wing", 0, 99), [])
 
 
 def _build_fuselage_component() -> dict:

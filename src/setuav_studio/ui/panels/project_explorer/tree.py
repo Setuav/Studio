@@ -20,8 +20,6 @@ from setuav_studio.ui.panels.project_explorer.operations import (
 from setuav_studio.ui.panels.project_explorer.style import (
     ProjectExplorerDelegate,
     _ProjectExplorerBranchStyle,
-    format_component_name,
-    format_component_type,
 )
 from setuav_studio.ui.panels.project_explorer.tree_builder import (
     ProjectTreeBuilder,
@@ -374,19 +372,5 @@ class ProjectExplorer(QTreeWidget):
     def _rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         self._ops.rename_item(item, column)
 
-    def _delete_item(self, item: QTreeWidgetItem | None) -> None:
-        self._ops.delete_item(item)
-
     def _can_edit_project(self) -> bool:
         return self._ops.can_edit_project()
-
-    @staticmethod
-    def _component_name_text(component: dict[str, object]) -> str:
-        return format_component_name(component)
-
-    def _component_type_text(
-        self,
-        component: dict[str, object],
-        components: list[dict[str, object]],
-    ) -> str:
-        return format_component_type(component, components, api=self._api)

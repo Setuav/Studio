@@ -159,17 +159,6 @@ class AirfoilPolar:
                 return pt
         return None
 
-    def interpolate(self, alpha: float) -> tuple[float, float, float]:
-        """Interpolate (Cl, Cd, Cm) at ``alpha``, holding the end values outside the polar."""
-        if not self.points:
-            raise ValueError(f"Airfoil polar '{self.airfoil_name}' has no points.")
-        alphas = [p.alpha for p in self.points]
-        return (
-            float(np.interp(alpha, alphas, [p.cl for p in self.points])),
-            float(np.interp(alpha, alphas, [p.cd for p in self.points])),
-            float(np.interp(alpha, alphas, [p.cm for p in self.points])),
-        )
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "airfoil_name": self.airfoil_name,

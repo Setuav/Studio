@@ -447,11 +447,6 @@ class AnalysisTablePanel(QWidget):
         self._toolbar.setVisible(True)
         self._stack.setCurrentWidget(self._table_view)
 
-    def _toggle_units(self) -> None:
-        self._use_display_units = not self._use_display_units
-        if self._model is not None:
-            self._model.set_use_display_units(self._use_display_units)
-
     def _on_units_changed(self, _payload: Any = None) -> None:
         if self._model is not None:
             self._model.set_use_display_units(self._use_display_units)

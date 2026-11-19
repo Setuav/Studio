@@ -11,10 +11,9 @@ from PySide6.QtCharts import (
     QLineSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QEvent, QObject, QSettings, Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -224,60 +223,6 @@ class StudioChartWidget(QWidget):
         return self.chart.axes()
 
 
-class StudioSplitterGrid(QWidget):
-    """Reusable 2x2 grid layout of widgets using nested QSplitters."""
-
-    def __init__(
-        self,
-        top_left: QWidget,
-        top_right: QWidget,
-        bottom_left: QWidget,
-        bottom_right: QWidget,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        self.top_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.top_splitter.addWidget(top_left)
-        self.top_splitter.addWidget(top_right)
-        self.top_splitter.setChildrenCollapsible(False)
-
-        self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.bottom_splitter.addWidget(bottom_left)
-        self.bottom_splitter.addWidget(bottom_right)
-        self.bottom_splitter.setChildrenCollapsible(False)
-
-        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.main_splitter.addWidget(self.top_splitter)
-        self.main_splitter.addWidget(self.bottom_splitter)
-        self.main_splitter.setChildrenCollapsible(False)
-
-        layout.addWidget(self.main_splitter)
-
-    def save_state(self, settings_key: str) -> None:
-        """Persist splitter states to QSettings."""
-        s = QSettings()
-        s.setValue(f"{settings_key}/main", self.main_splitter.saveState())
-        s.setValue(f"{settings_key}/top", self.top_splitter.saveState())
-        s.setValue(f"{settings_key}/bottom", self.bottom_splitter.saveState())
-
-    def restore_state(self, settings_key: str) -> None:
-        """Restore splitter states from QSettings."""
-        s = QSettings()
-        main_st = s.value(f"{settings_key}/main")
-        if main_st:
-            self.main_splitter.restoreState(main_st)
-        top_st = s.value(f"{settings_key}/top")
-        if top_st:
-            self.top_splitter.restoreState(top_st)
-        bot_st = s.value(f"{settings_key}/bottom")
-        if bot_st:
-            self.bottom_splitter.restoreState(bot_st)
-
-
 __all__ = [
     "StudioChartWidget",
-    "StudioSplitterGrid",
 ]

@@ -8,10 +8,7 @@ from setuav_studio.ui.widget.button import (
     set_button_role,
     set_native_button,
 )
-from setuav_studio.ui.widget.chart import (
-    StudioChartWidget,
-    StudioSplitterGrid,
-)
+from setuav_studio.ui.widget.chart import StudioChartWidget
 from setuav_studio.ui.widget.color_picker import (
     ColorPickerWidget,
     color_to_hex_str,
@@ -42,7 +39,6 @@ __all__ = [
     "NumericSpinBox",
     "PropertyTableMixin",
     "StudioChartWidget",
-    "StudioSplitterGrid",
     "color_to_hex_str",
     "color_to_rgb_str",
     "format_engineering_value",

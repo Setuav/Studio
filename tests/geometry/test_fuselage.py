@@ -520,7 +520,7 @@ class FuselageGeometryTests(unittest.TestCase):
         profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
         self.assertEqual(profile["type"], "ellipse")
         self.assertEqual(editor.section_properties_table.rowCount(), 3)  # type, width, height
-        editor._on_property_spin_changed("width", 140.0)
+        cell_widget(editor.section_properties_table, 1, 1, ExpressionPropertyCell).setValue(140.0)
         profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
         self.assertAlmostEqual(profile["width"], 140.0)
         self.assertIn("140", table_item(editor.sections_table, 0, 3).text())

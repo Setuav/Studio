@@ -8,14 +8,6 @@ from typing import Any
 from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 
 
-class CircularDependencyError(Exception):
-    """Raised when a cycle is detected among parameters."""
-
-    def __init__(self, cycle_path: list[str]) -> None:
-        self.cycle_path = cycle_path
-        super().__init__(f"Circular dependency detected: {' -> '.join(cycle_path)}")
-
-
 @dataclass
 class ParameterResolution:
     """Resolved parameter values and diagnostics for parameters that failed."""
@@ -103,19 +95,6 @@ class ParameterResolver:
 
         return cycles
 
-    def get_evaluation_order(self, parameters: dict[str, Any]) -> list[str]:
-        """Compute topological sort of parameters for evaluation.
-
-        Raises:
-            CircularDependencyError: If a cycle is detected.
-        """
-        cycles = self.detect_cycles(parameters)
-        if cycles:
-            raise CircularDependencyError(cycles[0])
-
-        graph = self.build_dependency_graph(parameters)
-        return _topological_order(graph)
-
     def resolve_all(self, parameters: dict[str, Any]) -> ParameterResolution:
         """Resolve every parameter that can be evaluated.
 
@@ -163,22 +142,3 @@ class ParameterResolver:
             values={k: values[k] for k in parameters if k in values},
             diagnostics=diagnostics,
         )
-
-    def get_dependents(self, parameters: dict[str, Any], key: str) -> set[str]:
-        """Find all parameters in the dictionary that directly or indirectly depend on key."""
-        graph = self.build_dependency_graph(parameters)
-        # Reverse edges: dep -> dependent
-        adj: dict[str, set[str]] = {k: set() for k in graph}
-        for node, deps in graph.items():
-            for dep in deps:
-                if dep in adj:
-                    adj[dep].add(node)
-
-        dependents: set[str] = set()
-        queue = list(adj.get(key, set()))
-        while queue:
-            curr = queue.pop(0)
-            if curr not in dependents:
-                dependents.add(curr)
-                queue.extend(adj.get(curr, set()))
-        return dependents

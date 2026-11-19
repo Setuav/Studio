@@ -682,7 +682,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         return [c for c in doc.data["components"] if isinstance(c, dict)]
 
     @staticmethod
-    def _powertrain(components: list[dict[str, Any]]) -> Any:
+    def _powertrain(components: list[dict[str, Any]], state_of_charge: float = 1.0) -> Any:
         from plugins.electrical_propulsion.powertrain import (
             build_powertrain,
             find_powertrain_members,
@@ -690,7 +690,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         members = find_powertrain_members(components)
         assert members is not None
-        return build_powertrain(members, state_of_charge=1.0)
+        return build_powertrain(members, state_of_charge=state_of_charge)
 
     def test_powertrain_solves_fixture_propulsor(self) -> None:
         powertrain = self._powertrain(self._fixture_components())
@@ -709,7 +709,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         # The pack voltage sags below its open-circuit value under load.
         self.assertLess(point.battery_voltage_v, powertrain.open_circuit_voltage_v)
 
-        half = powertrain.with_state_of_charge(0.5).solve(
+        half = self._powertrain(self._fixture_components(), state_of_charge=0.5).solve(
             rho=1.225, airspeed_mps=15.0, throttle=1.0
         )
         self.assertLess(half.battery_voltage_v, point.battery_voltage_v)
@@ -745,7 +745,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(light / 3600.0, 0.98 * ocv_energy_wh / 30.0)
         self.assertLess(heavy * 10.0, light)
         with self.assertRaisesRegex(PowertrainError, "not below"):
-            powertrain.with_state_of_charge(0.2).discharge_time_s(power_w=30.0, final_soc=0.2)
+            self._powertrain(self._fixture_components(), state_of_charge=0.2).discharge_time_s(
+                power_w=30.0, final_soc=0.2
+            )
 
     def test_propulsors_share_one_bus(self) -> None:
         components = self._fixture_components()

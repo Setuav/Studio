@@ -87,7 +87,6 @@ def test_plugin_activation_and_deactivation() -> None:
     manager.activate(plugin)
     assert manager.is_active("org.test.dummy")
     assert plugin.activated
-    assert plugin in manager.active_plugins
 
     # 2. Duplicate activation rejects
     with pytest.raises(ValueError, match="already active"):
@@ -97,7 +96,6 @@ def test_plugin_activation_and_deactivation() -> None:
     manager.deactivate("org.test.dummy")
     assert not manager.is_active("org.test.dummy")
     assert plugin.deactivated
-    assert plugin not in manager.active_plugins
     assert manager.is_disabled("org.test.dummy")
 
     # 4. Deactivating inactive plugin rejects
@@ -114,27 +112,6 @@ def test_plugin_activation_failure_rollback() -> None:
         manager.activate(failing)
 
     assert not manager.is_active(failing.id)
-    assert failing not in manager.active_plugins
-
-
-def test_active_plugins_ordering_by_priority() -> None:
-    api = StudioAPI()
-    manager = PluginManager(api)
-
-    p1 = DummyMockPlugin("org.test.low_priority", priority=200)
-    p2 = DummyMockPlugin("org.test.high_priority", priority=10)
-    p3 = DummyMockPlugin("org.test.medium_priority", priority=50)
-
-    manager.activate(p1)
-    manager.activate(p2)
-    manager.activate(p3)
-
-    active_ids = [p.id for p in manager.active_plugins]
-    assert active_ids == [
-        "org.test.high_priority",
-        "org.test.medium_priority",
-        "org.test.low_priority",
-    ]
 
 
 # ==============================================================================

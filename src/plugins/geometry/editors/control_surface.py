@@ -551,13 +551,5 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         self._edit_component("Change control surface lifting surface", change)
 
-    def _surface_component(self) -> dict[str, Any] | None:
-        surface_id = str(self._component.get("attach_to") or "")
-        if self._api.project and surface_id:
-            for c in self._api.project.data.get("components", []):
-                if isinstance(c, dict) and str(c.get("id") or "") == surface_id:
-                    return c
-        return None
-
     def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:
         self._api.edit_component(self._component, action_name, mutation)

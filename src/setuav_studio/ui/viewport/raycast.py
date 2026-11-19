@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping
 from itertools import pairwise
-from typing import Any
 
 from .loft_mesh import _centroid, _tessellated_loops
 from .primitives import (
@@ -18,7 +17,8 @@ from .primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-from .types import GeometryData, LoftGeometry, Section
+from .scene_object import SceneObject
+from .types import LoftGeometry, Section
 
 
 def _dot(left: Point3D, right: Point3D) -> float:
@@ -268,63 +268,20 @@ def _ray_primitive_intersection(  # noqa: C901
     return best
 
 
-def hit_test_loft(
-    data: GeometryData,
-    origin: Point3D,
-    direction: Point3D,
-) -> str | None:
-    """Hit-test against loft geometries in the geometry data."""
-    return hit_test_scene(data, None, origin, direction)
-
-
 def hit_test_scene(
-    data: GeometryData | None,
-    scene_objects: dict[str, Any] | Sequence[Any] | None,
+    scene_objects: Mapping[str, SceneObject],
     origin: Point3D,
     direction: Point3D,
 ) -> str | None:
-    """Find the nearest component ID intersecting the ray, checking both lofts and scene objects."""
+    """Find the nearest visible scene object ID intersecting the ray."""
     best_distance: float | None = None
     best_id: str | None = None
-
-    if data is not None:
-        for loft in data.lofts:
-            loops = _tessellated_loops(loft)
-            if not loops:
-                continue
-            for current, following in pairwise(loops):
-                for index in range(len(current)):
-                    next_index = (index + 1) % len(current)
-                    first, second = current[index], current[next_index]
-                    third, fourth = following[index], following[next_index]
-                    for triangle in ((first, second, third), (second, fourth, third)):
-                        distance = _ray_triangle_intersection(origin, direction, triangle)
-                        if distance is None or (
-                            best_distance is not None and distance >= best_distance
-                        ):
-                            continue
-                        best_distance = distance
-                        best_id = loft.component_id
-            cap_distance = _loft_cap_hit_distance(loft, loops, origin, direction, best_distance)
-            if cap_distance is not None and (best_distance is None or cap_distance < best_distance):
-                best_distance = cap_distance
-                best_id = loft.component_id
-
-    if scene_objects:
-        obj_items = (
-            scene_objects.items() if isinstance(scene_objects, dict) else enumerate(scene_objects)
-        )
-        for key, obj in obj_items:
-            if not getattr(obj, "visible", True):
-                continue
-            obj_id = getattr(obj, "object_id", str(key))
-            primitives = getattr(obj, "primitives", None)
-            if primitives is None:
-                primitives = [obj] if isinstance(obj, VisualPrimitive) else ()
-            for prim in primitives:
-                distance = _ray_primitive_intersection(origin, direction, prim)
-                if distance is not None and (best_distance is None or distance < best_distance):
-                    best_distance = distance
-                    best_id = obj_id
-
+    for obj_id, obj in scene_objects.items():
+        if not obj.visible:
+            continue
+        for prim in obj.primitives:
+            distance = _ray_primitive_intersection(origin, direction, prim)
+            if distance is not None and (best_distance is None or distance < best_distance):
+                best_distance = distance
+                best_id = obj_id
     return best_id

@@ -11,8 +11,9 @@ from typing import Any
 
 from PySide6.QtWidgets import QComboBox
 
-from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.engine.data import LoftGeometry, Section
 from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
+from plugins.geometry.engine.lifting_surface_driver_solver import PLANFORM_PARAM_KEYS
 from plugins.geometry.engine.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
@@ -25,10 +26,34 @@ from plugins.geometry.engine.lifting_surface_tips import (
     winglet_sweep_angles,
 )
 from plugins.geometry.engine.scene import build_project_geometry
+from plugins.geometry.scene_controller import _collect_primitives
 from setuav_studio.project import ProjectDocument, open_project
-from setuav_studio.ui.viewport.mesh import build_loft_solid_vertices
+from setuav_studio.ui.viewport.mesh import (
+    WIRE_FEATURE,
+    WIRE_FULL,
+    build_primitive_solid_vertices,
+    build_primitive_wire_vertices,
+)
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 from tests._common import TEST_PROJECT_PATH, cell_widget, get_qapp, table_item
+
+
+def _scene_solid(lofts: Any) -> list[float]:
+    """Solid mesh of ``lofts`` as the geometry plugin hands them to the viewport."""
+    vertices: list[float] = []
+    for primitives in _collect_primitives(lofts).values():
+        vertices += build_primitive_solid_vertices(primitives)
+    return vertices
+
+
+def _scene_wire(lofts: Any, wire_mode: str) -> list[float]:
+    """Wireframe of ``lofts`` as the geometry plugin hands them to the viewport."""
+    vertices: list[float] = []
+    for object_id, primitives in _collect_primitives(lofts).items():
+        vertices += build_primitive_wire_vertices(
+            primitives, wire_mode=wire_mode, object_id=object_id
+        )
+    return vertices
 
 
 class LiftingSurfaceGeometryTests(unittest.TestCase):
@@ -113,7 +138,8 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertIn("span", editor.planform_table.get_current_values())
 
         # Test Wing Planform Sizing driver resize
-        editor._on_planform_spinbox_changed("span", 1200.0)
+        span_row = PLANFORM_PARAM_KEYS.index("span")
+        cell_widget(editor.planform_table, span_row, 2, ExpressionPropertyCell).setValue(1200.0)
         # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
         # With attachment y_offset = 75.0 mm, local tip position is at 525.0 mm
         self.assertAlmostEqual(
@@ -470,15 +496,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         wing_loft = wing_lofts[0]
         self.assertEqual(len(wing_loft.sections), 2)
 
-        from setuav_studio.ui.viewport.mesh import (
-            WIRE_FEATURE,
-            WIRE_FULL,
-            build_loft_wire_vertices,
-        )
-
-        solid_verts = build_loft_solid_vertices(scene_geom)
-        wire_feature_verts = build_loft_wire_vertices(scene_geom, wire_mode=WIRE_FEATURE)
-        wire_full_verts = build_loft_wire_vertices(scene_geom, wire_mode=WIRE_FULL)
+        solid_verts = _scene_solid(scene_geom.lofts)
+        wire_feature_verts = _scene_wire(scene_geom.lofts, WIRE_FEATURE)
+        wire_full_verts = _scene_wire(scene_geom.lofts, WIRE_FULL)
         self.assertGreater(len(solid_verts), 0)
         self.assertGreater(len(wire_feature_verts), 0)
         self.assertGreater(len(wire_full_verts), len(wire_feature_verts))
@@ -515,8 +535,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             },
         }
         fuse_lofts = build_fuselage_geometry(fuse_comp)
-        fuse_geom = GeometryData(fuse_lofts)
-        fuse_wire_feature = build_loft_wire_vertices(fuse_geom, wire_mode=WIRE_FEATURE)
+        fuse_wire_feature = _scene_wire(fuse_lofts, WIRE_FEATURE)
         self.assertGreater(len(fuse_wire_feature), 0)
 
         for tip_t in ("round", "sharp"):
@@ -546,29 +565,8 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                 },
             }
             cap_lofts = build_lifting_surface_geometry(wing_with_cap)
-            cap_geom = GeometryData(cap_lofts)
-            cap_wire_feature = build_loft_wire_vertices(cap_geom, wire_mode=WIRE_FEATURE)
+            cap_wire_feature = _scene_wire(cap_lofts, WIRE_FEATURE)
             self.assertGreater(len(cap_wire_feature), 0)
-
-        # Test control surface vs wing selection matching
-        from setuav_studio.ui.viewport.mesh import _is_matching_component
-
-        # When aileron-1 is selected, only aileron-1 matches
-        self.assertTrue(_is_matching_component("main-wing:aileron-1", "aileron-1"))
-        self.assertTrue(_is_matching_component("main-wing:mirror:aileron-1", "aileron-1"))
-        self.assertFalse(_is_matching_component("main-wing:flap-1", "aileron-1"))
-        self.assertFalse(_is_matching_component("main-wing", "aileron-1"))
-        self.assertFalse(_is_matching_component("main-wing:tip-cap", "aileron-1"))
-
-        # When main wing is selected, main wing and all its child control surfaces match
-        self.assertTrue(_is_matching_component("main-wing", "main-wing"))
-        self.assertTrue(_is_matching_component("main-wing:mirror", "main-wing"))
-        self.assertTrue(_is_matching_component("main-wing:tip-cap", "main-wing"))
-        self.assertTrue(_is_matching_component("main-wing:aileron-1", "main-wing"))
-        self.assertTrue(_is_matching_component("main-wing:mirror:aileron-1", "main-wing"))
-        self.assertTrue(_is_matching_component("main-wing:flap-1", "main-wing"))
-        self.assertFalse(_is_matching_component("h-stab", "main-wing"))
-        self.assertFalse(_is_matching_component("fuselage", "main-wing"))
 
     def test_root_stub_reaches_only_fuselages_with_sections(self) -> None:
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry

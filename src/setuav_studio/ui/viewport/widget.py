@@ -36,10 +36,7 @@ from .constants import (
     WIRE_FULL,
 )
 from .mesh import (
-    build_component_wire_vertices,
     build_envelope_wire_vertices,
-    build_loft_solid_vertices,
-    build_loft_wire_vertices,
     build_primitive_annotation_vertices,
     build_primitive_highlight_vertices,
     build_primitive_solid_vertices,
@@ -49,7 +46,6 @@ from .mesh import (
 )
 from .primitives import Point3D, VisualPrimitive
 from .scene_object import is_scene_object_matching
-from .types import GeometryData
 
 logger = logging.getLogger(__name__)
 
@@ -249,10 +245,6 @@ class OpenGLViewer(QOpenGLWidget):
         self._mesh_dirty = True
 
         self._gl: _GLResources | None = None
-        self._wire_vao = QOpenGLVertexArrayObject()
-        self._wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
-        self._solid_vao = QOpenGLVertexArrayObject()
-        self._solid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._grid_vao = QOpenGLVertexArrayObject()
         self._grid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._axis_vao = QOpenGLVertexArrayObject()
@@ -269,8 +261,6 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._primitive_annotation_vao = QOpenGLVertexArrayObject()
         self._primitive_annotation_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
-        self._wire_count = 0
-        self._solid_count = 0
         self._grid_count = 0
         self._axis_count = 0
         self._highlight_count = 0
@@ -292,7 +282,6 @@ class OpenGLViewer(QOpenGLWidget):
         # view: parallel edges stay parallel and front/rear dimensions remain
         # visually comparable while orbiting the model.
         self._orthographic = True
-        self._geometry_data = GeometryData()
         self._selected_component_id: str | None = None
         self._hovered_component_id: str | None = None
         self._section_selection: tuple[str, int, int] | None = None
@@ -326,7 +315,6 @@ class OpenGLViewer(QOpenGLWidget):
                 _SOLID_FRAGMENT_SHADER,
             )
             for vao, vbo in (
-                (self._wire_vao, self._wire_vbo),
                 (self._grid_vao, self._grid_vbo),
                 (self._axis_vao, self._axis_vbo),
                 (self._highlight_vao, self._highlight_vbo),
@@ -336,17 +324,13 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._primitive_annotation_vao, self._primitive_annotation_vbo),
             ):
                 self._setup_buffer(vao, vbo, wire_program, 6, ((0, 0, 3), (1, 3, 3)))
-            for vao, vbo in (
-                (self._solid_vao, self._solid_vbo),
-                (self._primitive_solid_vao, self._primitive_solid_vbo),
-            ):
-                self._setup_buffer(
-                    vao,
-                    vbo,
-                    solid_program,
-                    9,
-                    ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
-                )
+            self._setup_buffer(
+                self._primitive_solid_vao,
+                self._primitive_solid_vbo,
+                solid_program,
+                9,
+                ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
+            )
             self._upload_meshes()
             self._gl = _GLResources(
                 functions=functions,
@@ -417,8 +401,7 @@ class OpenGLViewer(QOpenGLWidget):
         mvp = self._projection() * self._view()
 
         lines_overlay = (
-            (self._show_wireframe and self._wire_count > 0)
-            or self._highlight_count > 0
+            self._highlight_count > 0
             or self._section_ring_count > 0
             or self._envelope_count > 0
             or (self._show_wireframe and self._primitive_wire_count > 0)
@@ -429,14 +412,10 @@ class OpenGLViewer(QOpenGLWidget):
         self._draw_axis_gizmo(gl)
 
     def _draw_solid_mesh(self, gl: _GLResources, mvp: QMatrix4x4, lines_overlay: bool) -> None:
-        if not self._show_solid:
-            return
-        for vao, count in (
-            (self._solid_vao, self._solid_count),
-            (self._primitive_solid_vao, self._primitive_solid_count),
-        ):
-            if count > 0:
-                self._draw_solid_batch(gl, vao, count, mvp, lines_overlay)
+        if self._show_solid and self._primitive_solid_count > 0:
+            self._draw_solid_batch(
+                gl, self._primitive_solid_vao, self._primitive_solid_count, mvp, lines_overlay
+            )
 
     def _draw_solid_batch(
         self,
@@ -512,15 +491,6 @@ class OpenGLViewer(QOpenGLWidget):
             self._primitive_wire_vao.release()
             functions.glColorMask(True, True, True, True)
             functions.glDisable(_GL_BLEND)
-        if self._show_wireframe:
-            functions.glEnable(_GL_BLEND)
-            functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
-            functions.glUniform1f(alpha_location, 0.9)
-            self._wire_vao.bind()
-            functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
-            self._wire_vao.release()
-            functions.glUniform1f(alpha_location, 1.0)
-            functions.glDisable(_GL_BLEND)
         if self._highlight_count > 0:
             functions.glUniform1f(alpha_location, 1.0)
             self._highlight_vao.bind()
@@ -558,12 +528,6 @@ class OpenGLViewer(QOpenGLWidget):
 
         functions.glEnable(_GL_DEPTH_TEST)
         functions.glViewport(0, 0, self.width(), self.height())
-
-    def set_geometry(self, data: GeometryData, fit: bool = False) -> None:
-        self._geometry_data = data
-        if fit:
-            self.fit_view()
-        self._update_gpu_meshes()
 
     def set_selected_component(self, component_id: str | None) -> None:
         if self._selected_component_id == component_id:
@@ -674,8 +638,8 @@ class OpenGLViewer(QOpenGLWidget):
         self.update()
 
     def _scene_points(self) -> list[tuple[float, float, float]]:
-        points = list(self._geometry_data.points())
-        if not points and self._scene_objects:
+        points: list[tuple[float, float, float]] = []
+        if self._scene_objects:
             from .primitives import (
                 BoxPrimitive,
                 CylinderPrimitive,
@@ -839,30 +803,16 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _pick(self, point: QPoint) -> None:
         component_id = None
-        if (
-            self._solid_count > 0
-            or self._primitive_solid_count > 0
-            or bool(self._scene_objects)
-            or (self._geometry_data and self._geometry_data.lofts)
-        ):
+        if self._primitive_solid_count > 0 or self._scene_objects:
             origin, direction = self._screen_ray(point)
-            component_id = hit_test_scene(
-                self._geometry_data, self._scene_objects, origin, direction
-            )
+            component_id = hit_test_scene(self._scene_objects, origin, direction)
         self.componentPicked.emit(component_id)
 
     def _pick_hover(self, point: QPoint) -> None:
         component_id = None
-        if (
-            self._solid_count > 0
-            or self._primitive_solid_count > 0
-            or bool(self._scene_objects)
-            or (self._geometry_data and self._geometry_data.lofts)
-        ):
+        if self._primitive_solid_count > 0 or self._scene_objects:
             origin, direction = self._screen_ray(point)
-            component_id = hit_test_scene(
-                self._geometry_data, self._scene_objects, origin, direction
-            )
+            component_id = hit_test_scene(self._scene_objects, origin, direction)
         if self._hovered_component_id != component_id:
             self._hovered_component_id = component_id
             self._update_gpu_meshes()
@@ -892,12 +842,7 @@ class OpenGLViewer(QOpenGLWidget):
         from setuav_studio.ui.style.theme import chart_color, tokens
 
         tok = tokens()
-        highlight_values = build_component_wire_vertices(
-            self._geometry_data,
-            self._selected_component_id,
-            _color_rgb(chart_color("orange")),
-            wire_mode=self._wire_mode,
-        )
+        highlight_values: list[float] = []
         if self._selected_component_id and self._scene_objects:
             sel_color = _color_rgb(chart_color("orange"))
             for obj_id, obj in self._scene_objects.items():
@@ -915,14 +860,6 @@ class OpenGLViewer(QOpenGLWidget):
             self._hovered_component_id
             if self._hovered_component_id != self._selected_component_id
             else None
-        )
-        highlight_values.extend(
-            build_component_wire_vertices(
-                self._geometry_data,
-                hovered,
-                _color_rgb(tok["text"]),
-                wire_mode=self._wire_mode,
-            )
         )
         if hovered and self._scene_objects:
             hov_color = _color_rgb(tok["text"])
@@ -942,19 +879,6 @@ class OpenGLViewer(QOpenGLWidget):
         from setuav_studio.ui.style.theme import chart_color
 
         grid_values = self._reference_grid_vertices()
-        wire_values = build_loft_wire_vertices(
-            self._geometry_data,
-            self._selected_component_id,
-            self._hovered_component_id,
-            self._face_style,
-            wire_mode=self._wire_mode,
-        )
-        solid_values = build_loft_solid_vertices(
-            self._geometry_data,
-            self._selected_component_id,
-            self._hovered_component_id,
-            self._face_style,
-        )
         highlight_values = self._build_highlight_vertices()
         ring_values = []
         if self._section_selection is not None:
@@ -980,24 +904,13 @@ class OpenGLViewer(QOpenGLWidget):
                 wire_col = _color_rgb(chart_color("cyan"))
 
             ring_values = build_section_ring_vertices(
-                self._geometry_data,
-                component_id,
-                segment_index,
-                section_index,
-                color=wire_col,
-                wire_mode=self._wire_mode,
-                scene_objects=self._scene_objects,
+                self._scene_objects, component_id, segment_index, section_index, color=wire_col
             )
         envelope_color = (0.15, 1.0, 0.25)
         envelope_values = build_envelope_wire_vertices(
-            self._geometry_data,
-            self._selected_envelope_component_id,
-            envelope_color,
-            scene_objects=self._scene_objects,
+            self._scene_objects, self._selected_envelope_component_id, envelope_color
         )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
-        self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
-        self._solid_count = self._allocate(self._solid_vbo, solid_values, 9)
         self._highlight_count = self._allocate(self._highlight_vbo, highlight_values, 6)
         self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
         self._envelope_count = self._allocate(self._envelope_vbo, envelope_values, 6)
@@ -1045,8 +958,7 @@ class OpenGLViewer(QOpenGLWidget):
                     )
                 )
 
-        # Overlay layers / GeometryData primitives
-        overlay_prims = list(self._geometry_data.primitives)
+        overlay_prims: list[VisualPrimitive] = []
         for layer_id, layer_prims in self._overlay_layers.items():
             if layer_id == "_viewport_api" and self._scene_objects:
                 continue
@@ -1256,8 +1168,7 @@ class OpenGLViewer(QOpenGLWidget):
             mvp = self._projection(aspect_override=aspect) * self._view()
 
             lines_overlay = (
-                (self._show_wireframe and self._wire_count > 0)
-                or self._highlight_count > 0
+                self._highlight_count > 0
                 or self._section_ring_count > 0
                 or self._envelope_count > 0
                 or (self._show_wireframe and self._primitive_wire_count > 0)
@@ -1284,8 +1195,6 @@ class OpenGLViewer(QOpenGLWidget):
             if has_context:
                 self.makeCurrent()
                 for buffer in (
-                    self._wire_vbo,
-                    self._solid_vbo,
                     self._grid_vbo,
                     self._axis_vbo,
                     self._highlight_vbo,
@@ -1298,8 +1207,6 @@ class OpenGLViewer(QOpenGLWidget):
                     if buffer.isCreated():
                         buffer.destroy()
                 for vao in (
-                    self._wire_vao,
-                    self._solid_vao,
                     self._grid_vao,
                     self._axis_vao,
                     self._highlight_vao,
@@ -1318,8 +1225,6 @@ class OpenGLViewer(QOpenGLWidget):
             # or screen changes. Never let wrappers from the old context be
             # reused by the next initializeGL call.
             self._gl = None
-            self._wire_count = 0
-            self._solid_count = 0
             self._grid_count = 0
             self._axis_count = 0
             self._highlight_count = 0
@@ -1356,10 +1261,4 @@ class OpenGLViewer(QOpenGLWidget):
         self._mesh_dirty = True
         if not had_objects and self._scene_objects:
             self.fit_view()
-        self.update()
-
-    def clear_scene_objects(self) -> None:
-        """Clear all registered scene objects."""
-        self._scene_objects.clear()
-        self._mesh_dirty = True
         self.update()

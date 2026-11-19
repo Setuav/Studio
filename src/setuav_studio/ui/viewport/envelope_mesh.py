@@ -11,7 +11,6 @@ from setuav_studio.utilities.transform import rotate_vector
 from .loft_mesh import _add_line, _append_ring
 from .primitives import BoxPrimitive, CylinderPrimitive, Point3D
 from .raycast import _box_corners, _ortho_basis
-from .types import GeometryData
 
 ENVELOPE_HIGHLIGHT: Point3D = (0.15, 1.0, 0.25)
 
@@ -169,10 +168,9 @@ def _append_scene_object_envelope_wire(
 
 
 def build_envelope_wire_vertices(
-    data: GeometryData | None,
+    scene_objects: dict[str, Any],
     selected_envelope_component_id: str | Sequence[str] | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
-    scene_objects: dict[str, Any] | None = None,
 ) -> list[float]:
     """Build vertices for the green wireframe envelope highlighting the selected component's bounding volume."""
     if isinstance(selected_envelope_component_id, str):
@@ -184,15 +182,7 @@ def build_envelope_wire_vertices(
         return element_id == target or element_id.startswith(f"{target}:")
 
     vertices: list[float] = []
-    if data is not None and targets:
-        for env in data.envelopes:
-            if any(belongs(env.component_id, target) for target in targets):
-                for start, end in env.lines:
-                    _add_line(vertices, start, end, color)
-
-    if scene_objects and targets:
-        for obj_id, obj in scene_objects.items():
-            if any(belongs(obj_id, target) or belongs(target, obj_id) for target in targets):
-                _append_scene_object_envelope_wire(vertices, obj, color)
-
+    for obj_id, obj in scene_objects.items():
+        if any(belongs(obj_id, target) or belongs(target, obj_id) for target in targets):
+            _append_scene_object_envelope_wire(vertices, obj, color)
     return vertices

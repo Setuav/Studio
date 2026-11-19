@@ -341,10 +341,3 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
             self._load_section(0)
 
         self._sync_control_surfaces_with_surface()
-
-    def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
-        if self._loading:
-            return
-        inputs = self.planform_table.get_current_values()
-        inputs[key] = float(val_num)
-        self._on_planform_driver_values_changed(inputs)

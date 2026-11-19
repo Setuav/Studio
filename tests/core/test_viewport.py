@@ -63,6 +63,7 @@ class MockRenderer(QWidget):
         component_id: str | None,
         segment_index: int | None = None,
         section_index: int | None = None,
+        color: tuple[float, float, float] | str | None = None,
     ) -> None:
         if component_id is not None and segment_index is not None and section_index is not None:
             self.selected_section = (component_id, segment_index, section_index)
@@ -275,7 +276,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(len(self.viewport.object_ids()), 2)
 
         # Clear layer
-        self.viewport.clear_layer("l1")
+        self.viewport.clear(layer="l1")
         self.assertEqual(self.viewport.object_ids(), ["b3"])
 
         # Clear all
@@ -353,10 +354,6 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsNone(self.viewport.selected_section())
         self.assertIsNone(self.mock_renderer.selected_section)
 
-    def test_set_wire_color_api(self) -> None:
-        self.viewport.set_wire_color("fuselage", 1, color="cyan", segment_index=0)
-        self.assertEqual(self.viewport.selected_section(), ("fuselage", 0, 1))
-
     def test_build_section_ring_vertices_cyan_only(self) -> None:
         from setuav_studio.ui.viewport.mesh import build_section_ring_vertices
         from setuav_studio.ui.viewport.primitives import LoftPrimitive
@@ -374,12 +371,11 @@ class TestStudioViewport(unittest.TestCase):
 
         cyan_color = (0.0, 0.85, 1.0)
         verts = build_section_ring_vertices(
-            None,
+            scene_objs,
             "main-wing",
             0,
             1,  # Select station 1
             color=cyan_color,
-            scene_objects=scene_objs,
         )
 
         # 4 points closed loop = 4 line segments = 8 vertices * 6 floats (x,y,z,r,g,b) = 48 floats
@@ -886,20 +882,20 @@ class TestStudioViewport(unittest.TestCase):
         scene_objs = {"box.near": box_near, "box.far": box_far}
 
         # Ray from z=100 pointing down - hits box_near first
-        hit = hit_test_scene(None, scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
+        hit = hit_test_scene(scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
         self.assertEqual(hit, "box.near")
 
         # Ray from z=-100 pointing up - hits box_far first
-        hit_up = hit_test_scene(None, scene_objs, (0.0, 0.0, -100.0), (0.0, 0.0, 1.0))
+        hit_up = hit_test_scene(scene_objs, (0.0, 0.0, -100.0), (0.0, 0.0, 1.0))
         self.assertEqual(hit_up, "box.far")
 
         # When near box is hidden, hits box_far
         box_near.visible = False
-        hit_hidden = hit_test_scene(None, scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
+        hit_hidden = hit_test_scene(scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
         self.assertEqual(hit_hidden, "box.far")
 
         # Ray completely missing
-        hit_miss = hit_test_scene(None, scene_objs, (500.0, 500.0, 100.0), (0.0, 0.0, -1.0))
+        hit_miss = hit_test_scene(scene_objs, (500.0, 500.0, 100.0), (0.0, 0.0, -1.0))
         self.assertIsNone(hit_miss)
 
     def test_opengl_viewer_primitive_picking(self) -> None:
@@ -977,10 +973,9 @@ class TestStudioViewport(unittest.TestCase):
 
         # 1. Select box-1 envelope: returns 12 box edges = 144 floats
         env_box = build_envelope_wire_vertices(
-            None,
+            scene_objs,
             selected_envelope_component_id="box-1",
             color=color,
-            scene_objects=scene_objs,
         )
         self.assertEqual(len(env_box), 12 * 2 * 6)
         self.assertAlmostEqual(env_box[3], color[0])
@@ -989,19 +984,17 @@ class TestStudioViewport(unittest.TestCase):
 
         # 2. Select cyl-1 envelope (auto-envelope from cylinder primitive)
         env_cyl = build_envelope_wire_vertices(
-            None,
+            scene_objs,
             selected_envelope_component_id="cyl-1",
             color=color,
-            scene_objects=scene_objs,
         )
         self.assertGreater(len(env_cyl), 0)
         self.assertAlmostEqual(env_cyl[3], color[0])
 
         # 3. None selected: returns 0 floats
         env_none = build_envelope_wire_vertices(
-            None,
+            scene_objs,
             selected_envelope_component_id=None,
             color=color,
-            scene_objects=scene_objs,
         )
         self.assertEqual(len(env_none), 0)

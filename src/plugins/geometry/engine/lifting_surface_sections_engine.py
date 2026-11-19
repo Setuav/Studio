@@ -117,47 +117,6 @@ def compute_section_planform_metrics(
     }
 
 
-def solve_section_driver(
-    mode: str,
-    inputs: dict[str, float],
-    current_sec: dict[str, Any],
-) -> dict[str, float]:
-    """Solve section geometry given 3 active driver variables (OpenVSP WingDriverGroup style)."""
-    curr_metrics = compute_section_planform_metrics(current_sec)
-
-    if mode == "area_ar_taper":
-        s_sym = max(float(inputs.get("area", curr_metrics["area"])), 1.0)
-        ar = max(float(inputs.get("aspect_ratio", curr_metrics["aspect_ratio"])), 0.1)
-        taper = max(float(inputs.get("taper_ratio", curr_metrics["taper_ratio"])), 0.001)
-        span = math.sqrt(0.25 * s_sym * ar)
-        c_root = s_sym / (span * (1.0 + taper))
-        c_tip = taper * c_root
-    elif mode == "span_root_tip":
-        span = max(float(inputs.get("span", curr_metrics["span"])), 1.0)
-        c_root = max(float(inputs.get("root_chord", curr_metrics["root_chord"])), 1.0)
-        c_tip = max(float(inputs.get("tip_chord", curr_metrics["tip_chord"])), 1.0)
-    elif mode == "span_area_taper":
-        span = max(float(inputs.get("span", curr_metrics["span"])), 1.0)
-        s_sym = max(float(inputs.get("area", curr_metrics["area"])), 1.0)
-        taper = max(float(inputs.get("taper_ratio", curr_metrics["taper_ratio"])), 0.001)
-        c_root = s_sym / (span * (1.0 + taper))
-        c_tip = taper * c_root
-    elif mode == "span_ar_taper":
-        span = max(float(inputs.get("span", curr_metrics["span"])), 1.0)
-        ar = max(float(inputs.get("aspect_ratio", curr_metrics["aspect_ratio"])), 0.1)
-        taper = max(float(inputs.get("taper_ratio", curr_metrics["taper_ratio"])), 0.001)
-        s_sym = (4.0 * span * span) / ar
-        c_root = s_sym / (span * (1.0 + taper))
-        c_tip = taper * c_root
-    else:
-        span = max(float(inputs.get("span", curr_metrics["span"])), 1.0)
-        c_root = max(float(inputs.get("root_chord", curr_metrics["root_chord"])), 1.0)
-        c_tip = max(float(inputs.get("tip_chord", curr_metrics["tip_chord"])), 1.0)
-
-    temp_sec = {"span": span, "root_chord": c_root, "tip_chord": c_tip}
-    return compute_section_planform_metrics(temp_sec)
-
-
 def sections_to_profiles(
     sections: list[dict[str, Any]],
     root_profile: dict[str, Any] | None = None,

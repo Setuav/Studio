@@ -302,13 +302,13 @@ def test_studio_api_extension_edits_undo_redo() -> None:
         "Set battery config",
         lambda ext: ext.update({"cells": 6, "voltage": 22.2}),
     )
-    assert project.get_plugin_data("org.test.battery") == {"cells": 6, "voltage": 22.2}
+    assert project.data["extensions"]["org.test.battery"] == {"cells": 6, "voltage": 22.2}
 
     studio_api.undo()
-    assert project.get_plugin_data("org.test.battery") is None
+    assert "org.test.battery" not in project.data["extensions"]
 
     studio_api.redo()
-    assert project.get_plugin_data("org.test.battery") == {"cells": 6, "voltage": 22.2}
+    assert project.data["extensions"]["org.test.battery"] == {"cells": 6, "voltage": 22.2}
 
     # Edit component extension
     studio_api.edit_component_extension(
@@ -317,10 +317,10 @@ def test_studio_api_extension_edits_undo_redo() -> None:
         "Set airfoil polar",
         lambda ext: ext.update({"cl_max": 1.6}),
     )
-    assert project.get_component_plugin_data("c1", "org.test.aero") == {"cl_max": 1.6}
+    assert project.data["components"][0]["extensions"]["org.test.aero"] == {"cl_max": 1.6}
 
     studio_api.undo()
-    assert project.get_component_plugin_data("c1", "org.test.aero") is None
+    assert "org.test.aero" not in project.data["components"][0]["extensions"]
 
 
 def test_studio_api_attach_component_undo_redo() -> None:

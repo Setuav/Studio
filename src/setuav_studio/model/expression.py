@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import math
-import re
 from collections.abc import Callable
 from typing import Any
 
@@ -170,34 +169,6 @@ class ExpressionEvaluator:
                 self._aeval.symtable.pop(var_name, None)
 
 
-def rename_symbol_in_expression(
-    expression: str,
-    old_symbol: str,
-    new_symbol: str,
-) -> tuple[str, bool]:
-    """Replace an identifier symbol or dotted symbol chain in a formula with a new symbol.
-
-    Preserves formatting and validates syntax after substitution.
-    """
-    if not isinstance(expression, str) or not expression.strip():
-        return expression, False
-    old_clean = old_symbol.strip()
-    new_clean = new_symbol.strip()
-    if not old_clean or not new_clean or old_clean == new_clean:
-        return expression, False
-
-    pat = r"(?<![a-zA-Z0-9_.])" + re.escape(old_clean) + r"(?![a-zA-Z0-9_])"
-    new_expr, n = re.subn(pat, new_clean, expression)
-    if n > 0:
-        clean = new_expr.lstrip("=").strip()
-        try:
-            ast.parse(clean, mode="eval")
-        except SyntaxError:
-            return expression, False
-        return new_expr, True
-    return expression, False
-
-
 def walk_expressions(  # noqa: C901
     obj: Any,
     callback: Callable[[str, str], str | None],
@@ -254,41 +225,6 @@ def walk_expressions(  # noqa: C901
                 count += walk_expressions(item, callback, sub_path)
 
     return count
-
-
-def rename_symbol_in_project(
-    project_data: dict[str, Any],
-    old_symbol: str,
-    new_symbol: str,
-) -> int:
-    """Cascade rename a symbol (parameter or component identifier) across all expressions in the project.
-
-    Returns the number of expressions updated.
-    """
-    if not isinstance(project_data, dict):
-        return 0
-
-    old_clean = old_symbol.replace("-", "_")
-    new_clean = new_symbol.replace("-", "_")
-
-    def _cb(expr: str, _loc: str) -> str | None:
-        curr_expr = expr
-        changed = False
-
-        if old_symbol != old_clean:
-            res_raw, ok_raw = rename_symbol_in_expression(curr_expr, old_symbol, new_clean)
-            if ok_raw:
-                curr_expr = res_raw
-                changed = True
-
-        res_clean, ok_clean = rename_symbol_in_expression(curr_expr, old_clean, new_clean)
-        if ok_clean:
-            curr_expr = res_clean
-            changed = True
-
-        return curr_expr if changed else None
-
-    return walk_expressions(project_data, _cb)
 
 
 def find_symbol_usages_in_project(

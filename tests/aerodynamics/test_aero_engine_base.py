@@ -209,7 +209,6 @@ class AeroEngineBaseTests(unittest.TestCase):
         )
         self.assertEqual(fm.force_body, (12.5, -1.2, -350.0))
         self.assertEqual(fm.moment_body, (0.45, -4.2, 0.12))
-        self.assertEqual(fm.force_wind, (-15.0, -1.2, -350.0))
 
         data = fm.to_dict()
         restored = AeroForcesMoments.from_dict(data)
@@ -312,10 +311,6 @@ class AeroEngineBaseTests(unittest.TestCase):
             points=[p1, p2, p3, p4],
             grid_shape=(2, 2),
         )
-
-        self.assertEqual(sweep.variable_names, ["elevator", "alpha"])
-        self.assertIs(sweep.point_at_indices(0, 1), p2)
-        self.assertIs(sweep.point_at_indices(1, 0), p3)
 
         # Slice for elevator == -5.0
         elev_slice = sweep.get_slice({"elevator": -5.0})

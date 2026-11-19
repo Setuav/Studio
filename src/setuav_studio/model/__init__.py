@@ -25,7 +25,6 @@ from setuav_studio.model.mass import (
     Vector3,
 )
 from setuav_studio.model.parameter import (
-    CircularDependencyError,
     ParameterResolution,
     ParameterResolver,
 )
@@ -43,7 +42,6 @@ from setuav_studio.solver.base import SolverConfig
 
 __all__ = [
     "Atmosphere",
-    "CircularDependencyError",
     "Component",
     "ComponentMassProperties",
     "ConstraintChecker",

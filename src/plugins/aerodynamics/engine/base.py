@@ -27,18 +27,6 @@ def _string_keyed_dict(value: Any) -> dict[str, Any]:
     return {str(key): item for key, item in value.items()}
 
 
-def _float_vector3(
-    value: Any,
-    default: tuple[float, float, float],
-) -> tuple[float, float, float]:
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        return default
-    try:
-        return (float(value[0]), float(value[1]), float(value[2]))
-    except (TypeError, ValueError):
-        return default
-
-
 def _json_safe(value: Any) -> Any:
     """Convert native solver values into JSON-compatible Python values."""
     if value is None or isinstance(value, (str, int, bool)):
@@ -347,21 +335,6 @@ class AeroForcesMoments:
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
-    def m_roll(self) -> float:
-        """Roll moment (Mx) in Newton-meters."""
-        return self.mx_b
-
-    @property
-    def m_pitch(self) -> float:
-        """Pitch moment (My) in Newton-meters."""
-        return self.my_b
-
-    @property
-    def m_yaw(self) -> float:
-        """Yaw moment (Mz) in Newton-meters."""
-        return self.mz_b
-
-    @property
     def force_body(self) -> tuple[float, float, float]:
         """Body force vector (Fx, Fy, Fz) in Newtons."""
         return (self.fx_b, self.fy_b, self.fz_b)
@@ -370,26 +343,6 @@ class AeroForcesMoments:
     def moment_body(self) -> tuple[float, float, float]:
         """Body moment vector (Mx, My, Mz) in Newton-meters."""
         return (self.mx_b, self.my_b, self.mz_b)
-
-    @property
-    def force_wind(self) -> tuple[float, float, float]:
-        """Native wind-axis force vector (Fx, Fy, Fz) in Newtons."""
-        return (self.fx_w, self.fy_w, self.fz_w)
-
-    @property
-    def moment_wind(self) -> tuple[float, float, float]:
-        """Wind moment vector in Newton-meters."""
-        return (self.mx_w, self.my_w, self.mz_w)
-
-    @property
-    def force_geometry(self) -> tuple[float, float, float]:
-        """Geometry force vector in Newtons."""
-        return (self.fx_g, self.fy_g, self.fz_g)
-
-    @property
-    def moment_geometry(self) -> tuple[float, float, float]:
-        """Geometry moment vector in Newton-meters."""
-        return (self.mx_g, self.my_g, self.mz_g)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -636,10 +589,6 @@ class PolarPoint:
         )
 
 
-# Alias for generalized point results
-AeroPointResult = PolarPoint
-
-
 @dataclass(frozen=True)
 class SweepVariable:
     """A parameter varied during multi-dimensional aerodynamic sweeps."""
@@ -687,21 +636,6 @@ class MultiDimensionalSweepResult:
             raise ValueError(
                 f"Sweep contains {len(self.points)} point(s), expected {expected_points}"
             )
-
-    @property
-    def variable_names(self) -> list[str]:
-        return [v.name for v in self.variables]
-
-    def point_at_indices(self, *indices: int) -> PolarPoint:
-        """Return a grid point; the last variable is the fastest-changing axis."""
-        if len(indices) != len(self.grid_shape):
-            raise IndexError("One index is required for each sweep variable")
-        flat_index = 0
-        for index, size in zip(indices, self.grid_shape, strict=True):
-            if index < 0 or index >= size:
-                raise IndexError("Sweep grid index out of range")
-            flat_index = flat_index * size + index
-        return self.points[flat_index]
 
     def get_slice(
         self,
@@ -840,18 +774,6 @@ class AeroResult:
             ):
                 return pt
         return None
-
-    @property
-    def converged_point_count(self) -> int:
-        return sum(point.converged for point in self.polar_points)
-
-    @property
-    def failed_point_count(self) -> int:
-        return len(self.polar_points) - self.converged_point_count
-
-    @property
-    def is_complete(self) -> bool:
-        return bool(self.polar_points) and self.failed_point_count == 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize result to a dictionary for persistent storage or JSON output."""

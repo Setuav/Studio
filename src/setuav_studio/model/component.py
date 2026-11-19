@@ -45,7 +45,6 @@ class Component:
         )
         self._raw_data.setdefault("parameters", {})
         self._children: dict[str, Any] = {}
-        self._child_list: list[Any] = []
         self._attach_target_model: Component | None = None
 
         # 1. Class-level component type default
@@ -93,13 +92,6 @@ class Component:
                 if isinstance(v, ParameterField) and v not in fields:
                     fields.append(v)
         return tuple(fields)
-
-    @classmethod
-    def get_table_fields(cls) -> tuple[Any, ...]:
-        """Return all TableParameterField descriptors defined on this component class."""
-        from setuav_studio.api.contributions import TableParameterField
-
-        return tuple(f for f in cls.get_fields() if isinstance(f, TableParameterField))
 
     @classmethod
     def get_scalar_fields(cls) -> tuple[ParameterField, ...]:
@@ -367,9 +359,6 @@ class Component:
 
     def add_child_model(self, child: Any) -> None:
         """Register the model of a component attached to this one."""
-        if child not in self._child_list:
-            self._child_list.append(child)
-
         child_id = getattr(child, "id", "")
         if child_id:
             clean_id = child_id.replace("-", "_").lower()
@@ -398,19 +387,6 @@ class Component:
     def children(self) -> dict[str, Any]:
         """Models of the components attached to this one, indexed by identifier and tag."""
         return self._children
-
-    @property
-    def child_components(self) -> list[Any]:
-        """Ordered list of the models of the components attached to this one."""
-        return list(self._child_list)
-
-    def get_parameter(self, key: str, default: Any = None) -> Any:
-        """Retrieve a parameter value by key, returning default if absent."""
-        return self.parameters.get(key, default)
-
-    def set_parameter(self, key: str, value: Any) -> None:
-        """Set a parameter value by key."""
-        self.parameters[key] = value
 
     @property
     def sections(self) -> list[Any]:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from pythrust.battery import BatteryNetwork, NetworkState
@@ -83,9 +83,6 @@ class Powertrain:
     @property
     def open_circuit_voltage_v(self) -> float:
         return self.network.thevenin(self.network_state)[0]
-
-    def with_state_of_charge(self, soc: float) -> Powertrain:
-        return replace(self, network_state=NetworkState.uniform(len(self.network.packs), soc=soc))
 
     def discharge_time_s(self, *, power_w: float, final_soc: float) -> float:
         """Time to discharge to ``final_soc`` at constant bus power.

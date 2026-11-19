@@ -42,7 +42,7 @@ def _polar(
 class TestAirfoilModels(unittest.TestCase):
     """Test 2D airfoil data models and interpolation."""
 
-    def test_airfoil_polar_interpolation_and_serialization(self) -> None:
+    def test_airfoil_polar_summary_and_serialization(self) -> None:
         pts = [
             AirfoilPolarPoint(alpha=0.0, cl=0.2, cd=0.008, cm=-0.05),
             AirfoilPolarPoint(alpha=4.0, cl=0.6, cd=0.010, cm=-0.05),
@@ -57,12 +57,6 @@ class TestAirfoilModels(unittest.TestCase):
         self.assertAlmostEqual(summary.cl_alpha_slope or 0.0, 0.1)
         self.assertAlmostEqual(summary.alpha_zero_lift or 0.0, -2.0)
         self.assertAlmostEqual(summary.cm_zero_lift or 0.0, -0.05)
-
-        # Interpolate at alpha=2.0
-        cl_interp, cd_interp, cm_interp = polar.interpolate(2.0)
-        self.assertAlmostEqual(cl_interp, 0.4, places=4)
-        self.assertAlmostEqual(cd_interp, 0.009, places=4)
-        self.assertAlmostEqual(cm_interp, -0.05, places=4)
 
         # Test to_dict / from_dict
         d = polar.to_dict()
