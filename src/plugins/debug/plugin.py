@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from setuav_studio.api import (
+    ComponentTypeContribution,
     PanelContribution,
     StudioAPI,
     ToolbarContribution,
@@ -79,6 +80,7 @@ class DebugPlugin:
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._tool_contributions: list[ToolContribution] = []
+        self._component_type_ids: list[str] = []
 
     def activate(self, api: StudioAPI) -> None:
         """Activate the debug plugin."""
@@ -125,84 +127,58 @@ class DebugPlugin:
     # ------------------------------------------------------------------
 
     def _register_component_types(self, api: StudioAPI) -> None:
-        """Register editors and icons for all primitive component types."""
-        # 1. Component Editors
-        api.register_component_editor(
-            TYPE_DEBUG_BOX,
-            lambda comp: BoxComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_CYLINDER,
-            lambda comp: CylinderComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_RING,
-            lambda comp: RingComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_PLANE,
-            lambda comp: PlaneComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_LINE,
-            lambda comp: LineComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_TRIANGLE,
-            lambda comp: TriangleComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_LOFT,
-            lambda comp: LoftComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_POINT,
-            lambda comp: PointComponentEditor(api, comp),
-        )
-        api.register_component_editor(
-            TYPE_DEBUG_ARROW,
-            lambda comp: ArrowComponentEditor(api, comp),
-        )
-
-        # 2. Component Icons
-        api.register_component_icon(TYPE_DEBUG_BOX, "fa6s.cube")
-        api.register_component_icon(TYPE_DEBUG_CYLINDER, "fa6s.database")
-        api.register_component_icon(TYPE_DEBUG_RING, "fa6s.circle-notch")
-        api.register_component_icon(TYPE_DEBUG_PLANE, "fa6s.square")
-        api.register_component_icon(TYPE_DEBUG_LINE, "fa6s.arrows-up-down-left-right")
-        api.register_component_icon(TYPE_DEBUG_TRIANGLE, "fa6s.draw-polygon")
-        api.register_component_icon(TYPE_DEBUG_LOFT, "fa6s.plane")
-        api.register_component_icon(TYPE_DEBUG_POINT, "mdi6.dots-hexagon")
-        api.register_component_icon(TYPE_DEBUG_ARROW, "fa6s.location-arrow")
-
-        # 3. Component Domain Models
-        api.register_component_model(TYPE_DEBUG_BOX, BoxComponent)
-        api.register_component_model(TYPE_DEBUG_CYLINDER, CylinderComponent)
-        api.register_component_model(TYPE_DEBUG_RING, RingComponent)
-        api.register_component_model(TYPE_DEBUG_PLANE, PlaneComponent)
-        api.register_component_model(TYPE_DEBUG_LINE, LineComponent)
-        api.register_component_model(TYPE_DEBUG_TRIANGLE, TriangleComponent)
-        api.register_component_model(TYPE_DEBUG_LOFT, LoftComponent)
-        api.register_component_model(TYPE_DEBUG_POINT, PointComponent)
-        api.register_component_model(TYPE_DEBUG_ARROW, ArrowComponent)
+        """Register the primitive component types with their editors and models."""
+        types: list[tuple[str, str, str, Any, Any]] = [
+            (TYPE_DEBUG_BOX, "Box", "fa6s.cube", BoxComponent, BoxComponentEditor),
+            (
+                TYPE_DEBUG_CYLINDER,
+                "Cylinder",
+                "fa6s.database",
+                CylinderComponent,
+                CylinderComponentEditor,
+            ),
+            (TYPE_DEBUG_RING, "Ring", "fa6s.circle-notch", RingComponent, RingComponentEditor),
+            (TYPE_DEBUG_PLANE, "Plane", "fa6s.square", PlaneComponent, PlaneComponentEditor),
+            (
+                TYPE_DEBUG_LINE,
+                "Line",
+                "fa6s.arrows-up-down-left-right",
+                LineComponent,
+                LineComponentEditor,
+            ),
+            (
+                TYPE_DEBUG_TRIANGLE,
+                "Triangle",
+                "fa6s.draw-polygon",
+                TriangleComponent,
+                TriangleComponentEditor,
+            ),
+            (TYPE_DEBUG_LOFT, "Loft", "fa6s.plane", LoftComponent, LoftComponentEditor),
+            (TYPE_DEBUG_POINT, "Point", "mdi6.dots-hexagon", PointComponent, PointComponentEditor),
+            (
+                TYPE_DEBUG_ARROW,
+                "Arrow",
+                "fa6s.location-arrow",
+                ArrowComponent,
+                ArrowComponentEditor,
+            ),
+        ]
+        self._component_type_ids = [type_id for type_id, *_rest in types]
+        for type_id, name, icon, model, editor_class in types:
+            api.register_component_type(
+                ComponentTypeContribution(
+                    id=type_id,
+                    name=name,
+                    icon=icon,
+                    model=model,
+                    editor=lambda component, cls=editor_class: cls(api, component),
+                    category="Debug",
+                )
+            )
 
     def _unregister_component_types(self, api: StudioAPI) -> None:
-        """Unregister component editors, icons, and models."""
-        types = (
-            TYPE_DEBUG_BOX,
-            TYPE_DEBUG_CYLINDER,
-            TYPE_DEBUG_RING,
-            TYPE_DEBUG_PLANE,
-            TYPE_DEBUG_LINE,
-            TYPE_DEBUG_TRIANGLE,
-            TYPE_DEBUG_LOFT,
-            TYPE_DEBUG_POINT,
-            TYPE_DEBUG_ARROW,
-        )
-        for t in types:
-            api.unregister_component_editor(t)
-            api.unregister_component_icon(t)
-            api.unregister_component_model(t)
+        for type_id in self._component_type_ids:
+            api.unregister_component_type(type_id)
 
     # ------------------------------------------------------------------
     # Project & Viewport Synchronization

@@ -271,63 +271,16 @@ def register_native_contributions(api: StudioAPI) -> None:
 
 
 def register_native_component_types(api: StudioAPI) -> None:
-    """Register built-in component types, labels and icons."""
-    native_types = [
-        ComponentTypeContribution(
-            id="org.setuav.core:fuselage",
-            name="Fuselage",
-            icon="geometry_add_fuselage",
-            category="Aerodynamics",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:lifting-surface",
-            name="Lifting Surface",
-            icon="geometry_add_lifting_surface",
-            category="Aerodynamics",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:control-surface",
-            name="Control Surface",
-            icon="geometry_add_control_surface",
-            category="Aerodynamics",
-            subpart=True,
-        ),
+    """Register the component types the core itself defines."""
+    api.register_component_type(
         ComponentTypeContribution(
             id=POINT_MASS_TYPE,
             name="Point Mass",
             icon="component",
             editor=lambda component: BaseComponentEditor(api, component),
             category="Structure",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:propulsor",
-            name="Propulsor",
-            icon="component",
-            category="Propulsion",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:battery",
-            name="Battery",
-            icon="component",
-            category="Electrical",
-        ),
-        ComponentTypeContribution(id="org.setuav.debug:box", name="Box", category="Debug"),
-        ComponentTypeContribution(
-            id="org.setuav.debug:cylinder", name="Cylinder", category="Debug"
-        ),
-        ComponentTypeContribution(id="org.setuav.debug:ring", name="Ring", category="Debug"),
-        ComponentTypeContribution(id="org.setuav.debug:plane", name="Plane", category="Debug"),
-        ComponentTypeContribution(id="org.setuav.debug:line", name="Line", category="Debug"),
-        ComponentTypeContribution(
-            id="org.setuav.debug:triangle", name="Triangle", category="Debug"
-        ),
-        ComponentTypeContribution(id="org.setuav.debug:loft", name="Loft", category="Debug"),
-        ComponentTypeContribution(id="org.setuav.debug:point", name="Point", category="Debug"),
-        ComponentTypeContribution(id="org.setuav.debug:arrow", name="Arrow", category="Debug"),
-    ]
-    for contrib in native_types:
-        if contrib.id not in api._component_types:
-            api.register_component_type(contrib)
+        )
+    )
 
 
 def register_native_kind_editors(api: StudioAPI) -> None:

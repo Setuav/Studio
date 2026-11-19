@@ -3,10 +3,36 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem, QWidget
 
+if TYPE_CHECKING:
+    from setuav_studio.api import StudioAPI
+
 TEST_PROJECT_PATH = Path(__file__).parent / "fixtures" / "fixed-wing"
+
+
+def register_fixture_component_types(api: StudioAPI) -> None:
+    """Register the component types of the fixture project that its plugins provide.
+
+    Core tests use these without activating the plugins: the core types, and the
+    airframe types with control surfaces as subparts.
+    """
+    from setuav_studio.api import ComponentTypeContribution
+    from setuav_studio.ui.shell.native_registrations import register_native_component_types
+
+    register_native_component_types(api)
+    for type_id, name, subpart in (
+        ("org.setuav.core:fuselage", "Fuselage", False),
+        ("org.setuav.core:lifting-surface", "Lifting Surface", False),
+        ("org.setuav.core:control-surface", "Control Surface", True),
+        ("org.setuav.core:propulsor", "Propulsor", False),
+        ("org.setuav.core:battery", "Battery", False),
+    ):
+        api.register_component_type(
+            ComponentTypeContribution(id=type_id, name=name, icon="component", subpart=subpart)
+        )
 
 
 def get_qapp() -> QApplication:

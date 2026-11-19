@@ -10,9 +10,8 @@ from PySide6.QtWidgets import QComboBox
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import open_project
 from setuav_studio.ui.editor import TransformEditor
-from setuav_studio.ui.shell.native_registrations import register_native_component_types
 from setuav_studio.utilities.transform import components_by_id, resolve_world_transform
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from tests._common import TEST_PROJECT_PATH, get_qapp, register_fixture_component_types
 
 
 class TransformEditorTests(unittest.TestCase):
@@ -22,7 +21,7 @@ class TransformEditorTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = StudioAPI()
-        register_native_component_types(self.api)
+        register_fixture_component_types(self.api)
         self.project = open_project(TEST_PROJECT_PATH)
         self.api._host.set_project(self.project)
 

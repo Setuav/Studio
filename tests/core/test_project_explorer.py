@@ -11,8 +11,7 @@ from setuav_studio.api import ComponentMenuItemContribution, StudioAPI
 from setuav_studio.project import open_project
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from setuav_studio.ui.panels.project_explorer.tree_builder import VEHICLE_SELECTION
-from setuav_studio.ui.shell.native_registrations import register_native_component_types
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from tests._common import TEST_PROJECT_PATH, get_qapp, register_fixture_component_types
 
 
 def _child_texts(item: QTreeWidgetItem) -> list[str]:
@@ -27,7 +26,7 @@ class ProjectExplorerLayoutTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = StudioAPI()
-        register_native_component_types(self.api)
+        register_fixture_component_types(self.api)
         self.api._host.set_project(open_project(TEST_PROJECT_PATH))
         self.explorer = ProjectExplorer(self.api)
         self.addCleanup(self.explorer.deleteLater)
@@ -76,7 +75,7 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = StudioAPI()
-        register_native_component_types(self.api)
+        register_fixture_component_types(self.api)
         self.api._host.set_project(open_project(TEST_PROJECT_PATH))
         self.explorer = ProjectExplorer(self.api)
         self.addCleanup(self.explorer.deleteLater)
