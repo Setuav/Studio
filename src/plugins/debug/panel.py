@@ -176,7 +176,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
         layout.setSpacing(10)
 
         # 1. Active Selection Section
-        sel_layout = self._create_section(layout, "Active Selection", "search")
+        sel_layout = self._create_section(layout, "Active Selection", "fa6s.magnifying-glass")
         self.selection_table = self._property_table(
             [
                 ("kind", "Kind"),

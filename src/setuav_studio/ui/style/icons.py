@@ -286,30 +286,26 @@ def get_icon(
     ):
         return QIcon(str(icon_source))
 
-    if isinstance(icon_source, str):
-        asset_icon = _asset_icon(icon_source)
-        if asset_icon is not None:
-            return asset_icon
-        specifier = _ICON_MAP.get(icon_source, icon_source)
-        try:
-            # QtAwesome reports an unknown glyph with a bare Exception.
-            qta.icon(specifier, **kwargs)
-        except Exception as exc:
-            logger.warning("Unknown icon %r: %s", specifier, exc)
-            return QIcon()
-        # A custom icon engine avoids storing the current theme color in the
-        # QIcon. Existing actions and buttons therefore repaint correctly
-        # after an application palette change without rebuilding each icon.
-        return QIcon(
-            _ThemeIconEngine(
-                specifier,
-                color=color,
-                color_disabled=color_disabled,
-                options=kwargs,
-            )
+    asset_icon = _asset_icon(icon_source)
+    if asset_icon is not None:
+        return asset_icon
+    specifier = _ICON_MAP.get(icon_source, icon_source)
+    try:
+        qta.icon(specifier, **kwargs)
+    except Exception as exc:
+        # QtAwesome reports an unknown glyph with a bare Exception.
+        raise ValueError(f"Unknown icon {specifier!r}") from exc
+    # A custom icon engine avoids storing the current theme color in the
+    # QIcon. Existing actions and buttons therefore repaint correctly
+    # after an application palette change without rebuilding each icon.
+    return QIcon(
+        _ThemeIconEngine(
+            specifier,
+            color=color,
+            color_disabled=color_disabled,
+            options=kwargs,
         )
-
-    return QIcon()
+    )
 
 
 def set_label_icon(label: QLabel, icon_source: str, size: int = 14) -> None:
