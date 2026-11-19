@@ -322,9 +322,6 @@ class FocusAwareLineEdit(QLineEdit):
         items: list[tuple[str, str]] = []
 
         resolved_api = self._api
-        if resolved_api is None and hasattr(self.parent(), "_api"):
-            resolved_api = getattr(self.parent(), "_api", None)
-
         if resolved_api is not None and resolved_api.project is not None:
             data = resolved_api.project.data
             if isinstance(data, dict):
