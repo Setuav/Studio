@@ -11,6 +11,7 @@ from setuav_studio.ui.style.icons import (
     register_icon,
     register_plugin_icons,
     set_label_icon,
+    unregister_plugin_icons,
 )
 from setuav_studio.ui.style.theme import (
     ACCENT_COLOR,
@@ -47,4 +48,5 @@ __all__ = [
     "status_color",
     "theme",
     "tokens",
+    "unregister_plugin_icons",
 ]

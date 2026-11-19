@@ -111,17 +111,9 @@ def application_icon() -> QIcon:
 @lru_cache(maxsize=1)
 def _asset_icon_map() -> dict[str, str]:
     """Load logical icon names from the vendored asset manifest."""
-    try:
-        with _ICON_MANIFEST.open("rb") as stream:
-            values = tomllib.load(stream).get("icons", {})
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        logger.warning("Could not load icon manifest %s: %s", _ICON_MANIFEST, exc)
-        return {}
-    return {
-        str(name): str(relative_path)
-        for name, relative_path in values.items()
-        if isinstance(relative_path, str)
-    }
+    with _ICON_MANIFEST.open("rb") as stream:
+        values = tomllib.load(stream)["icons"]
+    return {str(name): str(relative_path) for name, relative_path in values.items()}
 
 
 _PLUGIN_ICON_MAP: dict[str, Path] = {}
@@ -144,53 +136,48 @@ def register_plugin_icons(
     assets_dir: Path | str,
     manifest: dict[str, str] | None = None,
 ) -> None:
-    """Register a plugin's asset directory and optional icon name mappings."""
+    """Register a plugin's asset directory and its icon names.
+
+    The names come from ``manifest`` or, without one, from the directory's
+    ``manifest.toml`` ``[icons]`` table. A manifest that cannot be read or an icon
+    file it names that does not exist raises. :func:`unregister_plugin_icons`
+    removes the registration.
+    """
     dir_path = Path(assets_dir).resolve()
     icon_manifest: dict[str, str] = dict(manifest or {})
 
     manifest_file = dir_path / "manifest.toml"
     if not icon_manifest and manifest_file.is_file():
-        try:
-            with manifest_file.open("rb") as stream:
-                values = tomllib.load(stream).get("icons", {})
-                if isinstance(values, dict):
-                    icon_manifest = {
-                        str(k): str(v) for k, v in values.items() if isinstance(v, str)
-                    }
-        except (OSError, tomllib.TOMLDecodeError) as exc:
-            logger.warning("Could not load plugin icon manifest %s: %s", manifest_file, exc)
-
-    _PLUGIN_ICON_MANIFESTS[plugin_id] = (dir_path, icon_manifest)
+        with manifest_file.open("rb") as stream:
+            icon_manifest = {str(k): str(v) for k, v in tomllib.load(stream)["icons"].items()}
 
     for name, rel_path in icon_manifest.items():
         full_path = dir_path / rel_path
-        if full_path.is_file():
-            _PLUGIN_ICON_MAP[name] = full_path
+        if not full_path.is_file():
+            raise FileNotFoundError(f"Icon {name!r} of plugin {plugin_id!r}: no file {full_path}")
+
+    _PLUGIN_ICON_MANIFESTS[plugin_id] = (dir_path, icon_manifest)
+    for name, rel_path in icon_manifest.items():
+        _PLUGIN_ICON_MAP[name] = dir_path / rel_path
+
+
+def unregister_plugin_icons(plugin_id: str) -> None:
+    """Remove the icons :func:`register_plugin_icons` registered for ``plugin_id``."""
+    _dir_path, icon_manifest = _PLUGIN_ICON_MANIFESTS.pop(plugin_id)
+    for name in icon_manifest:
+        _PLUGIN_ICON_MAP.pop(name, None)
 
 
 def _asset_icon(icon_source: str) -> QIcon | None:
     if icon_source in _PLUGIN_ICON_MAP:
-        icon_path = _PLUGIN_ICON_MAP[icon_source]
-        if icon_path.is_file():
-            return QIcon(str(icon_path))
-
-    for dir_path, manifest in _PLUGIN_ICON_MANIFESTS.values():
-        if icon_source in manifest:
-            full_path = dir_path / manifest[icon_source]
-            if full_path.is_file():
-                return QIcon(str(full_path))
-        for ext in (".svg", ".png"):
-            candidate = dir_path / f"{icon_source}{ext}"
-            if candidate.is_file():
-                return QIcon(str(candidate))
+        return QIcon(str(_PLUGIN_ICON_MAP[icon_source]))
 
     relative_path = _asset_icon_map().get(icon_source)
     if relative_path is None:
         return None
     icon_path = _ASSET_ROOT / relative_path
     if not icon_path.is_file():
-        logger.warning("Mapped icon asset is missing: %s", icon_path)
-        return None
+        raise FileNotFoundError(f"Icon {icon_source!r} maps to a missing file: {icon_path}")
     return QIcon(str(icon_path))
 
 

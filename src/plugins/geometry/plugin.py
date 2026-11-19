@@ -7,7 +7,7 @@ from setuav_studio.api import (
     SettingsPageContribution,
     StudioAPI,
 )
-from setuav_studio.ui.style.icons import register_plugin_icons
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
 from .creation import AirframeCreationController
 from .editors.control_surface import ControlSurfaceEditor
@@ -133,6 +133,7 @@ class AirframeDesignPlugin:
         api.unregister_settings_page("airframe_design.settings.editor")
         for type_id in _GEOMETRY_TYPES:
             api.unregister_component_deriver(type_id)
+        unregister_plugin_icons("org.setuav.studio.airframe_design")
 
 
 def _describe_lifting_surface(component: dict[str, Any]) -> str:
