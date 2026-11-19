@@ -92,6 +92,10 @@ class ProjectDocument:
         self.data["solver_results"][result.id] = result.to_dict()
         self.modified = True
 
+    def results_of_config(self, config_id: str) -> list[SolverResult]:
+        """The results of the analysis configuration ``config_id``, oldest first."""
+        return [r for r in self.solver_results.values() if r.config.config_id == config_id]
+
     def get_solver_result(self, result_id: str) -> SolverResult | None:
         """Retrieve a specific SolverResult by ID."""
         return self.solver_results.get(result_id)

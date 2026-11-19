@@ -516,10 +516,6 @@ class AnalysisTablePanel(QWidget):
         element = {
             "result_id": self._current_result.id if self._current_result else None,
             "table_id": self._current_table.id,
-            "config_id": (
-                getattr(getattr(self._current_result, "config", None), "config_id", None)
-                if self._current_result
-                else None
-            ),
+            "config_id": (self._current_result.config.config_id if self._current_result else None),
         }
         add_plot_action(self._api, element, parent=self)

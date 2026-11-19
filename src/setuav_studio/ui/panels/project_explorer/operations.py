@@ -182,11 +182,7 @@ class ProjectExplorerOperations:
         if project is None:
             return
 
-        matching_results = [
-            r_id
-            for r_id, r in project.solver_results.items()
-            if getattr(getattr(r, "config", None), "config_id", None) == config_id
-        ]
+        matching_results = [r.id for r in project.results_of_config(config_id)]
         details: list[str] = []
         if matching_results:
             details.append(

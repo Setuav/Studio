@@ -94,11 +94,7 @@ def add_plot_action(
     config_id = str(element.get("config_id") or "")
 
     if not result_id and config_id:
-        matching = [
-            r
-            for r in project.solver_results.values()
-            if getattr(getattr(r, "config", None), "config_id", None) == config_id
-        ]
+        matching = project.results_of_config(config_id)
         if matching:
             result_id = matching[-1].id
 
@@ -164,7 +160,7 @@ def add_plot_action(
         "id": f"{result.id}:plot:{plot_id}",
         "result_id": result.id,
         "plot_id": plot_id,
-        "config_id": config_id or getattr(getattr(result, "config", None), "config_id", None),
+        "config_id": config_id or result.config.config_id,
         "name": title,
     }
     api.set_selection(plot_payload)

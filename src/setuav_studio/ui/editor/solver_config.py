@@ -194,12 +194,8 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
                 self._set_property_value(self.parameters_table, "empty", "—", editable=False)
 
             # 3. Results Summary
-            matching = [
-                r
-                for r in self._api.get_solver_results().values()
-                if getattr(getattr(r, "config", None), "config_id", None) == config.config_id
-                or getattr(r, "solver_id", None) == config.solver_id
-            ]
+            project = self._api.project
+            matching = project.results_of_config(config.config_id) if project is not None else []
             result = matching[-1] if matching else None
             self._cached_result = result
             if result is not None and result.summary:

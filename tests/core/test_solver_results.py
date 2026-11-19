@@ -407,3 +407,15 @@ def test_chart_draws_right_axis_series_and_shades_invalid_ranges() -> None:
     assert all(
         not marker.isVisible() for shade in shades for marker in chart.legend().markers(shade)
     )
+
+
+def test_results_belong_to_their_own_configuration() -> None:
+    project = ProjectDocument(Path("results.json"), "json", {"components": []})
+    first = SolverConfig(solver_id="org.setuav.aero", name="Cruise")
+    second = SolverConfig(solver_id="org.setuav.aero", name="Climb")
+    project.add_solver_result(SolverResult(solver_id="org.setuav.aero", config=first))
+
+    assert [r.config.config_id for r in project.results_of_config(first.config_id)] == [
+        first.config_id
+    ]
+    assert project.results_of_config(second.config_id) == []

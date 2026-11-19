@@ -213,14 +213,7 @@ class ProjectTreeBuilder:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
             # Check if a SolverResult exists for this config
-            matching_results = [
-                r
-                for r in project.solver_results.values()
-                if (
-                    getattr(getattr(r, "config", None), "config_id", None) == cid
-                    or getattr(r, "solver_id", None) == config.solver_id
-                )
-            ]
+            matching_results = project.results_of_config(cid)
             res = matching_results[-1] if matching_results else None
 
             payload = {
