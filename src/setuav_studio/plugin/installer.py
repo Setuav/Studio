@@ -82,10 +82,7 @@ def _extract_tar(archive_path: Path, dest_dir: Path) -> None:
     with tarfile.open(archive_path, "r:*") as tf:
         for member in tf.getmembers():
             _validate_safe_path(dest_dir, member.name)
-        if hasattr(tarfile, "data_filter"):
-            tf.extractall(dest_dir, filter="data")
-        else:
-            tf.extractall(dest_dir)
+        tf.extractall(dest_dir, filter="data")
 
 
 def _extract_rar(archive_path: Path, dest_dir: Path) -> None:

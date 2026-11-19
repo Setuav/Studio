@@ -171,9 +171,7 @@ class TaskManagerDialog(QDialog):
             self._active_table.setItem(row, 0, name_item)
 
             # 1: Priority
-            prio_name = (
-                handle.priority.name if hasattr(handle.priority, "name") else str(handle.priority)
-            )
+            prio_name = handle.priority.name
             prio_item = QTableWidgetItem(prio_name)
             prio_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._active_table.setItem(row, 1, prio_item)
@@ -227,7 +225,7 @@ class TaskManagerDialog(QDialog):
 
             # 2: Status with color badge
             st = handle.status
-            status_item = QTableWidgetItem(st.upper() if hasattr(st, "upper") else str(st))
+            status_item = QTableWidgetItem(st.upper())
             color_name = (
                 "success" if st == "success" else ("warning" if st == "cancelled" else "error")
             )

@@ -333,7 +333,7 @@ class ResultPanel(QWidget):
         chart: AnalysisChartPanel | None,
         plot_id: str,
     ) -> None:
-        if action == "reset_plot" and res and hasattr(res, "reset_plot"):
+        if action == "reset_plot" and res:
             res.reset_plot(plot_id)
         if chart and res and plot_id in res.plots:
             plot = res.plots[plot_id]

@@ -5,10 +5,13 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING
 
 from .primitives import Point3D
 from .types import LoftGeometry
+
+if TYPE_CHECKING:
+    from .scene_object import SceneObject
 
 SELECTED_WIRE: Point3D = (0.95, 0.58, 0.28)
 SECTION_RING: Point3D = (0.0, 0.85, 1.0)
@@ -114,7 +117,7 @@ def _append_loft_wire(
 
 
 def build_section_ring_vertices(
-    scene_objects: dict[str, Any],
+    scene_objects: dict[str, SceneObject],
     component_id: str | None,
     segment_index: int | None,
     section_index: int | None,
@@ -131,9 +134,7 @@ def build_section_ring_vertices(
     for obj_id, obj in scene_objects.items():
         if not is_scene_object_matching(obj_id, component_id):
             continue
-        prims = [
-            p for p in getattr(obj, "primitives", ()) if isinstance(p, LoftPrimitive) and p.sections
-        ]
+        prims = [p for p in obj.primitives if isinstance(p, LoftPrimitive) and p.sections]
         if not prims:
             continue
         if segment_index is not None and 0 <= segment_index < len(prims):

@@ -440,7 +440,7 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
 
     def _on_reset_plot_clicked(self) -> None:
         res = self._api.get_solver_result(self._result_id)
-        if res is not None and hasattr(res, "reset_plot"):
+        if res is not None:
             res.reset_plot(self._plot_id)
             if self._api.project is not None:
                 self._api.project.add_solver_result(res)

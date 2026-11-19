@@ -101,6 +101,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         # error and has nothing to apply.
         self._plugin_pages: list[tuple[SettingsPageContribution, QWidget | None]] = []
         self._units_updating = False
+        self._unit_combos: dict[str, QComboBox] = {}
         self._group_items: dict[str, QTreeWidgetItem] = {}
         self._first_page_item: QTreeWidgetItem | None = None
 
@@ -370,7 +371,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         page, layout = self._page_container("Units & Dimensions")
 
         self._units_updating = True
-        self._unit_combos: dict[str, QComboBox] = {}
+        self._unit_combos = {}
 
         # 1. Preset System
         _, s1_layout = self._create_section("Unit Preset", "fa6s.sliders", layout)
@@ -455,8 +456,6 @@ class SettingsDialog(PropertyTableMixin, QDialog):
     def apply_units(self) -> None:
         from setuav_studio.units import get_unit_manager
 
-        if not hasattr(self, "_unit_combos"):
-            return
         um = get_unit_manager()
         preset_id = str(self.units_preset_combo.currentData())
         um.set_active_preset(preset_id)

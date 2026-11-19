@@ -290,7 +290,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 self.cg_spins["y"].setValue(round(agg.cg_local_m[1] * 1000.0, 3))
                 self.cg_spins["z"].setValue(round(agg.cg_local_m[2] * 1000.0, 3))
                 for key, spin in self.inertia_spins.items():
-                    spin.setValue(float(getattr(agg.inertia_local_kg_m2, key, 0.0) or 0.0))
+                    spin.setValue(float(getattr(agg.inertia_local_kg_m2, key)))
             else:
                 source = self._source_component(component)
                 mass = component.get("mass", source.get("mass", 0.0))
@@ -306,7 +306,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 mass_kg = _number(mass) / 1000.0
                 inertia_tensor = resolve_component_local_inertia(component, mass_kg)
                 for key, spin in self.inertia_spins.items():
-                    spin.setValue(float(getattr(inertia_tensor, key, 0.0) or 0.0))
+                    spin.setValue(float(getattr(inertia_tensor, key)))
         finally:
             self._loading = False
 

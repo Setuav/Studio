@@ -105,8 +105,7 @@ class StudioChartWidget(QWidget):
 
         legend = self.chart.legend()
         legend.setLabelBrush(dim_col)
-        if hasattr(legend, "setLabelColor"):
-            legend.setLabelColor(text_col)
+        legend.setLabelColor(text_col)
 
         for axis in list(self.chart.axes()):
             if isinstance(axis, QValueAxis):

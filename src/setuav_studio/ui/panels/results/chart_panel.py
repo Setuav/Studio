@@ -182,8 +182,7 @@ class AnalysisChartPanel(QWidget):
 
     def reload_plot(self) -> None:
         """Re-render the active plot using updated definition/series."""
-        if hasattr(self._chart_widget, "chart"):
-            self._chart_widget.chart.zoomReset()
+        self._chart_widget.chart.zoomReset()
         if self._current_plot is not None:
             self._active_x_column = self._current_plot.x_column
             self._title_label.setText(self._current_plot.title or self._current_plot.id)
@@ -191,8 +190,7 @@ class AnalysisChartPanel(QWidget):
 
     def reset_view(self) -> None:
         """Auto-scale axes to fit all curve data and reset zoom."""
-        if hasattr(self._chart_widget, "chart"):
-            self._chart_widget.chart.zoomReset()
+        self._chart_widget.chart.zoomReset()
         self._render_chart()
 
     def _on_units_changed(self, _payload: Any = None) -> None:
