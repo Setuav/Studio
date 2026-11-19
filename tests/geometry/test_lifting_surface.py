@@ -122,6 +122,35 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(left.sections[0].points[0], (10.0, -1.0, 0.0))
         self.assertEqual(right.sections[0].points[0], (10.0, 1.0, 0.0))
 
+    def test_sections_table_cells_are_numbers_in_display_units(self) -> None:
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+        wing = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
+        editor = LiftingSurfaceEditor(api, wing)
+        um = get_unit_manager()
+        length_unit = um.get_display_unit("length")
+        try:
+            um.set_display_unit("length", "in")
+            editor._populate_sections()
+            header = editor.sections_table.horizontalHeaderItem(1)
+            assert header is not None
+            self.assertEqual(header.text(), "Span [in]")
+
+            table_item(editor.sections_table, 0, 1).setText("10")
+            self.assertAlmostEqual(editor._get_sections()[0]["span"], 254.0, places=3)
+
+            table_item(editor.sections_table, 0, 1).setText("wide")
+            self.assertAlmostEqual(editor._get_sections()[0]["span"], 254.0, places=3)
+            self.assertEqual(table_item(editor.sections_table, 0, 1).text(), "10.0")
+        finally:
+            um.set_display_unit("length", length_unit)
+        editor.deleteLater()
+
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
         from setuav_studio.api import StudioAPI

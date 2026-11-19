@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.widget.button import set_native_button
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
 from ...engine.lifting_surface_planform_engine import SWEEP_LOCATIONS
@@ -30,6 +31,9 @@ from ...engine.lifting_surface_sections_engine import (
 from .airfoil_dialog import AirfoilDialog
 from .host import LiftingSurfaceEditorHost
 from .planform_driver_table import DriverPlanformTable
+
+# The editable columns of the sections table.
+_SECTION_COLUMNS = {1: "span", 2: "sweep", 3: "dihedral"}
 
 
 class SectionsSectionMixin(LiftingSurfaceEditorHost):
@@ -152,6 +156,9 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             length_sym = um.get_unit_symbol("length")
             angle_sym = um.get_unit_symbol("angle")
             sections = self._get_sections()
+            self.sections_table.setHorizontalHeaderLabels(
+                ["#", f"Span [{length_sym}]", f"Sweep [{angle_sym}]", f"Dihedral [{angle_sym}]"]
+            )
             self.sections_table.setRowCount(len(sections))
 
             for r, sec in enumerate(sections):
@@ -161,21 +168,21 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
                 self.sections_table.setItem(r, 0, num_item)
 
                 disp_span = um.to_display(sec["span"], "length")
-                span_item = QTableWidgetItem(f"{disp_span:.1f} {length_sym}")
+                span_item = QTableWidgetItem(f"{disp_span:.1f}")
                 span_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
                 self.sections_table.setItem(r, 1, span_item)
 
                 disp_sw = um.to_display(sec["sweep"], "angle")
-                sw_item = QTableWidgetItem(f"{disp_sw:.1f} {angle_sym}")
+                sw_item = QTableWidgetItem(f"{disp_sw:.1f}")
                 sw_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
                 self.sections_table.setItem(r, 2, sw_item)
 
                 disp_dih = um.to_display(sec["dihedral"], "angle")
-                dih_item = QTableWidgetItem(f"{disp_dih:.1f} {angle_sym}")
+                dih_item = QTableWidgetItem(f"{disp_dih:.1f}")
                 dih_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
@@ -403,20 +410,23 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
 
     def _update_sections_table_cell(self, row: int, column: int) -> None:
         """Apply direct table cell edits to the underlying wing section."""
-        if self._loading:
+        if self._loading or column not in _SECTION_COLUMNS:
             return
         item = self.sections_table.item(row, column)
         if not item:
             return
-        val = self._parse_number(item.text())
-        if val is None:
+        parsed = evaluate_table_cell_input(
+            item.text(), self._api, label=f"Section {row + 1} {_SECTION_COLUMNS[column]}"
+        )
+        if parsed is None:
+            self._populate_sections()
             return
+        val = parsed[0]
         sections = self._get_sections()
         if not (0 <= row < len(sections)):
             return
 
-        if not self._apply_section_cell(sections, row, column, val):
-            return
+        self._apply_section_cell(sections, row, column, val)
 
         sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
@@ -433,21 +443,14 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
     @staticmethod
     def _apply_section_cell(
         sections: list[dict[str, Any]], row: int, column: int, value: float
-    ) -> bool:
+    ) -> None:
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
         section = sections[row]
-        field = {
-            1: "span",
-            2: "sweep",
-            3: "dihedral",
-        }.get(column)
-        if field is None:
-            return False
+        field = _SECTION_COLUMNS[column]
         raw_val = um.to_base(value, "length") if column == 1 else um.to_base(value, "angle")
         section[field] = max(raw_val, 1.0) if column == 1 else float(raw_val)
-        return True
 
     def _on_section_planform_changed(self, new_metrics: dict[str, float]) -> None:
         if self._loading:

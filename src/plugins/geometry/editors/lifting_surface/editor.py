@@ -250,19 +250,3 @@ class LiftingSurfaceEditor(
             item = table.item(row, 1)
             if item is not None:
                 item.setText("")
-
-    @staticmethod
-    def _parse_number(value: str) -> float | None:
-        try:
-            return float(
-                value.replace("°", "")
-                .replace("mm²", "")
-                .replace("m²", "")
-                .replace("dm²", "")
-                .replace("mm", "")
-                .replace("g", "")
-                .split("(")[0]
-                .strip()
-            )
-        except ValueError:
-            return None
