@@ -10,7 +10,6 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QDoubleSpinBox,
     QHBoxLayout,
     QHeaderView,
     QPushButton,
@@ -99,12 +98,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         self.transform_table.verticalHeader().setDefaultSectionSize(23)
         self.transform_table.verticalHeader().setMinimumWidth(82)
         self.transform_table.setFixedHeight(71)
-        for row in range(2):
-            for column in range(3):
-                item = QTableWidgetItem("0.00")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.transform_table.setItem(row, column, item)
-        self.transform_table.cellChanged.connect(self._update_section)
         transform_layout.addWidget(self.transform_table)
 
         properties_layout = self._create_section("Section Properties", "fa6s.sliders")
@@ -120,7 +113,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         properties_layout.addWidget(self.section_properties_table)
 
         self.vertices_table = self._table(["Y", "Z", "Radius"])
-        self.vertices_table.cellChanged.connect(self._update_vertices)
         self.vertices_table.setVisible(False)
         properties_layout.addWidget(self.vertices_table)
 
@@ -366,30 +358,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         self._populate_sections()
         self.sections_table.selectRow(self._section_index)
 
-    def _update_section(self, *_args: object) -> None:
-        section = self._current_section()
-        if self._loading or section is None:
-            return
-
-        transform_values = self._transform_values()
-        if transform_values is None:
-            self._load_section(self._section_index)
-            return
-        position_values, rotation_values = transform_values
-
-        def change() -> None:
-            pos = section.setdefault("position", {})
-            pos["x"] = position_values[0]
-            pos["y"] = position_values[1]
-            pos["z"] = position_values[2]
-            rot = section.setdefault("rotation", {})
-            rot["x"] = rotation_values[0]
-            rot["y"] = rotation_values[1]
-            rot["z"] = rotation_values[2]
-
-        self._edit_component("Edit section transform", change)
-        self._refresh_section_row()
-
     def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
         if self._loading:
             return
@@ -538,54 +506,6 @@ class SectionsSectionMixin(FuselageEditorHost):
                 property_key=axis,
                 raw_callback=True,
                 on_changed=transform_callback("rotation", axis),
-            )
-
-    def _transform_values(
-        self,
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        rows: list[tuple[float, float, float]] = []
-        for row in range(2):
-            vals: list[float] = []
-            for column in range(3):
-                w = self.transform_table.cellWidget(row, column)
-                if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
-                    vals.append(float(w.value()))
-                else:
-                    item = self.transform_table.item(row, column)
-                    try:
-                        vals.append(float(item.text()) if item is not None else 0.0)
-                    except (AttributeError, ValueError):
-                        return None
-            if len(vals) == 3:
-                rows.append((vals[0], vals[1], vals[2]))
-        if len(rows) == 2:
-            return rows[0], rows[1]
-        return None
-
-    def _update_vertices(self, row: int, column: int) -> None:
-        if self._loading:
-            return
-        section = self._current_section()
-        if section is None:
-            return
-        profile = self._object(section, "profile")
-        vertices = profile.get("vertices")
-        if not isinstance(vertices, list) or not 0 <= row < len(vertices):
-            return
-        w = self.vertices_table.cellWidget(row, column)
-        if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
-            value = float(w.value())
-        else:
-            item = self.vertices_table.item(row, column)
-            try:
-                value = float(item.text()) if item is not None else 0.0
-            except ValueError:
-                return
-        key = ("y", "z", "radius")[column]
-        if isinstance(vertices[row], dict):
-            self._edit_component(
-                "Edit polygon vertex",
-                lambda: vertices[row].__setitem__(key, value),
             )
 
     def _populate_section_properties(self, profile: dict[str, Any]) -> None:

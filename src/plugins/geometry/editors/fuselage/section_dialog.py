@@ -177,7 +177,6 @@ class FuselageSectionDialog(QDialog):
         self.vertices_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.vertices_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.vertices_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.vertices_table.cellChanged.connect(self._on_vertices_cell_changed)
         self.vertices_table.currentCellChanged.connect(self._on_vertices_row_selected)
         poly_layout.addWidget(self.vertices_table)
 
@@ -207,12 +206,6 @@ class FuselageSectionDialog(QDialog):
         self.trans_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.trans_table.verticalHeader().setDefaultSectionSize(24)
         self.trans_table.setFixedHeight(75)
-        for r in range(2):
-            for c in range(3):
-                item = QTableWidgetItem("0.0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.trans_table.setItem(r, c, item)
-        self.trans_table.cellChanged.connect(self._on_transform_cell_changed)
         trans_layout.addWidget(self.trans_table)
         self._scroll_layout.addWidget(trans_box)
 
@@ -1031,36 +1024,6 @@ class FuselageSectionDialog(QDialog):
         # Delegate to the expression-aware handler
         self._on_prop_spin_changed(key, val_text)
 
-    def _on_vertices_cell_changed(self, row: int, column: int) -> None:
-        if self._loading:
-            return
-        sec = self._current_section()
-        if not sec:
-            return
-        prof = sec.get("profile")
-        if not isinstance(prof, dict) or prof.get("type") != "polygon":
-            return
-        verts = prof.get("vertices")
-        if not isinstance(verts, list) or not (0 <= row < len(verts)):
-            return
-
-        item = self.vertices_table.item(row, column)
-        if not item:
-            return
-
-        try:
-            val = float(item.text())
-        except ValueError:
-            val = 0.0
-
-        key = ["y", "z", "radius"][column]
-        old_val = verts[row].get(key, 0.0)
-        if abs(val - old_val) < 1e-4:
-            return
-
-        verts[row][key] = val
-        self._refresh_canvas_and_metrics()
-
     def _add_polygon_vertex(self) -> None:
         sec = self._current_section()
         if not sec:
@@ -1106,20 +1069,6 @@ class FuselageSectionDialog(QDialog):
         v_data = verts[delete_idx]
         cmd = DeleteVertexCommand(self, delete_idx, v_data)
         self.undo_stack.push(cmd)
-
-    def _on_transform_cell_changed(self, row: int, column: int) -> None:
-        if self._loading:
-            return
-        sec = self._current_section()
-        if not sec:
-            return
-        item = self.trans_table.item(row, column)
-        if not item:
-            return
-
-        key_axis = ["x", "y", "z"][column]
-        transform_type = "position" if row == 0 else "rotation"
-        self._on_transform_expression_changed(transform_type, key_axis, item.text().strip())
 
     def _on_display_option_toggled(self) -> None:
         self.canvas.show_previous = self.cb_prev.isChecked()
