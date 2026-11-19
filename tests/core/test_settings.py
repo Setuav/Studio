@@ -107,14 +107,20 @@ class CoreSettingsTests(unittest.TestCase):
             SettingsPageContribution("plain", "Plain", QWidget, order=30),
             SettingsPageContribution("bad", "Bad", fail_factory, order=40, apply=fail_apply),
             SettingsPageContribution("wrong", "Wrong", cast(Any, lambda: object()), order=50),
+            SettingsPageContribution("late", "Late", QWidget, order=60, apply=fail_apply),
         )
         with self.assertLogs("setuav_studio.ui.settings.settings_pages", level="ERROR"):
             dialog = SettingsDialog(StudioSettings(), pages=pages)
-            dialog.apply_plugin_pages()
+            with patch("setuav_studio.ui.settings.settings_pages.QMessageBox.warning") as warning:
+                dialog.apply_plugin_pages()
         self.addCleanup(dialog.deleteLater)
+        # Only the created page's failing apply is reported; "bad" has no page to apply.
+        warning.assert_called_once()
+        self.assertIn("Late: apply failed", warning.call_args.args[2])
 
         self.assertEqual(
-            [item[0].id for item in dialog._plugin_pages], ["a", "z", "plain", "bad", "wrong"]
+            [item[0].id for item in dialog._plugin_pages],
+            ["a", "z", "plain", "bad", "wrong", "late"],
         )
         self.assertEqual(len(applied), 1)
         self.assertIn("Geometry", dialog._group_items)

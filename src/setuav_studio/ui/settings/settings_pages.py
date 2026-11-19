@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -96,7 +97,10 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         self.resize(760, 620)
         self.setMinimumSize(680, 520)
 
-        self._plugin_pages: list[tuple[SettingsPageContribution, QWidget]] = []
+        # Plugin pages with their widgets; a page whose factory failed shows the
+        # error and has nothing to apply.
+        self._plugin_pages: list[tuple[SettingsPageContribution, QWidget | None]] = []
+        self._units_updating = False
         self._group_items: dict[str, QTreeWidgetItem] = {}
         self._first_page_item: QTreeWidgetItem | None = None
 
@@ -409,7 +413,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         self._add_page("units", "Units", page, "fa6s.ruler-combined", group="Application")
 
     def _on_units_preset_changed(self) -> None:
-        if getattr(self, "_units_updating", False):
+        if self._units_updating:
             return
         from setuav_studio.units import PRESETS
 
@@ -429,7 +433,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
             self._units_updating = False
 
     def _on_single_unit_changed(self, quantity_id: str) -> None:
-        if getattr(self, "_units_updating", False):
+        if self._units_updating:
             return
         from setuav_studio.units import PRESETS
 
@@ -461,20 +465,23 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         um.save_to_settings()
 
     def _add_plugin_page(self, contribution: SettingsPageContribution) -> None:
+        page: QWidget | None
         try:
             page = contribution.factory()
             if not isinstance(page, QWidget):
                 raise TypeError("settings page factory must return a QWidget")
+            shown: QWidget = page
         except Exception as exc:
             logger.exception("Could not create settings page %s", contribution.id)
-            page = QLabel(f"Could not load this settings page.\n{exc}")
-            page.setWordWrap(True)
+            page = None
+            shown = QLabel(f"Could not load this settings page.\n{exc}")
+            shown.setWordWrap(True)
 
         self._plugin_pages.append((contribution, page))
         self._add_page(
             contribution.id,
             contribution.title,
-            page,
+            shown,
             contribution.icon,
             contribution.group,
             contribution.group_icon,
@@ -489,14 +496,24 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         )
 
     def apply_plugin_pages(self) -> None:
-        """Persist plugin pages after the dialog has been accepted."""
+        """Persist plugin pages after the dialog has been accepted.
+
+        A plugin page that fails to apply does not stop the others; the
+        failures are shown to the user.
+        """
+        failures: list[str] = []
         for contribution, page in self._plugin_pages:
-            if contribution.apply is None:
+            if contribution.apply is None or page is None:
                 continue
             try:
                 contribution.apply(page)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Could not apply settings page %s", contribution.id)
+                failures.append(f"{contribution.title}: {exc}")
+        if failures:
+            QMessageBox.warning(
+                self, "Settings", "Some settings could not be applied:\n" + "\n".join(failures)
+            )
 
 
 def _as_bool(value: object) -> bool:
