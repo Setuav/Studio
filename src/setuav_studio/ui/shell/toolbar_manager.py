@@ -143,35 +143,16 @@ class ToolbarManager:
             action = self.toolbar_actions.get(contribution_id)
             if action is None:
                 continue
-            enabled = True
-            if contribution.enabled_when is not None:
-                try:
-                    enabled = bool(contribution.enabled_when())
-                except Exception:
-                    logger.exception("Could not evaluate toolbar state: %s", contribution_id)
-                    enabled = False
+            enabled = contribution.enabled_when is None or bool(contribution.enabled_when())
 
             menu_has_enabled_item = not contribution.menu_items
             for menu_item, menu_action in self.toolbar_menu_actions.get(contribution_id, []):
-                item_enabled = True
-                if menu_item.enabled_when is not None:
-                    try:
-                        item_enabled = bool(menu_item.enabled_when())
-                    except Exception:
-                        logger.exception(
-                            "Could not evaluate toolbar menu state: %s",
-                            menu_item.title,
-                        )
-                        item_enabled = False
+                item_enabled = menu_item.enabled_when is None or bool(menu_item.enabled_when())
                 menu_action.setEnabled(enabled and item_enabled)
                 menu_has_enabled_item = menu_has_enabled_item or item_enabled
             action.setEnabled(enabled and menu_has_enabled_item)
             if contribution.checked_when is not None and action.isCheckable():
-                try:
-                    checked = bool(contribution.checked_when())
-                except Exception:
-                    logger.exception("Could not evaluate toolbar check state: %s", contribution_id)
-                    continue
+                checked = bool(contribution.checked_when())
                 action.blockSignals(True)
                 action.setChecked(checked)
                 action.blockSignals(False)
