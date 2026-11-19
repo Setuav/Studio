@@ -395,7 +395,7 @@ class StudioAPI:
 
     def attach_component(
         self,
-        component: dict[str, Any] | Any,
+        component: dict[str, Any],
         target_id: str | None,
         *,
         preserve_world_transform: bool,
@@ -403,7 +403,7 @@ class StudioAPI:
     ) -> None:
         """Attach a component to another component, or to the vehicle, with undo support.
 
-        @param component The component to attach (dict or Component object).
+        @param component The component to attach.
         @param target_id The component to attach to, or None for the vehicle.
         @param preserve_world_transform When True, recomputes the component's position
             and rotation relative to the new target so it stays where it is; when False,
@@ -412,25 +412,21 @@ class StudioAPI:
         """
         from setuav_studio.utilities.transform import attach_component
 
-        raw_data = getattr(component, "raw_data", None)
-        raw = raw_data if isinstance(raw_data, dict) else component
-        if not isinstance(raw, dict):
-            raise TypeError(f"{type(component).__name__} is not a component.")
         if self._project is None:
             raise RuntimeError("No project is open.")
 
-        comp_name = str(raw.get("name") or raw.get("id") or "component")
+        comp_name = str(component.get("name") or component.get("id") or "component")
         cmd_desc = description or f"Attach {comp_name} to {target_id or 'Vehicle'}"
 
         def change() -> None:
             attach_component(
-                raw,
+                component,
                 target_id,
                 self._project,
                 preserve_world_transform=preserve_world_transform,
             )
 
-        self.edit_component(raw, cmd_desc, change)
+        self.edit_component(component, cmd_desc, change)
 
     @property
     def subpart_types(self) -> frozenset[str]:
@@ -902,26 +898,18 @@ class StudioAPI:
         if factory is not None:
             return factory(component)
 
-        # Fallback: auto-generate editor if component model defines parameter field descriptors
-        if isinstance(component_type, str) and component_type in self._component_models:
-            model_cls = self._component_models[component_type]
-            if hasattr(model_cls, "get_fields"):
-                fields = model_cls.get_fields()
-                if fields:
-                    from setuav_studio.ui.editor.component import BaseComponentEditor
+        # Without an editor, a component model's parameter fields give one.
+        model_cls = (
+            self._component_models.get(component_type) if isinstance(component_type, str) else None
+        )
+        from setuav_studio.model.component import Component
 
-                    raw_comp = getattr(component, "raw_data", component)
-                    return BaseComponentEditor(cast(Any, self), raw_comp, fields)
-
-        get_fields_fn = getattr(component, "get_fields", None)
-        if callable(get_fields_fn):
-            fields = get_fields_fn()
+        if isinstance(model_cls, type) and issubclass(model_cls, Component):
+            fields = model_cls.get_fields()
             if fields:
                 from setuav_studio.ui.editor.component import BaseComponentEditor
 
-                raw_comp = getattr(component, "raw_data", component)
-                return BaseComponentEditor(cast(Any, self), raw_comp, cast(Any, fields))
-
+                return BaseComponentEditor(cast(Any, self), component, fields)
         return None
 
     def register_component_icon(
