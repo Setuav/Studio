@@ -8,6 +8,7 @@ from setuav_studio.api import (
     ComponentTypeContribution,
     PanelContribution,
 )
+from setuav_studio.solver.launch import run_analysis
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
@@ -65,45 +66,6 @@ def _on_open_expression_assistant(api: StudioAPI) -> None:
             parent=QApplication.activeWindow(),
         )
         dlg.exec()
-
-
-def _on_run_analysis_triggered(api: StudioAPI) -> None:
-    """Trigger execution of the currently active analysis configuration."""
-    active_config = api.get_current_solver_config()
-    if active_config is None:
-        all_configs = api.get_solver_configs()
-        if all_configs:
-            active_config = next(iter(all_configs.values()))
-            api.set_current_solver_config(active_config.config_id)
-
-    if active_config is None:
-        api.show_status("No analysis configuration available to run.", "warning")
-        return
-
-    solver_cls = api.solvers.get_solver_class(active_config.solver_id)
-    if solver_cls is None:
-        api.show_status(
-            f"No registered solver found for '{active_config.solver_id}'.",
-            "error",
-        )
-        return
-
-    try:
-        solver = solver_cls(active_config)
-        api.show_status(f"Starting analysis '{active_config.name}'...", "info")
-        api.run_solver(
-            solver,
-            on_complete=lambda res: api.show_status(
-                f"Analysis '{active_config.name}' completed ({res.execution_time_ms:.1f} ms).",
-                "success",
-            ),
-            on_error=lambda err: api.show_status(
-                f"Analysis '{active_config.name}' failed: {err}",
-                "error",
-            ),
-        )
-    except Exception as exc:
-        api.show_status(f"Failed to launch analysis: {exc}", "error")
 
 
 POINT_MASS_TYPE = "org.setuav.core:point-mass"
@@ -242,7 +204,7 @@ def register_native_contributions(api: StudioAPI) -> None:
         ToolbarContribution(
             id="org.setuav.studio.toolbar.run_analysis",
             title="Run Analysis",
-            callback=lambda: _on_run_analysis_triggered(api),
+            callback=lambda: run_analysis(api),
             icon="fa6s.play",
             group="analysis",
             order=10,
