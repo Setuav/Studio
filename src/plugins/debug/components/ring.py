@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 
 from .common import (
     DEBUG_LAYER,
@@ -71,7 +71,7 @@ def create_ring_component(comp_id: str, name: str) -> RingComponent:
 
 
 def add_ring_to_viewport(
-    viewport: ViewportProtocol,
+    viewport: StudioViewport,
     comp_id: str,
     name: str,
     params: dict[str, Any] | RingComponent,

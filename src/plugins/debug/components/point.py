@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 
 from .common import (
     DEBUG_LAYER,
@@ -85,7 +85,7 @@ def create_point_component(comp_id: str, name: str) -> PointComponent:
 
 
 def add_point_to_viewport(
-    viewport: ViewportProtocol,
+    viewport: StudioViewport,
     comp_id: str,
     name: str,
     params: dict[str, Any] | PointComponent,

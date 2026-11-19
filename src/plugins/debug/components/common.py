@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.editor.component import BaseComponentEditor
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 from setuav_studio.utilities.transform import (
     resolve_world_transform,
     rotate_vector,
@@ -69,7 +69,7 @@ _RENDERERS: dict[
     str,
     Callable[
         [
-            ViewportProtocol,
+            StudioViewport,
             str,
             str,
             dict[str, Any],
@@ -88,7 +88,7 @@ def register_renderer(
     component_type: str,
     fn: Callable[
         [
-            ViewportProtocol,
+            StudioViewport,
             str,
             str,
             dict[str, Any],
@@ -152,7 +152,7 @@ def debug_envelope_types() -> tuple[str, ...]:
 
 
 def update_component_in_viewport(
-    viewport: ViewportProtocol,
+    viewport: StudioViewport,
     component: dict[str, Any],
     project: Any = None,
 ) -> None:
@@ -199,7 +199,7 @@ def update_component_in_viewport(
                 update_component_in_viewport(viewport, other_comp, project)
 
 
-def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) -> None:
+def sync_debug_components_to_viewport(viewport: StudioViewport, project: Any) -> None:
     """Synchronize all debug components in the project with the viewport."""
     if viewport is None:
         return

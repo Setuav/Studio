@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField, TableParameterField
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 from setuav_studio.utilities.envelope import compute_loft_envelope
 
 from .common import (
@@ -192,7 +192,7 @@ def loft_section_loops(loft: LoftComponent) -> list[tuple[Point3D, ...]]:
 
 
 def add_loft_to_viewport(
-    viewport: ViewportProtocol,
+    viewport: StudioViewport,
     comp_id: str,
     name: str,
     params: dict[str, Any] | LoftComponent,

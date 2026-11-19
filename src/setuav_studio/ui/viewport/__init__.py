@@ -66,9 +66,6 @@ __all__ = [
     "StudioViewport",
     "StudioViewportHUD",
     "TrianglesPrimitive",
-    "ViewportProtocol",
     "VisualPrimitive",
     "is_scene_object_matching",
 ]
-
-ViewportProtocol = StudioViewport

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 from setuav_studio.utilities.envelope import compute_box_envelope
 
 from .common import (
@@ -83,7 +83,7 @@ def create_box_component(comp_id: str, name: str) -> BoxComponent:
 
 
 def add_box_to_viewport(
-    viewport: ViewportProtocol,
+    viewport: StudioViewport,
     comp_id: str,
     name: str,
     params: dict[str, Any] | BoxComponent,

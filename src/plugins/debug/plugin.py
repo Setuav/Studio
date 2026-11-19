@@ -14,7 +14,7 @@ from setuav_studio.api import (
     ToolbarMenuItemContribution,
     ToolContribution,
 )
-from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.ui.viewport import StudioViewport
 
 from .components import (
     DEBUG_LAYER,
@@ -197,7 +197,7 @@ class DebugPlugin:
                 vp.add_layer(DEBUG_LAYER, name="Debug")
             sync_debug_components_to_viewport(vp, project)
 
-    def _get_viewport(self) -> ViewportProtocol | None:
+    def _get_viewport(self) -> StudioViewport | None:
         """Get the StudioViewport instance, showing the panel if necessary."""
         if self._api is None:
             return None
