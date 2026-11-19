@@ -145,6 +145,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIs(self.viewport.renderer, self.mock_renderer)
 
     def test_add_box(self) -> None:
+        self.viewport.add_layer("geometry")
         obj = self.viewport.add_box(
             object_id="box-1",
             center=(0.0, 0.0, 0.0),
@@ -164,6 +165,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 1)
 
     def test_add_cylinder(self) -> None:
+        self.viewport.add_layer("propulsion")
         obj = self.viewport.add_cylinder(
             object_id="cyl-1",
             start=(0.0, 0.0, 0.0),
@@ -231,6 +233,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsInstance(obj.primitives[0], LineSegmentsPrimitive)
 
     def test_add_loft(self) -> None:
+        self.viewport.add_layer("geometry")
         section1 = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 5.0, 0.0))
         section2 = ((0.0, 50.0, 0.0), (8.0, 50.0, 0.0), (0.0, 54.0, 0.0))
         obj = self.viewport.add_loft(
@@ -247,6 +250,8 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(len(prim.sections), 2)
 
     def test_layer_visibility(self) -> None:
+        self.viewport.add_layer("geometry")
+        self.viewport.add_layer("manufacturing")
         self.viewport.add_box("box-geom", (0, 0, 0), (10, 10, 10), layer="geometry")
         self.viewport.add_box("box-mfg", (10, 0, 0), (10, 10, 10), layer="manufacturing")
 
@@ -263,7 +268,20 @@ class TestStudioViewport(unittest.TestCase):
         self.viewport.set_layer_visible("manufacturing", True)
         self.assertEqual(len(self.mock_renderer.overlays["_viewport_api"]), 2)
 
+    def test_unregistered_layers_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
+            self.viewport.add_box("b", (0, 0, 0), (1, 1, 1), layer="nowhere")
+        with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
+            self.viewport.set_layer_visible("nowhere", False)
+        with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
+            self.viewport.is_layer_visible("nowhere")
+        with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
+            self.viewport.set_overlays("o", [], layer="nowhere")
+        self.assertEqual(self.viewport.layers(), ["default", "mass"])
+
     def test_remove_and_clear(self) -> None:
+        self.viewport.add_layer("l1")
+        self.viewport.add_layer("l2")
         self.viewport.add_box("b1", (0, 0, 0), (5, 5, 5), layer="l1")
         self.viewport.add_box("b2", (10, 0, 0), (5, 5, 5), layer="l1")
         self.viewport.add_box("b3", (20, 0, 0), (5, 5, 5), layer="l2")

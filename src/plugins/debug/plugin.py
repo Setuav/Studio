@@ -114,9 +114,8 @@ class DebugPlugin:
         self._unregister_component_types(api)
         self._unregister_panel(api)
 
-        vp = self._get_viewport()
-        if vp is not None:
-            vp.clear(layer=DEBUG_LAYER)
+        if api.viewport is not None:
+            api.viewport.remove_layer(DEBUG_LAYER)
 
         self._api = None
         logger.info("DebugPlugin deactivated")
@@ -218,6 +217,8 @@ class DebugPlugin:
     def _sync_viewport(self, project: Any) -> None:
         vp = self._get_viewport()
         if vp is not None:
+            if not vp.has_layer(DEBUG_LAYER):
+                vp.add_layer(DEBUG_LAYER, name="Debug")
             sync_debug_components_to_viewport(vp, project)
 
     def _get_viewport(self) -> ViewportProtocol | None:

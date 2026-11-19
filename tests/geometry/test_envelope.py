@@ -587,6 +587,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         loft = geom.lofts[0]
         env = geom.envelopes[0]
         sections_pts = tuple(tuple(pt for pt in sec.points) for sec in loft.sections)
+        viewport.add_layer("airframe")
         obj = SceneObject(
             object_id="test-fuse",
             layer="airframe",

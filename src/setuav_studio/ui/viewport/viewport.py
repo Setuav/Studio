@@ -305,12 +305,15 @@ class StudioViewport(QWidget):
         """Return a sorted list of all registered layer IDs."""
         return sorted(self._layers.keys())
 
+    def _registered_layer(self, layer_id: str) -> Layer:
+        """The registered layer *layer_id*; layers are registered with :meth:`add_layer`."""
+        if layer_id not in self._layers:
+            raise ValueError(f"Viewport layer {layer_id!r} is not registered.")
+        return self._layers[layer_id]
+
     def set_layer_visible(self, layer: str, visible: bool) -> None:
         """Show or hide all objects and overlays belonging to *layer*."""
-        if layer in self._layers:
-            self._layers[layer].visible = visible
-        else:
-            self.add_layer(layer, visible=visible)
+        self._registered_layer(layer).visible = visible
         self._sync_renderer()
         for overlay_id, (overlay_layer, _primitives) in self._overlays.items():
             if overlay_layer == layer:
@@ -318,9 +321,8 @@ class StudioViewport(QWidget):
         self.layer_visibility_changed.emit(layer, visible)
 
     def is_layer_visible(self, layer: str) -> bool:
-        """Return whether *layer* is currently visible (default True)."""
-        layer_obj = self._layers.get(layer)
-        return layer_obj.visible if layer_obj is not None else True
+        """Return whether *layer* is currently visible."""
+        return self._registered_layer(layer).visible
 
     # ------------------------------------------------------------------
     # Generic add / remove / query
@@ -329,11 +331,9 @@ class StudioViewport(QWidget):
     def add_object(self, obj: SceneObject) -> SceneObject:
         """Insert or replace a scene object by its ``object_id``.
 
-        If the object belongs to an unregistered layer, that layer is
-        registered automatically.
+        The object's layer must be registered with :meth:`add_layer`.
         """
-        if obj.layer not in self._layers:
-            self.add_layer(obj.layer)
+        self._registered_layer(obj.layer)
         self._objects[obj.object_id] = obj
         self._sync_renderer()
         return obj
@@ -897,8 +897,7 @@ class StudioViewport(QWidget):
         The overlay belongs to *layer*, which its owner registers with
         :meth:`add_layer`; it is drawn only while that layer is visible.
         """
-        if layer not in self._layers:
-            raise ValueError(f"Overlay {overlay_id!r} names unregistered layer {layer!r}.")
+        self._registered_layer(layer)
         self._overlays[overlay_id] = (layer, list(primitives))
         self._push_overlay(overlay_id)
 

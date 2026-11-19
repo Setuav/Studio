@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem
 
 from plugins.debug import DebugPlugin
+from plugins.debug.components.common import DEBUG_LAYER
 from plugins.debug.components.loft import (
     LoftComponentEditor,
     add_loft_to_viewport,
@@ -110,6 +111,7 @@ class TestDebugLoft(unittest.TestCase):
     def test_loft_viewport_rendering_with_stations(self) -> None:
         viewport = StudioViewport()
         self.addCleanup(viewport.deleteLater)
+        viewport.add_layer(DEBUG_LAYER)
 
         loft = create_loft_component("loft-render", "Render Wing")
         add_loft_to_viewport(
