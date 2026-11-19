@@ -48,7 +48,9 @@ class _LogBufferHandler(logging.Handler):
         try:
             message = record.getMessage()
         except Exception:
-            message = str(record.msg)
+            # The logging contract for a record whose arguments do not format.
+            self.handleError(record)
+            return
         entry = LogEntry(
             time=time.strftime("%H:%M:%S", time.localtime(record.created)),
             level=record.levelname,
