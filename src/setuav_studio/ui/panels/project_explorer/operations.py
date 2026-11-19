@@ -319,22 +319,23 @@ class ProjectExplorerOperations:
         toggle_constraint(self._api, self._tree, element)
 
     def run_analysis(self, config_id: str | None = None) -> None:
+        """Run the analysis ``config_id``, or the current one (the first when none is)."""
         if config_id is not None:
+            config = self._api.get_solver_config(config_id)
+            if config is None:
+                raise KeyError(f"No analysis configuration {config_id!r}")
             self._api.set_current_solver_config(config_id)
-        config = (
-            self._api.get_current_solver_config()
-            if config_id is None
-            else self._api.get_solver_config(config_id)
-        )
-        if config is None:
-            all_configs = self._api.get_solver_configs()
-            if all_configs:
+        else:
+            config = self._api.get_current_solver_config()
+            if config is None:
+                all_configs = self._api.get_solver_configs()
+                if not all_configs:
+                    self._api.show_status(
+                        "No analysis configuration available to run.", "warning", 3000
+                    )
+                    return
                 config = next(iter(all_configs.values()))
                 self._api.set_current_solver_config(config.config_id)
-
-        if config is None:
-            self._api.show_status("No analysis configuration available to run.", "warning", 3000)
-            return
 
         solver_cls = self._api.solvers.get_solver_class(config.solver_id)
         if solver_cls is None:
@@ -345,29 +346,22 @@ class ProjectExplorerOperations:
             )
             return
 
-        try:
-            solver = solver_cls(config)
-            self._api.show_status(f"Starting analysis '{config.name}'...", "info", 3000)
-            self._api.run_solver(
-                solver,
-                on_complete=lambda res: self._api.show_status(
-                    f"Analysis '{config.name}' completed ({res.execution_time_ms:.1f} ms).",
-                    "success",
-                    4000,
-                ),
-                on_error=lambda err: self._api.show_status(
-                    f"Analysis '{config.name}' failed: {err}",
-                    "error",
-                    5000,
-                ),
-                on_cancelled=lambda: self._api.show_status(
-                    f"Analysis '{config.name}' cancelled.",
-                    "warning",
-                    3000,
-                ),
-            )
-        except Exception as exc:
-            self._api.show_status(f"Failed to launch analysis: {exc}", "error", 5000)
+        name = config.name
+        self._api.show_status(f"Starting analysis '{name}'...", "info", 3000)
+        self._api.run_solver(
+            solver_cls(config),
+            on_complete=lambda res: self._api.show_status(
+                f"Analysis '{name}' completed ({res.execution_time_ms:.1f} ms).",
+                "success",
+                4000,
+            ),
+            on_error=lambda err: self._api.show_status(
+                f"Analysis '{name}' failed: {err}", "error", 5000
+            ),
+            on_cancelled=lambda: self._api.show_status(
+                f"Analysis '{name}' cancelled.", "warning", 3000
+            ),
+        )
 
     def add_plot_action(
         self,
