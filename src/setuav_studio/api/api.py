@@ -1003,7 +1003,8 @@ class StudioAPI:
 
         Studio runs the deriver on every such component when a project opens and after
         every change, undo and redo once formulas are evaluated, so derived data such as
-        envelopes follows parameters however they change.
+        envelopes follows parameters however they change. A component is derived after
+        the component it attaches to, so its deriver sees that component's derived data.
         """
         if type_id in self._component_derivers:
             raise ValueError(f"A component deriver is already registered for: {type_id}")
@@ -1019,7 +1020,22 @@ class StudioAPI:
             return
         components = [c for c in self._project.data["components"] if isinstance(c, dict)]
         by_id = {str(c["id"]): c for c in components}
+        ordered: list[dict[str, Any]] = []
+        placed: set[str] = set()
+
+        def place(component: dict[str, Any]) -> None:
+            component_id = str(component["id"])
+            if component_id in placed:
+                return
+            placed.add(component_id)
+            target = by_id.get(str(component.get("attach_to")))
+            if target is not None:
+                place(target)
+            ordered.append(component)
+
         for component in components:
+            place(component)
+        for component in ordered:
             deriver = self._component_derivers.get(str(component.get("type")))
             if deriver is not None:
                 deriver(component, by_id)

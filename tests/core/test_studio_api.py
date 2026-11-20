@@ -562,3 +562,19 @@ def test_project_property_is_canonical_and_readonly() -> None:
     assert studio_api.project is project
     with pytest.raises(AttributeError):
         cast(Any, studio_api).project = project
+
+
+def test_components_derive_after_the_component_they_attach_to() -> None:
+    studio = StudioAPI()
+    components = [
+        {"id": "flap", "type": "test:part", "attach_to": "wing"},
+        {"id": "wing", "type": "test:part", "attach_to": "body"},
+        {"id": "body", "type": "test:part"},
+    ]
+    studio._host.set_project(ProjectDocument(Path("test.json"), "json", {"components": components}))
+    derived: list[str] = []
+    studio.register_component_deriver("test:part", lambda c, _all: derived.append(str(c["id"])))
+
+    studio.derive_components()
+
+    assert derived == ["body", "wing", "flap"]
