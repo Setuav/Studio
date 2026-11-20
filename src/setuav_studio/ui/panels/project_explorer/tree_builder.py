@@ -205,7 +205,7 @@ class ProjectTreeBuilder:
         for cid, config in configs.items():
             name = config.name or "New Analysis"
             item = QTreeWidgetItem([name])
-            item.setIcon(0, get_icon("fa6s.chart-line"))
+            item.setIcon(0, get_icon(self._api.solver_icon(config.solver_id)))
             item.setToolTip(0, f"Analysis: {name}\nSolver: {config.solver_id}")
             if not project.read_only:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)

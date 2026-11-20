@@ -603,3 +603,29 @@ def test_a_component_that_cannot_be_derived_is_reported_and_the_rest_still_deriv
 
     assert derived == ["b"]
     assert messages == [("Cannot update Wing: span must be positive", "error")]
+
+
+def test_new_analyses_with_a_taken_name_are_numbered() -> None:
+    from setuav_studio.solver import SolverConfig
+
+    studio_api = StudioAPI()
+    project = ProjectDocument(Path("analyses.json"), "json", {"components": []})
+    studio_api._host.set_project(project)
+
+    for _ in range(3):
+        studio_api.add_solver_config(SolverConfig(solver_id="demo", name="Alpha Sweep"))
+    names = [config.name for config in project.solver_configs.values()]
+    assert names == ["Alpha Sweep", "Alpha Sweep 2", "Alpha Sweep 3"]
+
+    # Updating an analysis keeps the name it already has.
+    first = next(iter(project.solver_configs.values()))
+    studio_api.add_solver_config(first)
+    assert [config.name for config in project.solver_configs.values()] == names
+
+
+def test_solver_icons_follow_their_registration() -> None:
+    studio_api = StudioAPI()
+    studio_api.register_solver("demo", object, icon="demo_icon")
+    assert studio_api.solver_icon("demo") == "demo_icon"
+    studio_api.unregister_solver("demo")
+    assert studio_api.solver_icon("demo") == "fa6s.chart-line"

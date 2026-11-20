@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager
 from copy import deepcopy
@@ -91,6 +92,7 @@ class StudioAPI:
         self._pending_status: list[tuple[str, str, int]] = []
         self._progress_handler: Callable[[int, int, str], None] | None = None
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
+        self._solver_icons: dict[str, str] = {}
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
@@ -592,13 +594,23 @@ class StudioAPI:
         self._show_expression_diagnostics()
         return diagnostics
 
-    def register_solver(self, solver_id: str, solver_cls: Any) -> None:
-        """Register a solver class by solver ID."""
+    def register_solver(self, solver_id: str, solver_cls: Any, icon: str | None = None) -> None:
+        """Register a solver class by solver ID.
+
+        @param icon Optional icon name shown for the solver's analyses in the project tree.
+        """
         self._solver_runner.register_solver(solver_id, solver_cls)
+        if icon is not None:
+            self._solver_icons[solver_id] = icon
 
     def unregister_solver(self, solver_id: str) -> None:
         """Unregister a solver class by solver ID."""
         self._solver_runner.unregister_solver(solver_id)
+        self._solver_icons.pop(solver_id, None)
+
+    def solver_icon(self, solver_id: str) -> str:
+        """The icon name of the solver's analyses; a generic chart unless one was registered."""
+        return self._solver_icons.get(solver_id, "fa6s.chart-line")
 
     def run_solver(
         self,
@@ -696,10 +708,22 @@ class StudioAPI:
 
     def add_solver_config(self, config: SolverConfig) -> None:
         """Add or update a SolverConfig in the current project, as one undoable
-        edit, and make it the active one."""
+        edit, and make it the active one.
+
+        A new config whose name another analysis already has is numbered, like
+        components: "Alpha Sweep Analysis 2"; an update keeps its name.
+        """
         project = self._project
         if project is None:
             return
+        existing = project.solver_configs
+        if config.config_id not in existing:
+            taken = {other.name for other in existing.values()}
+            base, suffix, name = config.name, 2, config.name
+            while name in taken:
+                name = f"{base} {suffix}"
+                suffix += 1
+            config = dataclasses.replace(config, name=name)
         self.edit_project(
             f"Set analysis '{config.name}'", lambda: project.add_solver_config(config)
         )
