@@ -44,6 +44,7 @@ class MockRenderer(QWidget):
         self.show_grid: bool = True
         self.transparent: bool = False
         self.face_style: str = "colored"
+        self.on_top_overlays: set[str] = set()
 
     def update_theme_style(self) -> None:
         pass
@@ -51,8 +52,10 @@ class MockRenderer(QWidget):
     def set_scene_objects(self, objects: dict[str, SceneObject]) -> None:
         self.scene_objects = dict(objects)
 
-    def set_overlays(self, overlay_id: str, primitives: list | tuple) -> None:
+    def set_overlays(self, overlay_id: str, primitives: list | tuple, on_top: bool = False) -> None:
         self.overlays[overlay_id] = list(primitives)
+        if on_top:
+            self.on_top_overlays.add(overlay_id)
 
     def clear_overlays(self, overlay_id: str) -> None:
         self.overlays.pop(overlay_id, None)
@@ -464,6 +467,60 @@ class TestStudioViewport(unittest.TestCase):
             # A pick of a component the project lacks is an out-of-sync scene
             with self.assertRaisesRegex(ValueError, "missing"):
                 viewport._on_component_picked_to_api("missing")
+
+    def test_opened_project_shows_the_aircraft_cg_over_the_model(self) -> None:
+        """The aircraft CG marker exists as soon as a project opens and is drawn on top."""
+        import tempfile
+        from pathlib import Path
+
+        from setuav_studio.project import create_project
+
+        api = StudioAPI()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = create_project(Path(tmpdir) / "test.suav")
+            project.data["components"] = [
+                {
+                    "id": "ballast",
+                    "name": "Ballast",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 100.0,
+                    "transform": {
+                        "position": {"x": 250.0, "y": 0.0, "z": 0.0},
+                        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+                    },
+                }
+            ]
+            api._host.set_project(project)
+            renderer = MockRenderer()
+            StudioViewport(api=api, renderer=renderer)
+
+            self.assertIn("aircraft_cg", renderer.overlays)
+            self.assertIn("aircraft_cg", renderer.on_top_overlays)
+
+    def test_grid_lies_below_the_model_in_theme_colors(self) -> None:
+        """The reference grid is a floor under the model, colored from the theme."""
+        from PySide6.QtGui import QColor
+
+        from setuav_studio.ui.style.theme import tokens
+        from setuav_studio.ui.viewport.widget import OpenGLViewer, _grid_colors
+
+        viewer = OpenGLViewer()
+        self.assertEqual(viewer._grid_height(), 0.0)
+        box = BoxPrimitive(center=(0.0, 0.0, -40.0), size=(100.0, 100.0, 20.0))
+        viewer.set_scene_objects(
+            {"wing": SceneObject(object_id="wing", component_id="wing", primitives=[box])}
+        )
+        self.assertLess(viewer._grid_height(), -50.0)
+
+        background = QColor(tokens()["plot"])
+        rgb = (background.redF(), background.greenF(), background.blueF())
+        minor, major = _grid_colors()
+        distance = [
+            sum(abs(c - b) for c, b in zip(color, rgb, strict=True)) for color in (minor, major)
+        ]
+        self.assertGreater(distance[0], 0.0)
+        self.assertGreater(distance[1], distance[0])
+        viewer.deleteLater()
 
     def test_objects_follow_the_component_they_draw(self) -> None:
         """Selection, hover picking and envelopes follow ``SceneObject.component_id``."""

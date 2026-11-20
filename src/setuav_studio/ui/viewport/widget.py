@@ -172,6 +172,32 @@ def _add_reference_line(vertices: list[float], start, end, color) -> None:
     vertices.extend((*start, *color, *end, *color))
 
 
+# Gap between the lowest point of the model and the reference grid.
+_GRID_CLEARANCE_MM = 20.0
+# How far the minor and major grid lines move from the background toward the text color.
+_GRID_MINOR_MIX = 0.08
+_GRID_MAJOR_MIX = 0.18
+
+
+def _grid_colors() -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Minor and major grid line colors, blended from the theme's background and text."""
+    from PySide6.QtGui import QColor
+
+    from setuav_studio.ui.style.theme import tokens
+
+    colors = tokens()
+    background, text = QColor(colors["plot"]), QColor(colors["text"])
+
+    def mix(amount: float) -> tuple[float, float, float]:
+        return (
+            background.redF() + (text.redF() - background.redF()) * amount,
+            background.greenF() + (text.greenF() - background.greenF()) * amount,
+            background.blueF() + (text.blueF() - background.blueF()) * amount,
+        )
+
+    return mix(_GRID_MINOR_MIX), mix(_GRID_MAJOR_MIX)
+
+
 def _cross(left: Point3D, right: Point3D) -> Point3D:
     return (
         left[1] * right[2] - left[2] * right[1],
@@ -259,6 +285,8 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._primitive_annotation_vao = QOpenGLVertexArrayObject()
         self._primitive_annotation_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._on_top_vao = QOpenGLVertexArrayObject()
+        self._on_top_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._grid_count = 0
         self._axis_count = 0
         self._highlight_count = 0
@@ -267,7 +295,9 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_solid_count = 0
         self._primitive_wire_count = 0
         self._primitive_annotation_count = 0
+        self._on_top_count = 0
         self._overlays: dict[str, list[VisualPrimitive]] = {}
+        self._on_top_overlays: set[str] = set()
         self._scene_objects: dict[str, SceneObject] = {}
         self._show_solid = True
         self._show_wireframe = True
@@ -320,6 +350,7 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._envelope_vao, self._envelope_vbo),
                 (self._primitive_wire_vao, self._primitive_wire_vbo),
                 (self._primitive_annotation_vao, self._primitive_annotation_vbo),
+                (self._on_top_vao, self._on_top_vbo),
             ):
                 self._setup_buffer(vao, vbo, wire_program, 6, ((0, 0, 3), (1, 3, 3)))
             self._setup_buffer(
@@ -400,8 +431,10 @@ class OpenGLViewer(QOpenGLWidget):
             or (self._show_wireframe and self._primitive_wire_count > 0)
             or self._primitive_annotation_count > 0
         )
+        self._draw_grid(gl, mvp)
         self._draw_solid_mesh(gl, mvp, lines_overlay)
         self._draw_wire_mesh(gl, mvp)
+        self._draw_on_top_lines(gl, mvp)
         self._draw_axis_gizmo(gl)
 
     def _draw_solid_mesh(self, gl: _GLResources, mvp: QMatrix4x4, lines_overlay: bool) -> None:
@@ -452,10 +485,6 @@ class OpenGLViewer(QOpenGLWidget):
         program.bind()
         program.setUniformValue(gl.wire.mvp, mvp)
         functions.glUniform1f(alpha_location, 1.0)
-        if self._show_grid:
-            self._grid_vao.bind()
-            functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
-            self._grid_vao.release()
         if self._section_ring_count > 0:
             self._section_ring_vao.bind()
             functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
@@ -489,6 +518,39 @@ class OpenGLViewer(QOpenGLWidget):
             self._highlight_vao.bind()
             functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
             self._highlight_vao.release()
+        program.release()
+
+    def _draw_grid(self, gl: _GLResources, mvp: QMatrix4x4) -> None:
+        """Draw the reference grid first and without writing depth, so the model
+        always covers it."""
+        if not self._show_grid or self._grid_count <= 0:
+            return
+        functions = gl.functions
+        program = gl.wire.program
+        program.bind()
+        program.setUniformValue(gl.wire.mvp, mvp)
+        functions.glUniform1f(gl.wire.alpha, 1.0)
+        functions.glDepthMask(False)
+        self._grid_vao.bind()
+        functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
+        self._grid_vao.release()
+        functions.glDepthMask(True)
+        program.release()
+
+    def _draw_on_top_lines(self, gl: _GLResources, mvp: QMatrix4x4) -> None:
+        """Draw the on-top overlay lines without depth testing, over the model."""
+        if self._on_top_count <= 0:
+            return
+        functions = gl.functions
+        program = gl.wire.program
+        program.bind()
+        program.setUniformValue(gl.wire.mvp, mvp)
+        functions.glUniform1f(gl.wire.alpha, 1.0)
+        functions.glDisable(_GL_DEPTH_TEST)
+        self._on_top_vao.bind()
+        functions.glDrawArrays(_GL_LINES, 0, self._on_top_count)
+        self._on_top_vao.release()
+        functions.glEnable(_GL_DEPTH_TEST)
         program.release()
 
     def _draw_axis_gizmo(self, gl: _GLResources) -> None:
@@ -867,7 +929,7 @@ class OpenGLViewer(QOpenGLWidget):
     def _upload_meshes(self) -> None:
         from setuav_studio.ui.style.theme import chart_color
 
-        grid_values = self._reference_grid_vertices()
+        grid_values = self._reference_grid_vertices(self._grid_height(), *_grid_colors())
         highlight_values = self._build_highlight_vertices()
         ring_values = []
         if self._section_selection is not None:
@@ -947,6 +1009,22 @@ class OpenGLViewer(QOpenGLWidget):
                 )
 
         overlay_prims = [prim for prims in self._overlays.values() for prim in prims]
+        on_top_prims = [
+            prim
+            for overlay_id, prims in self._overlays.items()
+            if overlay_id in self._on_top_overlays
+            for prim in prims
+        ]
+        on_top_values: list[float] = []
+        if on_top_prims:
+            on_top_values.extend(
+                build_primitive_annotation_vertices(on_top_prims, face_style=self._face_style)
+            )
+            on_top_values.extend(
+                build_primitive_wire_vertices(
+                    on_top_prims, face_style=self._face_style, wire_mode=self._wire_mode
+                )
+            )
 
         if overlay_prims:
             primitive_solid_values.extend(
@@ -978,6 +1056,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_annotation_count = self._allocate(
             self._primitive_annotation_vbo, primitive_annotation_values, 6
         )
+        self._on_top_count = self._allocate(self._on_top_vbo, on_top_values, 6)
 
     @staticmethod
     def _allocate(buffer: QOpenGLBuffer, values: list[float], stride: int) -> int:
@@ -1014,24 +1093,33 @@ class OpenGLViewer(QOpenGLWidget):
         vbo.release()
         vao.release()
 
-    @staticmethod
-    def _reference_grid_vertices() -> list[float]:
-        major_col = (0.24, 0.24, 0.24)
-        minor_col = (0.16, 0.16, 0.16)
+    def _grid_height(self) -> float:
+        """The grid lies just below the lowest point of the model, like a floor."""
+        points = self._scene_points()
+        if not points:
+            return 0.0
+        lowest = min(point[2] for point in points)
+        return min(0.0, lowest) - _GRID_CLEARANCE_MM
 
+    @staticmethod
+    def _reference_grid_vertices(
+        z: float,
+        minor_col: tuple[float, float, float],
+        major_col: tuple[float, float, float],
+    ) -> list[float]:
         vertices: list[float] = []
         for offset in range(-2000, 2001, 100):
             color = major_col if offset % 500 == 0 else minor_col
             _add_reference_line(
                 vertices,
-                (-2000, offset, 0.0),
-                (2000, offset, 0.0),
+                (-2000, offset, z),
+                (2000, offset, z),
                 color,
             )
             _add_reference_line(
                 vertices,
-                (offset, -2000, 0.0),
-                (offset, 2000, 0.0),
+                (offset, -2000, z),
+                (offset, 2000, z),
                 color,
             )
         return vertices
@@ -1155,8 +1243,10 @@ class OpenGLViewer(QOpenGLWidget):
                 or (self._show_wireframe and self._primitive_wire_count > 0)
                 or self._primitive_annotation_count > 0
             )
+            self._draw_grid(gl, mvp)
             self._draw_solid_mesh(gl, mvp, lines_overlay)
             self._draw_wire_mesh(gl, mvp)
+            self._draw_on_top_lines(gl, mvp)
 
             image = fbo.toImage()
             fbo.release()
@@ -1181,6 +1271,7 @@ class OpenGLViewer(QOpenGLWidget):
                     self._primitive_wire_vbo,
                     self._primitive_solid_vbo,
                     self._primitive_annotation_vbo,
+                    self._on_top_vbo,
                 ):
                     if buffer.isCreated():
                         buffer.destroy()
@@ -1193,6 +1284,7 @@ class OpenGLViewer(QOpenGLWidget):
                     self._primitive_wire_vao,
                     self._primitive_solid_vao,
                     self._primitive_annotation_vao,
+                    self._on_top_vao,
                 ):
                     if vao.isCreated():
                         vao.destroy()
@@ -1211,21 +1303,28 @@ class OpenGLViewer(QOpenGLWidget):
             self._primitive_solid_count = 0
             self._primitive_wire_count = 0
             self._primitive_annotation_count = 0
+            self._on_top_count = 0
             self._mesh_dirty = True
 
     def set_overlays(
         self,
         overlay_id: str,
         primitives: list[VisualPrimitive] | tuple[VisualPrimitive, ...],
+        on_top: bool = False,
     ) -> None:
-        """Draw *primitives* as the overlay *overlay_id*."""
+        """Draw *primitives* as the overlay *overlay_id*; ``on_top`` draws its lines over the model."""
         self._overlays[overlay_id] = list(primitives)
+        if on_top:
+            self._on_top_overlays.add(overlay_id)
+        else:
+            self._on_top_overlays.discard(overlay_id)
         self._mesh_dirty = True
         self.update()
 
     def clear_overlays(self, overlay_id: str) -> None:
         """Stop drawing the overlay *overlay_id*."""
         self._overlays.pop(overlay_id, None)
+        self._on_top_overlays.discard(overlay_id)
         self._mesh_dirty = True
         self.update()
 

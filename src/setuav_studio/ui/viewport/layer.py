@@ -17,8 +17,11 @@ class Layer:
         layer_id: Unique identifier of the layer (e.g. 'geometry', 'manufacturing').
         name: Human-readable display name for the layer.
         visible: Whether objects in this layer are rendered.
+        on_top: Whether the layer's overlay lines are drawn over the model, so a
+            marker inside it (such as the center of gravity) stays visible.
     """
 
     layer_id: str
     name: str = ""
     visible: bool = True
+    on_top: bool = False

@@ -75,6 +75,7 @@ class ViewportRenderer(Protocol):
         self,
         overlay_id: str,
         primitives: list[VisualPrimitive] | tuple[VisualPrimitive, ...],
+        on_top: bool = False,
     ) -> None: ...
     def clear_overlays(self, overlay_id: str) -> None: ...
     def set_selected_component(self, component_id: str | None) -> None: ...
@@ -174,7 +175,7 @@ class StudioViewport(QWidget):
         self._install_renderer()
 
         self.add_layer(DEFAULT_LAYER, name="Default")
-        self.add_layer(MASS_LAYER, name="Center of Gravity")
+        self.add_layer(MASS_LAYER, name="Center of Gravity", on_top=True)
 
         # Floating bottom HUD bar
         self.hud = StudioViewportHUD(self)
@@ -262,6 +263,8 @@ class StudioViewport(QWidget):
         self.component_picked.connect(self._on_component_picked_to_api)
         self.layer_visibility_changed.connect(lambda _layer, _visible: api.refresh_toolbar_states())
         api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
+        # A newly opened project has no content change yet; its markers are built here.
+        api.on_project_changed(lambda _doc: self._on_project_content_changed())
 
     def _on_project_content_changed(self) -> None:
         self.update_component_cg()
@@ -277,6 +280,7 @@ class StudioViewport(QWidget):
         *,
         name: str = "",
         visible: bool = True,
+        on_top: bool = False,
     ) -> Layer:
         """Register a new layer or update an existing one.
 
@@ -284,6 +288,7 @@ class StudioViewport(QWidget):
             layer_id: Unique identifier for the layer (e.g. 'manufacturing').
             name: Human-readable display name. Defaults to *layer_id*.
             visible: Initial visibility state. Defaults to True.
+            on_top: Draw the layer's overlay lines over the model. Defaults to False.
 
         Returns:
             The created or updated :class:`Layer` instance.
@@ -294,8 +299,9 @@ class StudioViewport(QWidget):
             if name:
                 layer.name = name
             layer.visible = visible
+            layer.on_top = on_top
         else:
-            layer = Layer(layer_id=layer_id, name=name or layer_id, visible=visible)
+            layer = Layer(layer_id=layer_id, name=name or layer_id, visible=visible, on_top=on_top)
             self._layers[layer_id] = layer
         self._sync_renderer()
         if is_new:
@@ -897,7 +903,8 @@ class StudioViewport(QWidget):
     def _push_overlay(self, overlay_id: str) -> None:
         layer, primitives = self._overlays[overlay_id]
         if self.is_layer_visible(layer):
-            self._renderer.set_overlays(overlay_id, primitives)
+            on_top = self._registered_layer(layer).on_top
+            self._renderer.set_overlays(overlay_id, primitives, on_top=on_top)
         else:
             self._renderer.clear_overlays(overlay_id)
 
