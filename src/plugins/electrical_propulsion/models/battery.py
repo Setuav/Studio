@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any
-
-from pythrust.battery import RateMapBattery
+from typing import TYPE_CHECKING, Any
 
 from plugins.electrical_propulsion.chemistry import (
     CHEMISTRIES,
@@ -17,6 +15,9 @@ from plugins.electrical_propulsion.chemistry import (
 )
 from setuav_studio.api import ParameterField
 from setuav_studio.model import Component
+
+if TYPE_CHECKING:
+    from pythrust.battery import RateMapBattery
 
 # Cell properties derived from the chemistry profile; a value overrides the default.
 BATTERY_OVERRIDES = ("charge_voltage", "cell_resistance", "c_rate", "pack_mass")
@@ -75,6 +76,9 @@ class BatteryPack:
         return self.curves.mean_ocv_v * self.capacity_mah / 1000.0 * self.series
 
     def rate_map(self) -> RateMapBattery:
+        # pythrust.battery imports scipy, which slows Studio's start; load it when used.
+        from pythrust.battery import RateMapBattery
+
         curves = self.curves
         return RateMapBattery(
             name=f"{self.profile.chemistry} {self.cell_capacity_ah * 1000.0:.0f} mAh cell",

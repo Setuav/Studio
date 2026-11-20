@@ -9,7 +9,6 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import root_scalar
 
 from plugins.electrical_propulsion.powertrain import Powertrain, PowertrainPoint
 from setuav_studio.model.atmosphere import G0
@@ -242,6 +241,9 @@ def throttle_for_thrust(
         return high, None
     if point(low).thrust_n > thrust_n:
         return low, None
+    # scipy.optimize takes most of a second to import; load it when solving.
+    from scipy.optimize import root_scalar
+
     root = root_scalar(
         lambda throttle: point(throttle).thrust_n - thrust_n,
         bracket=[low, high],

@@ -5,10 +5,13 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings
-from pythrust.motors.database import MotorDatabase
-from pythrust.propellers.database import PropellerDatabase, PropellerEntry
+
+if TYPE_CHECKING:
+    from pythrust.motors.database import MotorDatabase
+    from pythrust.propellers.database import PropellerDatabase, PropellerEntry
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,9 @@ _PROP_ENTRIES: dict[str, PropellerEntry] = {}
 def get_motor_database() -> MotorDatabase:
     global _MOTOR_DB
     if _MOTOR_DB is None:
+        # pythrust's motor database imports scipy, which slows Studio's start.
+        from pythrust.motors.database import MotorDatabase
+
         _MOTOR_DB = MotorDatabase()
         data_dir = _resolve_pythrust_data_dir()
         if data_dir is not None:
@@ -89,6 +95,8 @@ def _propeller_dir() -> Path | None:
 def get_propeller_database() -> PropellerDatabase:
     global _PROP_DB
     if _PROP_DB is None:
+        from pythrust.propellers.database import PropellerDatabase
+
         _PROP_DB = PropellerDatabase()
         prop_dir = _propeller_dir()
         if prop_dir is not None:
@@ -109,6 +117,8 @@ def get_propeller_entry(prop_id: str) -> PropellerEntry | None:
         json_path = prop_dir / f"{prop_id}.json" if prop_dir is not None else None
         if json_path is None or not json_path.exists():
             return None
+        from pythrust.propellers.database import PropellerDatabase
+
         entry = PropellerDatabase().load_entry(json_path, prop_dir)
         if entry is None:
             return None

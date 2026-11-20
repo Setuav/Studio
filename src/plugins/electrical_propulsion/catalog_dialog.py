@@ -6,7 +6,7 @@ with debounced search and pre-indexed search tokens.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt, QTimer
 from PySide6.QtWidgets import (
@@ -24,8 +24,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pythrust.motors.database import MotorEntry
-from pythrust.propellers.database import PropellerEntry
 
 from plugins.electrical_propulsion.database import (
     get_motor_database,
@@ -33,6 +31,10 @@ from plugins.electrical_propulsion.database import (
 )
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.button import set_button_role
+
+if TYPE_CHECKING:
+    from pythrust.motors.database import MotorEntry
+    from pythrust.propellers.database import PropellerEntry
 
 _INVALID_MODEL_INDEX = QModelIndex()
 

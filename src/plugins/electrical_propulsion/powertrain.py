@@ -4,11 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
-
-from pythrust.battery import BatteryNetwork, NetworkState
-from pythrust.propulsion import BusSolver, PropulsionUnit
-from pythrust.propulsion.models import MotorSpec, OperatingPoint, PropellerSpec
+from typing import TYPE_CHECKING, Any
 
 from plugins.electrical_propulsion.database import get_propeller_entry
 from plugins.electrical_propulsion.models.battery import battery_pack
@@ -17,6 +13,13 @@ from plugins.electrical_propulsion.models.propulsor import (
     has_motor,
     has_propeller,
 )
+
+# pythrust's battery and propulsion solvers import scipy, which slows Studio's
+# start; the functions below import them when a powertrain is built or solved.
+if TYPE_CHECKING:
+    from pythrust.battery import BatteryNetwork, NetworkState
+    from pythrust.propulsion import PropulsionUnit
+    from pythrust.propulsion.models import OperatingPoint
 
 BATTERY_TYPE = "org.setuav.core:battery"
 
@@ -103,6 +106,8 @@ class Powertrain:
     def solve(self, *, rho: float, airspeed_mps: float, throttle: float) -> PowertrainPoint:
         if not 0.0 <= throttle <= 1.0:
             raise ValueError(f"Throttle {throttle:g} is outside 0 to 1.")
+        from pythrust.propulsion import BusSolver
+
         bus = BusSolver().solve(
             self.network,
             self.network_state,
@@ -140,6 +145,8 @@ def build_powertrain(members: PowertrainMembers, *, state_of_charge: float) -> P
     ]
     if missing:
         raise PowertrainError(f"Propulsion analysis requires: {', '.join(missing)}.")
+    from pythrust.battery import BatteryNetwork, NetworkState
+
     try:
         network = BatteryNetwork.parallel(
             *(battery_pack(battery["parameters"]).rate_map() for battery in members.batteries)
@@ -163,6 +170,9 @@ def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit
     entry = get_propeller_entry(catalog_id)
     if entry is None:
         raise PowertrainError(f"Propeller catalog has no data for '{catalog_id}'.")
+    from pythrust.propulsion import PropulsionUnit
+    from pythrust.propulsion.models import MotorSpec, PropellerSpec
+
     return PropulsionUnit(
         motor=MotorSpec(
             kv_rpm_per_v=float(parameters["motor_kv"]),
