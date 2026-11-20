@@ -560,6 +560,29 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         # Check green channel
         self.assertAlmostEqual(verts[4], ENVELOPE_HIGHLIGHT[1], places=2)
 
+    def test_envelope_wire_skips_boxes_for_the_other_objects_of_a_component(self) -> None:
+        from plugins.geometry.engine.data import EnvelopeWireGeometry
+        from setuav_studio.ui.viewport import BoxPrimitive, SceneObject
+        from setuav_studio.ui.viewport.envelope_mesh import build_envelope_wire_vertices
+
+        env = EnvelopeWireGeometry(
+            component_id="cs-1", lines=(((0.0, 0.0, 0.0), (100.0, 0.0, 0.0)),)
+        )
+        scene_objects = {
+            "cs-1": SceneObject(object_id="cs-1", component_id="cs-1", envelope=env),
+            # The mirrored half is drawn as its own object of the same component.
+            "wing:mirror:cs-1": SceneObject(
+                object_id="wing:mirror:cs-1",
+                component_id="cs-1",
+                primitives=[BoxPrimitive(center=(0.0, 0.0, 0.0), size=(10.0, 10.0, 10.0))],
+            ),
+        }
+
+        verts = build_envelope_wire_vertices(scene_objects, "cs-1")
+
+        # Only the declared envelope line: 2 vertices * 6 floats
+        self.assertEqual(len(verts), 12)
+
     def test_workspace_selection_sets_envelope_in_viewer(self) -> None:
         from pathlib import Path
 

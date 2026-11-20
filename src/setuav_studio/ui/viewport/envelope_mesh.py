@@ -151,7 +151,12 @@ def build_envelope_wire_vertices(
     vertices: list[float] = []
     if not selected_envelope_component_id:
         return vertices
-    for obj in scene_objects.values():
-        if obj.component_id == selected_envelope_component_id:
-            _append_scene_object_envelope_wire(vertices, obj, color)
+    objects = [
+        obj for obj in scene_objects.values() if obj.component_id == selected_envelope_component_id
+    ]
+    # A component drawn as several objects (mirrored halves, tip caps) carries its
+    # envelope on one of them; boxes fitted to the other objects would not be its envelope.
+    with_envelope = [obj for obj in objects if obj.envelope is not None]
+    for obj in with_envelope or objects:
+        _append_scene_object_envelope_wire(vertices, obj, color)
     return vertices
