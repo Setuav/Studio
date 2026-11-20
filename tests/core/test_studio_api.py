@@ -578,3 +578,28 @@ def test_components_derive_after_the_component_they_attach_to() -> None:
     studio.derive_components()
 
     assert derived == ["body", "wing", "flap"]
+
+
+def test_a_component_that_cannot_be_derived_is_reported_and_the_rest_still_derive() -> None:
+    studio = StudioAPI()
+    components = [
+        {"id": "a", "name": "Wing", "type": "test:part"},
+        {"id": "b", "type": "test:part"},
+    ]
+    studio._host.set_project(ProjectDocument(Path("test.json"), "json", {"components": components}))
+    messages: list[tuple[str, str]] = []
+    studio._host.bind_status_handler(
+        lambda message, level, _timeout: messages.append((message, level))
+    )
+    derived: list[str] = []
+
+    def derive(component: dict[str, Any], _all: Any) -> None:
+        if component["id"] == "a":
+            raise ValueError("span must be positive")
+        derived.append(str(component["id"]))
+
+    studio.register_component_deriver("test:part", derive)
+    studio.derive_components()
+
+    assert derived == ["b"]
+    assert messages == [("Cannot update Wing: span must be positive", "error")]

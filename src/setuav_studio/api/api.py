@@ -1005,6 +1005,8 @@ class StudioAPI:
         every change, undo and redo once formulas are evaluated, so derived data such as
         envelopes follows parameters however they change. A component is derived after
         the component it attaches to, so its deriver sees that component's derived data.
+        A deriver raises ``ValueError`` for parameters it cannot derive from; Studio shows
+        it in the status bar and the component keeps its previous derived data.
         """
         if type_id in self._component_derivers:
             raise ValueError(f"A component deriver is already registered for: {type_id}")
@@ -1035,10 +1037,17 @@ class StudioAPI:
 
         for component in components:
             place(component)
+        failures: list[str] = []
         for component in ordered:
             deriver = self._component_derivers.get(str(component.get("type")))
-            if deriver is not None:
+            if deriver is None:
+                continue
+            try:
                 deriver(component, by_id)
+            except ValueError as exc:
+                failures.append(f"{component.get('name') or component['id']}: {exc}")
+        if failures:
+            self.show_status("Cannot update " + "; ".join(failures), "error", 8000)
 
     def register_component_tree_provider(
         self,
