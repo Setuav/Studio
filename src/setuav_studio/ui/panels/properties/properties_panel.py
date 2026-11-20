@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QSize, Qt
@@ -15,6 +16,22 @@ from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.style.theme import tokens
 
 
+def _component_tab_style() -> str:
+    """The component tabs' style in the current theme: no tab backgrounds, the
+    selected tab marked by an accent underline and bright text."""
+    colors = tokens()
+    return (
+        f"QTabBar::tab {{ background: transparent; border: none;"
+        f" border-bottom: 2px solid transparent; color: {colors['text_muted']};"
+        f" padding: 6px 8px; margin: 0; }}"
+        f"QTabBar::tab:hover {{ color: {colors['text']}; }}"
+        f"QTabBar::tab:selected {{ color: {colors['text_bright']};"
+        f" border-bottom: 2px solid {colors['accent']}; }}"
+        f"QTabWidget::pane {{ border-top: 1px solid {colors['border_strong']};"
+        f" padding-top: 6px; }}"
+    )
+
+
 class PropertiesPanel(QWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
@@ -23,6 +40,7 @@ class PropertiesPanel(QWidget):
         self._layout.setContentsMargins(6, 4, 6, 6)
         self._layout.setSpacing(4)
         self._current_widget: QWidget | None = None
+        self._component_tabs: QTabWidget | None = None
         self._current_selection_key: tuple[str, str] | None = None
         self._current_component: dict[str, Any] | None = None
         self._active_component_id: str | None = None
@@ -139,17 +157,8 @@ class PropertiesPanel(QWidget):
         tab_bar.setExpanding(True)
         tab_bar.setUsesScrollButtons(False)
         tab_bar.setDrawBase(False)
-        colors = tokens()
-        tabs.setStyleSheet(
-            f"QTabBar::tab {{ background: transparent; border: none;"
-            f" border-bottom: 2px solid transparent; color: {colors['text_muted']};"
-            f" padding: 6px 8px; margin: 0; }}"
-            f"QTabBar::tab:hover {{ color: {colors['text']}; }}"
-            f"QTabBar::tab:selected {{ color: {colors['text_bright']};"
-            f" border-bottom: 2px solid {colors['accent']}; }}"
-            f"QTabWidget::pane {{ border-top: 1px solid {colors['border_strong']};"
-            f" padding-top: 6px; }}"
-        )
+        tabs.setStyleSheet(_component_tab_style())
+        self._component_tabs = tabs
 
         def add_tab(page: QWidget, icon: str, title: str) -> None:
             tabs.addTab(page, get_icon(icon), title)
@@ -162,17 +171,29 @@ class PropertiesPanel(QWidget):
             primary_editor = self._message(f"{name}\n\nNo primary parameters editor for\n{ctype}")
         add_tab(primary_editor, "fa6s.sliders", "Parameters")
 
-        # Tab 1: Transform
-        tf_editor = TransformEditor(self._api, component)
-        add_tab(tf_editor, "transform", "Transform")
+        # The other tabs build their editor the first time they are shown, so
+        # selecting a component builds only the page in view.
+        pages: dict[int, tuple[QWidget, Callable[[], QWidget]]] = {}
+        for icon, title, factory in (
+            ("transform", "Transform", lambda: TransformEditor(self._api, component)),
+            ("envelope", "Envelope", lambda: EnvelopeEditor(self._api, component)),
+            ("point_mass", "Mass", lambda: MassPropertiesEditor(self._api, component)),
+        ):
+            page = QWidget()
+            layout = QVBoxLayout(page)
+            layout.setContentsMargins(0, 0, 0, 0)
+            add_tab(page, icon, title)
+            pages[tabs.count() - 1] = (page, factory)
 
-        # Tab 2: Envelope
-        env_editor = EnvelopeEditor(self._api, component)
-        add_tab(env_editor, "envelope", "Envelope")
+        def build_page(index: int) -> None:
+            entry = pages.pop(index, None)
+            if entry is not None:
+                page, factory = entry
+                layout = page.layout()
+                assert layout is not None
+                layout.addWidget(factory())
 
-        # Tab 3: Mass
-        mass_editor = MassPropertiesEditor(self._api, component)
-        add_tab(mass_editor, "point_mass", "Mass")
+        tabs.currentChanged.connect(build_page)
 
         # Connect tab switching to update viewport CG
         tabs.currentChanged.connect(self._on_component_tab_changed)
@@ -180,6 +201,7 @@ class PropertiesPanel(QWidget):
         # Restore previous tab index
         target_index = max(0, min(self._last_component_tab_index, tabs.count() - 1))
         tabs.setCurrentIndex(target_index)
+        build_page(target_index)
 
         # Trigger corresponding 3D viewport visualization
         if target_index == 2:  # Envelope tab
@@ -254,6 +276,8 @@ class PropertiesPanel(QWidget):
         return label
 
     def update_theme_style(self) -> None:
+        if self._component_tabs is not None and self._component_tabs is self._current_widget:
+            self._component_tabs.setStyleSheet(_component_tab_style())
         if self._current_widget is not None:
             fn = getattr(self._current_widget, "update_theme_style", None)
             if callable(fn):

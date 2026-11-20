@@ -189,6 +189,47 @@ class TestComponentEditor(unittest.TestCase):
         assert isinstance(editor2, BaseComponentEditor)
         self.assertEqual(editor2._component["parameters"]["span"], 4.0)
 
+    def test_component_tabs_build_lazily_and_follow_the_theme(self) -> None:
+        from PySide6.QtWidgets import QApplication, QTabWidget
+
+        from setuav_studio.ui.editor import BaseComponentEditor, TransformEditor
+        from setuav_studio.ui.panels.properties import PropertiesPanel
+        from setuav_studio.ui.style.theme import apply_theme, tokens
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test.json"),
+            kind="json",
+            data={"components": [{"id": "c1", "type": "test:comp", "name": "C", "parameters": {}}]},
+        )
+        api._host.set_project(doc)
+        api.register_component_editor("test:comp", lambda c: BaseComponentEditor(api, c))
+        panel = PropertiesPanel(api)
+        self.addCleanup(panel.deleteLater)
+        comp = doc.get_component("c1")
+        assert comp is not None
+        api.set_selection(comp)
+        tabs = panel._current_widget
+        assert isinstance(tabs, QTabWidget)
+
+        # Only the page in view is built; the Transform tab builds when shown.
+        page = tabs.widget(1)
+        assert page is not None
+        self.assertEqual(page.findChildren(TransformEditor), [])
+        tabs.setCurrentIndex(1)
+        self.assertEqual(len(page.findChildren(TransformEditor)), 1)
+
+        app = QApplication.instance()
+        assert isinstance(app, QApplication)
+        self.addCleanup(apply_theme, app, "native")
+        apply_theme(app, "native")
+        panel.update_theme_style()
+        native_style = tabs.styleSheet()
+        apply_theme(app, "nord")
+        panel.update_theme_style()
+        self.assertNotEqual(tabs.styleSheet(), native_style)
+        self.assertIn(tokens()["accent"], tabs.styleSheet())
+
     def test_replacing_the_properties_widget_twice_opens_no_stray_window(self) -> None:
         from PySide6.QtWidgets import QApplication
 
