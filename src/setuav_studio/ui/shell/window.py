@@ -42,6 +42,13 @@ class MainWindow(QMainWindow):
         self._normal_geometry: QByteArray | None = None
         self._normal_dock_state: QByteArray | None = None
         self._was_maximized: bool = False
+        # The normal geometry is recorded a moment after a resize or move. Entering
+        # full screen or maximizing can resize the window before its state changes;
+        # the state change cancels the pending record, so that size is never kept.
+        self._normal_capture = QTimer(self)
+        self._normal_capture.setSingleShot(True)
+        self._normal_capture.setInterval(200)
+        self._normal_capture.timeout.connect(self._capture_normal_state)
 
         # Register built-in native UI contributions (Explorer, Properties, Parameters, Editors, Settings)
         register_native_contributions(api)
@@ -177,26 +184,41 @@ class MainWindow(QMainWindow):
 
         ExpressionFocusTracker.remove_listener(self.toolbar_manager.update_toolbar_states)
 
-    def resizeEvent(self, event: Any) -> None:
-        super().resizeEvent(event)
-        if not self.isMaximized() and not self.isFullScreen():
+    def _is_normal_state(self) -> bool:
+        return not (self.isMaximized() or self.isFullScreen() or self.isMinimized())
+
+    def _capture_normal_state(self) -> None:
+        if self._is_normal_state():
             self._normal_geometry = self.saveGeometry()
             self._normal_dock_state = self.saveState(LayoutManager.LAYOUT_VERSION)
+
+    def _restore_normal_state(self) -> None:
+        if not self._is_normal_state():
+            return
+        if self._normal_geometry is not None:
+            self.restoreGeometry(self._normal_geometry)
+        if self._normal_dock_state is not None:
+            self.restoreState(self._normal_dock_state, LayoutManager.LAYOUT_VERSION)
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        if self._is_normal_state():
+            self._normal_capture.start()
         self.layout_manager.schedule_layout_save()
 
     def moveEvent(self, event: Any) -> None:
         super().moveEvent(event)
-        if not self.isMaximized() and not self.isFullScreen():
-            self._normal_geometry = self.saveGeometry()
+        if self._is_normal_state():
+            self._normal_capture.start()
 
     def changeEvent(self, event: QEvent) -> None:
         if event.type() == QEvent.Type.WindowStateChange:
             is_max = self.isMaximized() or self.isFullScreen()
-            if self._was_maximized and not is_max:
-                if self._normal_geometry is not None:
-                    self.restoreGeometry(self._normal_geometry)
-                if self._normal_dock_state is not None:
-                    self.restoreState(self._normal_dock_state, LayoutManager.LAYOUT_VERSION)
+            if is_max:
+                self._normal_capture.stop()
+            elif self._was_maximized:
+                # Restore after the window system has applied the new state.
+                QTimer.singleShot(0, self._restore_normal_state)
             self._was_maximized = is_max
         super().changeEvent(event)
 
