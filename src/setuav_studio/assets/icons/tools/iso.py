@@ -1479,33 +1479,29 @@ def highlight(sc, face, color="a", layer=1):
 
 
 def icon_view_solid():
-    sc = Scene(fit=20.0, body="f")
-    sc.box(*CUBE, "f")
+    sc = Scene(fit=20.0, body="m")
+    sc.box(*CUBE, "m")
     return sc
 
 
 def icon_view_wireframe():
-    sc = Scene(fit=20.0, body="f")
-    cube_edges(sc, "f", r=0.09)
+    sc = Scene(fit=20.0, body="m")
+    cube_edges(sc, "m", r=0.09)
     return sc
 
 
 def icon_view_transparent():
-    sc = Scene(fit=20.0, body="f")
+    sc = Scene(fit=20.0, body="m")
     sc.box(*CUBE, "g")
-    cube_edges(sc, "f")
+    cube_edges(sc, "m")
     return sc
 
 
 def _camera(face):
-    sc = Scene(fit=20.0, body="f")
-    if face == "bottom":
-        sc.box(*CUBE, "g")
-        cube_edges(sc, "f")
-        highlight(sc, "bottom", layer=3)
-    else:
-        sc.box(*CUBE, "f")
-        highlight(sc, face)
+    """A gray wire cube with the face the camera looks at filled blue."""
+    sc = Scene(fit=20.0, body="m")
+    cube_edges(sc, "m", r=0.09)
+    highlight(sc, face, color="f", layer=1 if face == "bottom" else 3)
     return sc
 
 
@@ -1526,24 +1522,22 @@ def icon_camera_side():
 
 
 def icon_camera_iso():
-    sc = Scene(fit=20.0, body="f")
-    sc.box(*CUBE, "f")
-    for face in ("top", "front", "side"):
-        highlight(sc, face)
+    sc = Scene(fit=20.0, body="m")
+    sc.box(*CUBE, "m")
     return sc
 
 
 def icon_view_fit():
-    """A cube inside four corner brackets."""
+    """A gray cube inside four blue corner brackets."""
     brackets = "".join(
         f'<path d="M{x} {y + dy * 5} L{x} {y} L{x + dx * 5} {y}" fill="none" stroke="{{c}}" '
         f'stroke-width="{{w}}" stroke-linecap="round" stroke-linejoin="round"/>'
         for x, y, dx, dy in ((2, 2, 1, 1), (22, 2, -1, 1), (2, 22, 1, -1), (22, 22, -1, -1))
     )
-    red = "#{:02x}{:02x}{:02x}".format(*COLORS["a"])
-    overlay = brackets.format(c=OUTLINE, w=3.4) + brackets.format(c=red, w=1.8)
-    sc = Scene(fit=13.0, body="f", overlay=overlay)
-    sc.box(*CUBE, "f")
+    blue = "#{:02x}{:02x}{:02x}".format(*COLORS["f"])
+    overlay = brackets.format(c=OUTLINE, w=3.4) + brackets.format(c=blue, w=1.8)
+    sc = Scene(fit=13.0, body="m", overlay=overlay)
+    sc.box(*CUBE, "m")
     return sc
 
 
