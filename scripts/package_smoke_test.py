@@ -11,12 +11,11 @@ from pathlib import Path
 import setuav_studio
 
 EXPECTED_FILES = (
-    "setuav_studio/assets/icons/manifest.toml",
-    "setuav_studio/assets/icons/project-open-file.png",
-    "setuav_studio/assets/icons/studio.icns",
-    "setuav_studio/assets/icons/studio.ico",
-    "setuav_studio/assets/icons/studio.png",
-    "setuav_studio/assets/icons/studio.svg",
+    "setuav_studio/assets/icons/vehicle.svg",
+    "setuav_studio/assets/application/studio.icns",
+    "setuav_studio/assets/application/studio.ico",
+    "setuav_studio/assets/application/studio.png",
+    "setuav_studio/assets/application/studio.svg",
     "setuav_studio/assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf",
     "setuav_studio/assets/fonts/Inter/OFL.txt",
     "plugins/geometry/data/airfoils/clarky.dat",

@@ -20,7 +20,7 @@ PROJECT_VERSION = tomllib.loads(
 )["project"]["version"]
 APPLICATION_ICON_SUFFIX = {"darwin": ".icns", "win32": ".ico"}.get(sys.platform, ".png")
 APPLICATION_ICON = (
-    SOURCE_ROOT / "setuav_studio" / "assets" / "icons" / f"studio{APPLICATION_ICON_SUFFIX}"
+    SOURCE_ROOT / "setuav_studio" / "assets" / "application" / f"studio{APPLICATION_ICON_SUFFIX}"
 )
 PACKAGE_DATA = [
     (str(PROJECT_ROOT / "LICENSE"), "."),

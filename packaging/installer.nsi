@@ -14,9 +14,9 @@ SetCompressor /SOLID lzma
 
 !include "MUI2.nsh"
 
-!if /FileExists "..\src\setuav_studio\assets\icons\studio.ico"
-  !define MUI_ICON "..\src\setuav_studio\assets\icons\studio.ico"
-  !define MUI_UNICON "..\src\setuav_studio\assets\icons\studio.ico"
+!if /FileExists "..\src\setuav_studio\assets\application\studio.ico"
+  !define MUI_ICON "..\src\setuav_studio\assets\application\studio.ico"
+  !define MUI_UNICON "..\src\setuav_studio\assets\application\studio.ico"
 !endif
 
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"

@@ -70,7 +70,7 @@ class TaskManagerDialog(QDialog):
         top_layout.addWidget(self._spin_workers)
 
         self._btn_cancel_all = QPushButton("Cancel All")
-        self._btn_cancel_all.setIcon(get_icon("mdi6.close-circle"))
+        self._btn_cancel_all.setIcon(get_icon("cancel"))
         self._btn_cancel_all.clicked.connect(self._tm.cancel_all)
         top_layout.addWidget(self._btn_cancel_all)
 
@@ -204,7 +204,7 @@ class TaskManagerDialog(QDialog):
             cancel_btn = self._active_table.cellWidget(row, 4)
             if not isinstance(cancel_btn, QToolButton):
                 cancel_btn = QToolButton()
-                cancel_btn.setIcon(get_icon("mdi6.close-circle"))
+                cancel_btn.setIcon(get_icon("cancel"))
                 cancel_btn.setToolTip("Cancel task")
                 cancel_btn.clicked.connect(lambda _=None, tid=handle.id: self._tm.cancel(tid))
                 self._active_table.setCellWidget(row, 4, cancel_btn)

@@ -56,6 +56,8 @@ security = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/setuav_studio", "src/plugins"]
+# The icon generator stays in the source tree; the application ships only the SVGs.
+exclude = ["src/setuav_studio/assets/icons/tools"]
 
 [tool.deptry.package_module_name_map]
 setuav-pythrust = "pythrust"

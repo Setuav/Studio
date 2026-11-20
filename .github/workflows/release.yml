@@ -127,8 +127,8 @@ jobs:
           cp -a dist/setuav-studio/. "${appdir}/usr/lib/setuav-studio/"
           cp packaging/AppRun "${appdir}/AppRun"
           cp packaging/setuav.desktop "${appdir}/setuav.desktop"
-          cp src/setuav_studio/assets/icons/studio.png "${appdir}/setuav-studio.png"
-          cp src/setuav_studio/assets/icons/studio.png \
+          cp src/setuav_studio/assets/application/studio.png "${appdir}/setuav-studio.png"
+          cp src/setuav_studio/assets/application/studio.png \
             "${appdir}/usr/share/icons/hicolor/256x256/apps/setuav-studio.png"
           chmod +x "${appdir}/AppRun"
           wget -q -O appimagetool \

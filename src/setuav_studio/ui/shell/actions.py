@@ -96,7 +96,7 @@ class ActionManager:
         self.redo_action.setEnabled(False)
 
         self.edit_menu.addSeparator()
-        self.settings_action = self.edit_menu.addAction(get_icon("fa6s.gear"), "Settings…")
+        self.settings_action = self.edit_menu.addAction(get_icon("settings"), "Settings…")
         self.settings_action.triggered.connect(self.open_settings)
 
         self.command_actions.update(
@@ -117,7 +117,7 @@ class ActionManager:
         self.menus["view"] = self.view_menu
 
         self.command_palette_action = QAction(
-            get_icon("fa6s.terminal"),
+            get_icon("command_palette"),
             "Command Palette…",
             self._window,
         )
@@ -154,7 +154,7 @@ class ActionManager:
         self.task_monitor_action = self.task_manager_action
         self.command_actions["core.tasks.manage"] = self.task_manager_action
         self.plugin_manager_action = self.tools_menu.addAction(
-            get_icon("package"),
+            get_icon("plugin_manager"),
             "Plugin Manager…",
             self.open_plugin_manager,
         )
@@ -226,14 +226,14 @@ class ActionManager:
         self.exit_action.setIcon(get_icon("exit"))
         self.undo_action.setIcon(get_icon("undo"))
         self.redo_action.setIcon(get_icon("redo"))
-        self.settings_action.setIcon(get_icon("fa6s.gear"))
+        self.settings_action.setIcon(get_icon("settings"))
         self._window.status_manager.log_button.setIcon(get_icon("log"))
-        self._window.status_manager.command_palette_button.setIcon(get_icon("fa6s.terminal"))
+        self._window.status_manager.command_palette_button.setIcon(get_icon("command_palette"))
         self._window.toolbar_manager.update_toolbar_contribution_icons()
 
     def populate_view_menu(self) -> None:
         self.view_menu.clear()
-        theme_menu = self.view_menu.addMenu("Theme")
+        theme_menu = self.view_menu.addMenu(get_icon("settings_appearance"), "Theme")
         theme_menu.addAction(self.native_theme_action)
         theme_menu.addAction(self.blender_theme_action)
         theme_menu.addAction(self.github_theme_action)

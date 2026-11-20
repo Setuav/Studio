@@ -1,6 +1,4 @@
 import logging
-import tomllib
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -11,26 +9,17 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 logger = logging.getLogger(__name__)
 
-_ASSET_ROOT = Path(__file__).resolve().parent.parent.parent / "assets" / "icons"
-_ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
+_ASSETS = Path(__file__).resolve().parent.parent.parent / "assets"
+# Each icon is ``<name>.svg`` in this folder; ``get_icon("<name>")`` finds it.
+_ICON_DIR = _ASSETS / "icons"
 # Use the librsvg-rendered fallback at runtime. Qt's SVG renderer does not
 # preserve the logo's clip paths, while this PNG is generated from the same
 # canonical SVG and retains the complete typography artwork.
-_APPLICATION_ICON = _ASSET_ROOT / "studio.png"
+_APPLICATION_ICON = _ASSETS / "application" / "studio.png"
 
 _ICON_MAP = {
     # File / Project actions
-    "file_new": "fa6s.file",
-    "file_open": "fa6s.file-code",
-    "folder_open": "fa6s.folder-open",
-    "project_folder": "fa6s.folder",
-    "save": "fa6s.floppy-disk",
-    "save_as": "fa6s.floppy-disk",
-    "exit": "fa6s.right-from-bracket",
     # Edit actions
-    "undo": "fa6s.rotate-left",
-    "redo": "fa6s.rotate-right",
-    "settings": "fa6s.gear",
     # Panels
     "project_explorer": "fa6s.folder-tree",
     "properties": "fa6s.sliders",
@@ -47,45 +36,28 @@ _ICON_MAP = {
     "split": "mdi6.call-split",
     "call_split": "mdi6.call-split",
     "fit": "fa6s.expand",
-    "log": "mdi6.message-reply-text-outline",
     "export_csv": "fa6s.file-export",
     "success": "fa6s.check",
     "check": "fa6s.check",
-    "warning": "fa6s.triangle-exclamation",
-    "error": "fa6s.circle-xmark",
-    "constant": "mdi6.pi",
-    "constraint": "mdi6.link-variant",
-    "formula": "mdi6.function-variant",
     "fx": "mdi6.function-variant",
     "equation": "fa6s.code",
-    "package": "fa6s.box-open",
     "plugin": "fa6s.box-open",
-    "task_manager": "ei.tasks",
     "tasks": "ei.tasks",
     # 3D Viewport Controls & Overlays
     "view_solid": "mdi6.cube",
     "view_wireframe": "mdi6.cube-outline",
     "view_transparent": "mdi6.cube-scan",
-    "view_colored": "fa6s.palette",
-    "view_monochrome": "mdi6.circle-half-full",
-    "view_grid": "mdi6.grid",
     "view_palette": "fa6s.palette",
     "palette": "fa6s.palette",
     "view_fit": "fa6s.expand",
-    "view_isometric": "mdi6.cube-unfolded",
-    "view_perspective": "mdi6.perspective-more",
     "camera_perspective": "mdi6.perspective-more",
     "camera_iso": "mdi6.cube-unfolded",
     "camera_top": "mdi6.arrow-down-bold-box-outline",
     "camera_bottom": "mdi6.arrow-up-bold-box-outline",
     "camera_front": "mdi6.arrow-right-bold-box-outline",
     "camera_side": "mdi6.arrow-left-bold-box-outline",
-    "view_layers": "fa6s.layer-group",
     "layers": "fa6s.layer-group",
-    "screenshot": "fa6s.camera",
-    "transform": "fa6s.arrows-up-down-left-right",
     "coordinate_system": "fa6s.arrows-up-down-left-right",
-    "envelope": "fa6s.box",
     "physical_envelope": "fa6s.box",
     # Default Component Types
     "component": "fa6s.cube",
@@ -93,10 +65,6 @@ _ICON_MAP = {
     "component_fuselage": "fa6s.shuttle-space",
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",
-    "vehicle": "fa6s.plane-up",
-    "component_point_mass": "fa6s.weight-hanging",
-    "point_mass": "fa6s.weight-hanging",
-    "add_point_mass": "fa6s.weight-scale",
 }
 
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"
@@ -108,16 +76,8 @@ def application_icon() -> QIcon:
     return QIcon(str(_APPLICATION_ICON))
 
 
-@lru_cache(maxsize=1)
-def _asset_icon_map() -> dict[str, str]:
-    """Load logical icon names from the vendored asset manifest."""
-    with _ICON_MANIFEST.open("rb") as stream:
-        values = tomllib.load(stream)["icons"]
-    return {str(name): str(relative_path) for name, relative_path in values.items()}
-
-
 _PLUGIN_ICON_MAP: dict[str, Path] = {}
-_PLUGIN_ICON_MANIFESTS: dict[str, tuple[Path, dict[str, str]]] = {}
+_PLUGIN_ICON_NAMES: dict[str, tuple[str, ...]] = {}
 
 
 def register_icon(name: str, icon_path_or_specifier: str | Path | QIcon) -> None:
@@ -131,54 +91,33 @@ def register_icon(name: str, icon_path_or_specifier: str | Path | QIcon) -> None
         _ICON_MAP[name] = icon_path_or_specifier
 
 
-def register_plugin_icons(
-    plugin_id: str,
-    assets_dir: Path | str,
-    manifest: dict[str, str] | None = None,
-) -> None:
-    """Register a plugin's asset directory and its icon names.
+def register_plugin_icons(plugin_id: str, assets_dir: Path | str) -> None:
+    """Register every SVG in a plugin's icon folder under its file name.
 
-    The names come from ``manifest`` or, without one, from the directory's
-    ``manifest.toml`` ``[icons]`` table. A manifest that cannot be read or an icon
-    file it names that does not exist raises. :func:`unregister_plugin_icons`
-    removes the registration.
+    ``<assets_dir>/servo.svg`` becomes the icon ``servo``. A folder without SVG
+    icons raises. :func:`unregister_plugin_icons` removes the registration.
     """
     dir_path = Path(assets_dir).resolve()
-    icon_manifest: dict[str, str] = dict(manifest or {})
-
-    manifest_file = dir_path / "manifest.toml"
-    if not icon_manifest and manifest_file.is_file():
-        with manifest_file.open("rb") as stream:
-            icon_manifest = {str(k): str(v) for k, v in tomllib.load(stream)["icons"].items()}
-
-    for name, rel_path in icon_manifest.items():
-        full_path = dir_path / rel_path
-        if not full_path.is_file():
-            raise FileNotFoundError(f"Icon {name!r} of plugin {plugin_id!r}: no file {full_path}")
-
-    _PLUGIN_ICON_MANIFESTS[plugin_id] = (dir_path, icon_manifest)
-    for name, rel_path in icon_manifest.items():
-        _PLUGIN_ICON_MAP[name] = dir_path / rel_path
+    icons = {path.stem: path for path in sorted(dir_path.glob("*.svg"))}
+    if not icons:
+        raise FileNotFoundError(f"Plugin {plugin_id!r} has no SVG icons in {dir_path}")
+    _PLUGIN_ICON_NAMES[plugin_id] = tuple(icons)
+    _PLUGIN_ICON_MAP.update(icons)
 
 
 def unregister_plugin_icons(plugin_id: str) -> None:
     """Remove the icons :func:`register_plugin_icons` registered for ``plugin_id``."""
-    _dir_path, icon_manifest = _PLUGIN_ICON_MANIFESTS.pop(plugin_id)
-    for name in icon_manifest:
+    for name in _PLUGIN_ICON_NAMES.pop(plugin_id):
         _PLUGIN_ICON_MAP.pop(name, None)
 
 
 def _asset_icon(icon_source: str) -> QIcon | None:
     if icon_source in _PLUGIN_ICON_MAP:
         return QIcon(str(_PLUGIN_ICON_MAP[icon_source]))
-
-    relative_path = _asset_icon_map().get(icon_source)
-    if relative_path is None:
-        return None
-    icon_path = _ASSET_ROOT / relative_path
-    if not icon_path.is_file():
-        raise FileNotFoundError(f"Icon {icon_source!r} maps to a missing file: {icon_path}")
-    return QIcon(str(icon_path))
+    icon_path = _ICON_DIR / f"{icon_source}.svg"
+    if icon_path.is_file():
+        return QIcon(str(icon_path))
+    return None
 
 
 class _ThemeIconEngine(QIconEngine):

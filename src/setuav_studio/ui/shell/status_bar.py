@@ -203,7 +203,7 @@ class StatusBarManager:
 
         self.cancel_button = QToolButton(self._window)
         self.cancel_button.setObjectName("studioStatusCancelTask")
-        self.cancel_button.setIcon(get_icon("mdi6.close-circle"))
+        self.cancel_button.setIcon(get_icon("cancel"))
         self.cancel_button.setToolTip("Cancel background task")
         self.cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_button.setAutoRaise(True)
@@ -214,7 +214,7 @@ class StatusBarManager:
 
         self.command_palette_button = QToolButton(self._window)
         self.command_palette_button.setObjectName("studioStatusCommandPaletteButton")
-        self.command_palette_button.setIcon(get_icon("fa6s.terminal"))
+        self.command_palette_button.setIcon(get_icon("command_palette"))
         self.command_palette_button.setToolTip("Command Palette (Ctrl+Shift+P)")
         self.command_palette_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.command_palette_button.setAutoRaise(True)

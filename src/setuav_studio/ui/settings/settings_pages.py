@@ -241,7 +241,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
                         else QIcon(str(group_icon)),
                     )
                 elif group_name == "Application":
-                    group_item.setIcon(0, get_icon("fa6s.gears"))
+                    group_item.setIcon(0, get_icon("settings"))
                 else:
                     group_item.setIcon(0, get_icon("fa6s.cubes"))
                 self.category_tree.addTopLevelItem(group_item)
@@ -291,7 +291,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         page, layout = self._page_container("General Settings")
 
         # 1. Startup
-        _, s1_layout = self._create_section("Startup", "fa6s.clock-rotate-left", layout)
+        _, s1_layout = self._create_section("Startup", "settings_startup", layout)
         t1 = self._create_settings_table(
             [
                 ("reopen_last_project", "Reopen Last Project"),
@@ -341,12 +341,12 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         s2_layout.addWidget(t2)
 
         layout.addStretch(1)
-        self._add_page("general", "General", page, "fa6s.gear", group="Application")
+        self._add_page("general", "General", page, "settings_general", group="Application")
 
     def _build_appearance_page(self, values: StudioSettings) -> None:
         page, layout = self._page_container("Appearance Settings")
 
-        _, s1_layout = self._create_section("Theme & Styling", "fa6s.palette", layout)
+        _, s1_layout = self._create_section("Theme & Styling", "settings_appearance", layout)
         t1 = self._create_settings_table([("theme_mode", "Application Theme")])
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("Native", "native")
@@ -362,7 +362,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         s1_layout.addWidget(t1)
 
         layout.addStretch(1)
-        self._add_page("appearance", "Appearance", page, "fa6s.palette", group="Application")
+        self._add_page("appearance", "Appearance", page, "settings_appearance", group="Application")
 
     def _build_units_page(self) -> None:
         from setuav_studio.units import QUANTITIES, get_unit_manager
@@ -374,7 +374,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         self._unit_combos = {}
 
         # 1. Preset System
-        _, s1_layout = self._create_section("Unit Preset", "fa6s.sliders", layout)
+        _, s1_layout = self._create_section("Unit Preset", "settings_general", layout)
         t1 = self._create_settings_table([("preset", "System Preset")])
         self.units_preset_combo = QComboBox()
         self.units_preset_combo.addItem("Metric (SI Standard)", "si")
@@ -390,7 +390,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         s1_layout.addWidget(t1)
 
         # 2. Physical Quantities
-        _, s2_layout = self._create_section("Physical Quantities", "fa6s.ruler-combined", layout)
+        _, s2_layout = self._create_section("Physical Quantities", "settings_units", layout)
         quantity_defs = [(q_id, q_def.name) for q_id, q_def in QUANTITIES.items()]
         t2 = self._create_settings_table(quantity_defs, col0_width=180)
 
@@ -411,7 +411,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
 
         self._units_updating = False
         layout.addStretch(1)
-        self._add_page("units", "Units", page, "fa6s.ruler-combined", group="Application")
+        self._add_page("units", "Units", page, "settings_units", group="Application")
 
     def _on_units_preset_changed(self) -> None:
         if self._units_updating:

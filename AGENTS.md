@@ -44,10 +44,10 @@ Operating instructions for coding agents working on Setuav Studio. Keep this fil
   - Test (all): `uv run pytest` — pre-push / pre-PR verification only.
   - Lint / Format / Typecheck: `uv run ruff check .`, `uv run ruff format .` (`--check` in CI), `uv run pyright` — all must pass without errors or warnings.
 - **Layout:** Source: `src/setuav_studio/` (core) & `src/plugins/` (bundled plugins) | Tests: `tests/` (`core/`, `plugins/`, domain dirs)
-- **Do not modify:** `uv.lock` unless dependencies intentionally change; `src/setuav_studio/assets/icons/manifest.toml` for plugin icons; generated/local dirs (`build/`, `dist/`, `htmlcov/`, `.docs/`).
+- **Do not modify:** `uv.lock` unless dependencies intentionally change; generated/local dirs (`build/`, `dist/`, `htmlcov/`, `.docs/`).
 - **Conventions:**
   - **Core & plugin decoupling:** Keep `src/setuav_studio/` decoupled from `src/plugins/`; domain assets/data (e.g., `src/plugins/geometry/data/airfoils`) and plugin icons (`src/plugins/<plugin>/assets/icons/`) stay inside their plugin directory.
-  - **Style & icons:** Resolve theme and icons via `setuav_studio.ui.style` (`icons`, `theme`); register plugin icons dynamically with `register_plugin_icons(...)` rather than editing core asset manifests.
+  - **Style & icons:** Resolve theme and icons via `setuav_studio.ui.style` (`icons`, `theme`); each icon is one SVG named after the icon (`<name>.svg`): core icons in `src/setuav_studio/assets/icons/`, plugin icons in the plugin's icon folder, registered with `register_plugin_icons(plugin_id, folder)`. Regenerate the isometric icons with `src/setuav_studio/assets/icons/tools/iso.py`.
   - **Plugin API & thread safety:** Keep `setuav_studio.api` (`StudioAPI`) single and canonical (no legacy names or aliases); never run blocking calls (`time.sleep`, synchronous locks) on the main Qt UI event loop thread.
   - **No symptom masking:** Never swallow exceptions silently, remove failing tests, or return dummy fallbacks; fix underlying root causes.
 

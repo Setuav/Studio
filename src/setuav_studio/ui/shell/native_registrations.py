@@ -194,10 +194,10 @@ def register_native_contributions(api: StudioAPI) -> None:
             id="org.setuav.studio.toolbar.add_point_mass",
             title="Add Point Mass",
             callback=lambda: _on_add_point_mass_triggered(api),
-            icon="add_point_mass",
+            icon="point_mass",
             enabled_when=lambda: _can_edit_project(api),
-            group="mass",
-            order=30,
+            group="model",
+            order=150,
         )
     )
     api.register_toolbar_item(
