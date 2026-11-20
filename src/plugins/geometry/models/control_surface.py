@@ -14,8 +14,8 @@ class ControlSurfaceModel(Component):
         """Return (semi_span, root_chord, tip_chord, area_dm2) of the lifting surface."""
         if self._attach_target_model is not None:
             pm = self._attach_target_model
-            root_sec = getattr(pm, "root_section", None)
-            tip_sec = getattr(pm, "tip_section", None)
+            root_sec = getattr(pm, "root_profile", None)
+            tip_sec = getattr(pm, "tip_profile", None)
             root_chord = float(root_sec.chord) if root_sec is not None else 150.0
             tip_chord = float(tip_sec.chord) if tip_sec is not None else root_chord
             span = float(getattr(pm, "span", 800.0))

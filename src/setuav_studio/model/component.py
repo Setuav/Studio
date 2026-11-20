@@ -380,8 +380,8 @@ class Component:
         return self._children
 
     @property
-    def sections(self) -> list[Any]:
-        """List of station profile dictionaries/models."""
+    def profiles(self) -> list[Any]:
+        """The geometry's profile stations, readable by attribute."""
         from setuav_studio.model.scope import to_dot_dict
 
         geom = self.parameters.get("geometry")
@@ -397,14 +397,9 @@ class Component:
         name_lower = name.lower()
         if hasattr(self, "_children") and name_lower in self._children:
             return self._children[name_lower]
-        if name.startswith("section_") or name.startswith("profile_"):
-            try:
-                idx = int(name.split("_")[-1])
-                secs = self.sections
-                if 0 <= idx < len(secs):
-                    return secs[idx]
-            except (ValueError, IndexError):
-                pass
+        prefix, _, index = name.partition("_")
+        if prefix == "profile" and index.isdigit() and int(index) < len(self.profiles):
+            return self.profiles[int(index)]
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute or parameter '{name}'"
         )

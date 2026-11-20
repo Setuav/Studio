@@ -238,6 +238,27 @@ class LiftingSurfaceLayoutTests(unittest.TestCase):
             list(stored_geometry["profiles"][0]), ["position", "chord", "rotation", "airfoil"]
         )
 
+    def test_formulas_reach_profiles_and_sections_by_index(self) -> None:
+        from plugins.geometry.models import LiftingSurfaceModel
+
+        geometry = _geometry()
+        geometry["profiles"] = build_profiles(geometry["root"], geometry["sections"], 0.25)
+        wing = LiftingSurfaceModel({"id": "wing", "parameters": {"geometry": geometry}})
+
+        # A profile is a station; a section runs between two of them.
+        self.assertAlmostEqual(wing.profile_1.y, 300.0)
+        self.assertEqual(wing.profile_2.chord, 120.0)
+        self.assertEqual(wing.section_1.span, 400.0)
+        self.assertEqual(wing.section_1.root_chord, 200.0)
+        self.assertEqual(wing.section_1.tip_chord, 120.0)
+        self.assertEqual(wing.section_0.root_airfoil, "NACA 2412")
+
+        exposed = wing.get_exposed_properties()
+        self.assertEqual(exposed["profile_2_chord"], 120.0)
+        self.assertEqual(exposed["section_1_sweep"], 15.0)
+        self.assertNotIn("profile_3_chord", exposed)
+        self.assertNotIn("section_2_span", exposed)
+
     def test_split_append_and_delete_sections(self) -> None:
         geometry = _geometry()
         root, sections = geometry["root"], geometry["sections"]

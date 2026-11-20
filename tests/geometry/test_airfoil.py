@@ -24,7 +24,7 @@ from plugins.geometry.engine.airfoil import (
     preset_airfoil_spec,
     sample_airfoil_points,
 )
-from plugins.geometry.models import LiftingSurfaceSectionModel
+from plugins.geometry.models import LiftingSurfaceProfileModel
 from tests._common import get_qapp
 
 _CUSTOM_COORDINATES = {
@@ -211,15 +211,15 @@ class AirfoilTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Missing airfoil spec"):
             sample_airfoil_points(None)
 
-    def test_section_model_reads_canonical_twist_and_airfoil_label(self) -> None:
-        section = LiftingSurfaceSectionModel(
+    def test_profile_model_reads_canonical_twist_and_airfoil_label(self) -> None:
+        profile = LiftingSurfaceProfileModel(
             {"chord": 200.0, "rotation": {"x": 4.0, "y": -2.0, "z": 0.0}, "airfoil": "0012"}
         )
-        self.assertEqual(section.twist, -2.0)
-        self.assertEqual(section.airfoil, "NACA 0012")
-        self.assertEqual(LiftingSurfaceSectionModel({"airfoil": "4418"}).twist, 0.0)
+        self.assertEqual(profile.twist, -2.0)
+        self.assertEqual(profile.airfoil, "NACA 0012")
+        self.assertEqual(LiftingSurfaceProfileModel({"airfoil": "4418"}).twist, 0.0)
         self.assertEqual(
-            LiftingSurfaceSectionModel({"airfoil": _CUSTOM_COORDINATES}).airfoil,
+            LiftingSurfaceProfileModel({"airfoil": _CUSTOM_COORDINATES}).airfoil,
             "My Custom Foil",
         )
 

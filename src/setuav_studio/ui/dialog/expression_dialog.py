@@ -36,6 +36,9 @@ from setuav_studio.ui.style.theme import status_color
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
+# Indexed sub-elements a component exposes as ``<kind>_<index>_<property>``, with the
+# folder they are listed under.
+_INDEXED_ELEMENTS = {"profile": "Profiles", "section": "Sections"}
 
 MATH_FUNCTIONS: list[tuple[str, str, str]] = [
     ("sqrt(x)", "sqrt(", "Square root: sqrt(16) -> 4"),
@@ -141,7 +144,7 @@ class ExpressionLineEdit(QLineEdit):
         token, start_pos, end_pos = self._get_current_token()
         text = self.text()
 
-        # If user was typing e.g. main_wing.section_0.chord or main-wing.something
+        # If user was typing e.g. main_wing.profile_0.chord or main-wing.something
         if "." in token:
             parts = token.split(".")
             clean_parts = [p.replace("-", "_") for p in parts[:-1]]
@@ -172,11 +175,12 @@ class ExpressionLineEdit(QLineEdit):
                 clean_props = []
                 seen = set()
                 for p in props:
-                    if p.startswith("section_"):
-                        sec_name = "_".join(p.split("_")[:2])
-                        if sec_name not in seen:
-                            clean_props.append(sec_name)
-                            seen.add(sec_name)
+                    kind, index, *_rest = [*p.split("_", 2), ""]
+                    if kind in _INDEXED_ELEMENTS and index.isdigit():
+                        element = f"{kind}_{index}"
+                        if element not in seen:
+                            clean_props.append(element)
+                            seen.add(element)
                     else:
                         clean_props.append(p)
                 self._update_completer_model(clean_props)
@@ -409,8 +413,10 @@ class AdvancedExpressionDialog(QDialog):
             item_title = f"{cname} ({effective_prefix})"
             parent_item = QTreeWidgetItem([item_title, "", ""])
 
-            sections_folder: QTreeWidgetItem | None = None
-            section_items: dict[str, QTreeWidgetItem] = {}
+            # Indexed sub-elements (profile_0_chord, section_1_span) are grouped under a
+            # folder per kind and an item per index.
+            folders: dict[str, QTreeWidgetItem] = {}
+            element_items: dict[str, QTreeWidgetItem] = {}
 
             for prop in comp.get("properties", []):
                 pkey = prop["key"]
@@ -418,43 +424,34 @@ class AdvancedExpressionDialog(QDialog):
                 val_str = f"{pval:.4g}" if isinstance(pval, (int, float)) else str(pval)
                 expr_tag = f"{effective_prefix}.{pkey}"
 
-                if pkey.startswith("section_"):
-                    if sections_folder is None:
-                        sec_label = (
-                            "Stations / Sections"
-                            if "lifting" in ctype or "wing" in cid or "tail" in cid
-                            else "Cross Sections"
+                kind, index, subprop = [*pkey.split("_", 2), "", ""][:3]
+                if kind in _INDEXED_ELEMENTS and index.isdigit() and subprop:
+                    if kind not in folders:
+                        folder_label = (
+                            "Cross Sections"
+                            if kind == "section" and "fuselage" in ctype
+                            else _INDEXED_ELEMENTS[kind]
                         )
-                        sections_folder = QTreeWidgetItem([sec_label, "", ""])
-                        parent_item.addChild(sections_folder)
+                        folders[kind] = QTreeWidgetItem([folder_label, "", ""])
+                        parent_item.addChild(folders[kind])
+                    element_key = f"{kind}_{index}"
+                    if element_key not in element_items:
+                        element_item = QTreeWidgetItem([f"{kind.title()} {index}", "", ""])
+                        folders[kind].addChild(element_item)
+                        element_items[element_key] = element_item
 
-                    parts = pkey.split("_", 2)
-                    if len(parts) >= 3:
-                        sec_idx = parts[1]
-                        subprop = parts[2]
-                        sec_key = f"section_{sec_idx}"
-                        if sec_key not in section_items:
-                            sec_item = QTreeWidgetItem([f"Section {sec_idx}", "", ""])
-                            sections_folder.addChild(sec_item)
-                            section_items[sec_key] = sec_item
-
-                        target_sec_item = section_items[sec_key]
-                        sub_tag = f"{effective_prefix}.{sec_key}.{subprop}"
-                        child_item = QTreeWidgetItem([subprop, val_str, sub_tag])
-                        child_item.setData(0, Qt.ItemDataRole.UserRole, sub_tag)
-                        target_sec_item.addChild(child_item)
-                    else:
-                        child_item = QTreeWidgetItem([pkey, val_str, expr_tag])
-                        child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
-                        parent_item.addChild(child_item)
+                    sub_tag = f"{effective_prefix}.{element_key}.{subprop}"
+                    child_item = QTreeWidgetItem([subprop, val_str, sub_tag])
+                    child_item.setData(0, Qt.ItemDataRole.UserRole, sub_tag)
+                    element_items[element_key].addChild(child_item)
                 else:
                     child_item = QTreeWidgetItem([pkey, val_str, expr_tag])
                     child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
                     parent_item.addChild(child_item)
 
             parent_item.setExpanded(True)
-            if sections_folder:
-                sections_folder.setExpanded(False)
+            for folder in folders.values():
+                folder.setExpanded(False)
             return parent_item
 
         for comp in top_level_comps:

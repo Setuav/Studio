@@ -10,8 +10,8 @@ from ..engine.airfoil import airfoil_label
 from ..engine.lifting_surface_planform_engine import compute_planform_metrics
 
 
-class LiftingSurfaceSectionModel:
-    """Domain model for a single LiftingSurface station / profile section."""
+class LiftingSurfaceProfileModel:
+    """Domain model for one profile station of a lifting surface."""
 
     def __init__(self, data: dict[str, Any], index: int = 0) -> None:
         self._data = data
@@ -59,7 +59,60 @@ class LiftingSurfaceSectionModel:
     def __getattr__(self, name: str) -> Any:
         if name in self._data:
             return self._data[name]
-        raise AttributeError(f"'LiftingSurfaceSectionModel' object has no attribute '{name}'")
+        raise AttributeError(f"'LiftingSurfaceProfileModel' object has no attribute '{name}'")
+
+
+class LiftingSurfaceSectionModel:
+    """Domain model for one section of a lifting surface, between its root and tip profile."""
+
+    def __init__(self, data: dict[str, Any], root: dict[str, Any], index: int = 0) -> None:
+        self._data = data
+        self._root = root
+        self._index = index
+
+    @property
+    def span(self) -> float:
+        return float(self._data["span"])
+
+    @property
+    def sweep(self) -> float:
+        return float(self._data["sweep"])
+
+    @property
+    def dihedral(self) -> float:
+        return float(self._data["dihedral"])
+
+    @property
+    def twist(self) -> float:
+        return float(self._data["twist"])
+
+    @property
+    def root_chord(self) -> float:
+        return float(self._root["chord"])
+
+    @property
+    def tip_chord(self) -> float:
+        return float(self._data["tip"]["chord"])
+
+    @property
+    def root_airfoil(self) -> str:
+        return airfoil_label(self._root["airfoil"])
+
+    @property
+    def tip_airfoil(self) -> str:
+        return airfoil_label(self._data["tip"]["airfoil"])
+
+    def get_exposed_properties(self) -> dict[str, Any]:
+        return {
+            "span": self.span,
+            "sweep": self.sweep,
+            "dihedral": self.dihedral,
+            "twist": self.twist,
+            "root_chord": self.root_chord,
+            "tip_chord": self.tip_chord,
+            "root_airfoil": self.root_airfoil,
+            "tip_airfoil": self.tip_airfoil,
+        }
 
 
 class LiftingSurfaceModel(Component):
@@ -75,23 +128,33 @@ class LiftingSurfaceModel(Component):
         return geom.get("profiles") or []
 
     @property
-    def sections(self) -> list[LiftingSurfaceSectionModel]:
-        """List of typed domain models for each station section."""
+    def profile_models(self) -> list[LiftingSurfaceProfileModel]:
+        """Typed domain models of the profile stations, from root to tip."""
         return [
-            LiftingSurfaceSectionModel(p, i)
+            LiftingSurfaceProfileModel(p, i)
             for i, p in enumerate(self.profiles)
             if isinstance(p, dict)
         ]
 
     @property
-    def root_section(self) -> LiftingSurfaceSectionModel | None:
-        secs = self.sections
-        return secs[0] if secs else None
+    def sections(self) -> list[LiftingSurfaceSectionModel]:
+        """Typed domain models of the sections, from root to tip."""
+        root = self.geometry["root"]
+        sections = self.geometry["sections"]
+        return [
+            LiftingSurfaceSectionModel(section, root if i == 0 else sections[i - 1]["tip"], i)
+            for i, section in enumerate(sections)
+        ]
 
     @property
-    def tip_section(self) -> LiftingSurfaceSectionModel | None:
-        secs = self.sections
-        return secs[-1] if secs else None
+    def root_profile(self) -> LiftingSurfaceProfileModel | None:
+        profiles = self.profile_models
+        return profiles[0] if profiles else None
+
+    @property
+    def tip_profile(self) -> LiftingSurfaceProfileModel | None:
+        profiles = self.profile_models
+        return profiles[-1] if profiles else None
 
     @property
     def mirror(self) -> bool:
@@ -199,19 +262,17 @@ class LiftingSurfaceModel(Component):
                 "twist": self.twist,
             }
         )
-        for i, sec in enumerate(self.sections):
-            for sp_k, sp_v in sec.get_exposed_properties().items():
-                props[f"section_{i}_{sp_k}"] = sp_v
+        for prefix, models in (("profile", self.profile_models), ("section", self.sections)):
+            for i, model in enumerate(models):
+                for sp_k, sp_v in model.get_exposed_properties().items():
+                    props[f"{prefix}_{i}_{sp_k}"] = sp_v
         return props
 
     def __getattr__(self, name: str) -> Any:
-        # Dynamic section access: section_0, section_1, etc.
-        if name.startswith("section_"):
-            try:
-                idx = int(name.split("_", 1)[1])
-                secs = self.sections
-                if 0 <= idx < len(secs):
-                    return secs[idx]
-            except ValueError:
-                pass
+        # Indexed access: profile_0, profile_1, ... and section_0, section_1, ...
+        prefix, _, index = name.partition("_")
+        if prefix in ("profile", "section") and index.isdigit():
+            models = self.profile_models if prefix == "profile" else self.sections
+            if int(index) < len(models):
+                return models[int(index)]
         return super().__getattr__(name)

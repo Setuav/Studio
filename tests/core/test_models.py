@@ -222,7 +222,7 @@ def test_component_parameters_and_attributes() -> None:
         _ = comp.non_existent_attribute
 
 
-def test_component_sections_and_profiles_routing() -> None:
+def test_component_profiles_routing() -> None:
     comp = Component(
         {
             "id": "wing",
@@ -236,13 +236,13 @@ def test_component_sections_and_profiles_routing() -> None:
             },
         }
     )
-    assert len(comp.sections) == 2
-    assert math.isclose(comp.sections[0].chord, 300.0)
-    assert comp.sections[0].airfoil == "NACA0012"
+    assert len(comp.profiles) == 2
+    assert math.isclose(comp.profiles[0].chord, 300.0)
+    assert comp.profiles[0].airfoil == "NACA0012"
 
-    # Index shortcut routing: comp.section_0, comp.section_1
-    assert comp.section_0.airfoil == "NACA0012"
-    assert math.isclose(comp.section_1.chord, 150.0)
+    # Index shortcut routing: comp.profile_0, comp.profile_1
+    assert comp.profile_0.airfoil == "NACA0012"
+    assert math.isclose(comp.profile_1.chord, 150.0)
 
 
 # ==============================================================================
