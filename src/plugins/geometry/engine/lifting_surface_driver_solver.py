@@ -103,7 +103,7 @@ def solve_8_parameter_driver(
     is_symmetric: bool = True,
     y_offset: float = 0.0,
 ) -> dict[str, float]:
-    """Universal 8-variable 3-driver solver for wings and sections."""
+    """Universal 8-variable 3-driver solver for a wing planform."""
     drivers = set(active_drivers)
     cur = compute_all_8_parameters(
         current_state.get("span", 1000.0),

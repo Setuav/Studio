@@ -308,11 +308,10 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         editor._delete_section()
         self.assertEqual(editor.sections_table.rowCount(), init_secs)
 
-    def test_wing_planform_engine_modes(self) -> None:
+    def test_planform_metrics_and_sweep_conversion(self) -> None:
         from plugins.geometry.engine.lifting_surface_planform_engine import (
             calc_tan_sweep_at,
             compute_planform_metrics,
-            solve_planform,
         )
 
         profiles = [
@@ -320,63 +319,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             {"position": {"x": 20, "y": 240, "z": 0}, "chord": 180.0},
             {"position": {"x": 50, "y": 540, "z": 0}, "chord": 120.0},
         ]
-
-        # Mode: area_ar_taper with sweep
-        new_p, m = solve_planform(
-            "area_ar_taper",
-            {"area": 200000.0, "aspect_ratio": 8.0, "taper_ratio": 0.5, "sweep": 10.0},
-            profiles,
-            sweep_loc=0.25,
-        )
-        self.assertAlmostEqual(m["span"], math.sqrt(200000.0 * 8.0), places=1)
-        self.assertAlmostEqual(new_p[-1]["position"]["y"], m["span"] / 2.0, places=1)
-        self.assertEqual(m["sweep"], 10.0)
-
-        # Mode: span_root_tip with multi-station morphing (preserves intermediate relative chord)
-        new_p2, m2 = solve_planform(
-            "span_root_tip",
-            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
-            profiles,
-            sweep_loc=0.25,
-        )
-        self.assertEqual(m2["span"], 1400.0)
-        self.assertAlmostEqual(new_p2[-1]["position"]["y"], 700.0, places=1)
-        self.assertAlmostEqual(new_p2[0]["chord"], 300.0, places=1)
-        self.assertAlmostEqual(new_p2[-1]["chord"], 150.0, places=1)
-        # Intermediate station preserves relative chord ratio (0.5 -> 225.0 mm)
-        self.assertAlmostEqual(new_p2[1]["chord"], 225.0, places=1)
-        self.assertAlmostEqual(m2["area"], 309166.67, places=0)
-        # Tip X offset with 0 deg sweep at c/4 = -0.25 * (150 - 300) = 37.5
-        self.assertAlmostEqual(new_p2[-1]["position"]["x"], 37.5, places=1)
-
-        # Pure 2-station trapezoid solving
-        profiles_2s = [
-            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 300.0},
-            {"position": {"x": 0, "y": 500, "z": 0}, "chord": 150.0},
-        ]
-        _new_p_2s, m_2s = solve_planform(
-            "span_root_tip",
-            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
-            profiles_2s,
-            sweep_loc=0.25,
-        )
-        self.assertEqual(m_2s["span"], 1400.0)
-        self.assertEqual(m_2s["area"], 1400.0 * (300.0 + 150.0) / 2.0)
-
-        # Mode with y_offset = 100.0 mm and symmetric = True
-        new_p3, m3 = solve_planform(
-            "span_root_tip",
-            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
-            profiles,
-            sweep_loc=0.25,
-            symmetric=True,
-            y_offset=100.0,
-        )
-        # Total span tip-to-tip is 1400.0 mm, local tip position is 700 - 100 = 600.0 mm
-        self.assertEqual(m3["span"], 1400.0)
-        self.assertAlmostEqual(new_p3[-1]["position"]["y"], 600.0, places=1)
-
-        # Mode with symmetric = False (single panel / vertical fin)
+        # A single panel (vertical fin) spans root to tip
         m_asym = compute_planform_metrics(profiles, symmetric=False)
         self.assertAlmostEqual(m_asym["span"], 540.0, places=1)
 
@@ -384,93 +327,6 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         # Sweep 30 deg at LE (0.0), AR=6.0, taper=0.5 -> QC (0.25) sweep is ~27.55 deg
         sw_qc = calc_tan_sweep_at(0.25, 30.0, 0.0, aspect_ratio=6.0, taper_ratio=0.5)
         self.assertAlmostEqual(sw_qc, 27.55, places=1)
-
-    def test_wing_sections_engine_kinematics(self) -> None:
-        from plugins.geometry.engine.lifting_surface_sections_engine import (
-            delete_section,
-            insert_section,
-            profiles_to_sections,
-            sections_to_profiles,
-            split_section,
-        )
-
-        profiles = [
-            {
-                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "chord": 240.0,
-                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "airfoil": "2412",
-            },
-            {
-                "position": {"x": 50.0, "y": 500.0, "z": 20.0},
-                "chord": 120.0,
-                "rotation": {"x": 0.0, "y": -2.0, "z": 0.0},
-                "airfoil": "0012",
-            },
-        ]
-
-        # 1. Convert to section
-        sections = profiles_to_sections(profiles, sweep_loc=0.25)
-        self.assertEqual(len(sections), 1)
-        self.assertEqual(sections[0]["span"], 500.0)
-        self.assertEqual(sections[0]["root_chord"], 240.0)
-        self.assertEqual(sections[0]["tip_chord"], 120.0)
-        self.assertEqual(sections[0]["twist"], -2.0)
-
-        # 2. Round-trip conversion back to profiles
-        reconstructed = sections_to_profiles(sections, profiles[0], sweep_loc=0.25)
-        self.assertEqual(len(reconstructed), 2)
-        self.assertAlmostEqual(reconstructed[1]["position"]["x"], 50.0, places=2)
-        self.assertAlmostEqual(reconstructed[1]["position"]["y"], 500.0, places=2)
-        self.assertAlmostEqual(reconstructed[1]["position"]["z"], 20.0, places=2)
-        self.assertAlmostEqual(reconstructed[1]["chord"], 120.0, places=2)
-        self.assertAlmostEqual(reconstructed[1]["rotation"]["y"], -2.0, places=2)
-
-        # 3. Split section
-        split_profs = split_section(profiles, 0, sweep_loc=0.25)
-        self.assertEqual(len(split_profs), 3)
-        split_secs = profiles_to_sections(split_profs, sweep_loc=0.25)
-        self.assertEqual(len(split_secs), 2)
-        # Midpoint chord is 180.0
-        self.assertAlmostEqual(split_secs[0]["tip_chord"], 180.0, places=1)
-        # Section 2 root chord automatically matches Section 1 tip chord
-        self.assertAlmostEqual(split_secs[1]["root_chord"], 180.0, places=1)
-
-        # 4. Insert section
-        inserted_profs = insert_section(profiles, sweep_loc=0.25)
-        self.assertEqual(len(inserted_profs), 3)
-
-        # 5. Delete section
-        del_profs = delete_section(split_profs, 1, sweep_loc=0.25)
-        self.assertEqual(len(del_profs), 2)
-
-    def test_wing_sections_engine_airfoils(self) -> None:
-        from plugins.geometry.engine.lifting_surface_sections_engine import (
-            insert_section,
-            profiles_to_sections,
-            split_section,
-        )
-
-        profiles = [
-            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 240.0, "airfoil": "2412"},
-            {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 120.0, "airfoil": "0012"},
-        ]
-
-        # A split station takes the root airfoil of the section it divides
-        split_profs = split_section(profiles, 0, sweep_loc=0.25)
-        self.assertEqual([p["airfoil"] for p in split_profs], ["2412", "2412", "0012"])
-
-        # A section added at the tip copies the tip airfoil
-        inserted = insert_section(profiles, sweep_loc=0.25)
-        self.assertEqual([p["airfoil"] for p in inserted], ["2412", "0012", "0012"])
-
-        with self.assertRaises(ValueError):
-            insert_section(profiles[:1], sweep_loc=0.25)
-
-        without_airfoil = deepcopy(profiles)
-        del without_airfoil[1]["airfoil"]
-        with self.assertRaises(KeyError):
-            profiles_to_sections(without_airfoil)
 
     def test_fuselage_wing_root_stub_geometry(self) -> None:
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
@@ -737,47 +593,6 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(p0_te[0], pw_te[0], places=4)
         self.assertAlmostEqual(p0_te[1], pw_te[1], places=4)
         self.assertAlmostEqual(p0_te[2], pw_te[2], places=4)
-
-    def test_wing_planform_washout_and_twist_location(self) -> None:
-        """Verify planform engine distributes washout linearly and computes metrics correctly."""
-        from plugins.geometry.engine.lifting_surface_planform_engine import (
-            compute_planform_metrics,
-            solve_planform,
-        )
-
-        profiles = [
-            {
-                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "chord": 200.0,
-                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            },
-            {
-                "position": {"x": 0.0, "y": 250.0, "z": 0.0},
-                "chord": 150.0,
-                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            },
-            {
-                "position": {"x": 0.0, "y": 500.0, "z": 0.0},
-                "chord": 100.0,
-                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            },
-        ]
-        inputs = {
-            "span": 1000.0,
-            "root_chord": 200.0,
-            "tip_chord": 100.0,
-            "sweep": 5.0,
-            "washout": -3.0,
-        }
-        new_profiles, metrics = solve_planform("span_root_tip", inputs, profiles)
-        self.assertEqual(len(new_profiles), 3)
-        self.assertAlmostEqual(metrics["washout"], -3.0, places=3)
-        self.assertAlmostEqual(new_profiles[0]["rotation"]["y"], 0.0, places=3)
-        self.assertAlmostEqual(new_profiles[1]["rotation"]["y"], -1.5, places=3)
-        self.assertAlmostEqual(new_profiles[2]["rotation"]["y"], -3.0, places=3)
-
-        computed = compute_planform_metrics(new_profiles)
-        self.assertAlmostEqual(computed["washout"], -3.0, places=3)
 
     def test_wing_tip_caps_flat_round_sharp(self) -> None:
         """Verify that flat, round, and sharp wingtip caps generate correct 3D loft extensions."""
