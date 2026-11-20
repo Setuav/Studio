@@ -247,7 +247,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         item = explorer._item_map["propulsor-cruise"]
         children = [item.child(index).text(0) for index in range(item.childCount())]
-        self.assertEqual(children, ["Motor: X2814 KV900 3-4S", "Propeller: APC_12x6"])
+        self.assertEqual(children, ["Motor", "Propeller"])
         motor_item = explorer._item_map["propulsor-cruise:motor"]
         editor = api.create_component_editor(explorer._element_map[motor_item])
         self.assertIsInstance(editor, PropulsorMotorEditor)

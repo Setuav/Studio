@@ -26,7 +26,7 @@ from plugins.electrical_propulsion.models.propulsor import (
 from setuav_studio.api import ParameterField, StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.button import set_native_button
+from setuav_studio.ui.widget.button import set_button_role
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 MOTOR_SELECTION_KIND = "propulsor-motor"
@@ -93,12 +93,12 @@ class _PropulsorPage(PropertyTableMixin, QWidget):
         header_layout.addWidget(icon_label)
         header_layout.addWidget(QLabel(title))
         header_layout.addStretch()
-        if on_catalog is not None:
-            button = QPushButton("Catalog…", self)
-            set_native_button(button, "fa6s.database")
-            button.clicked.connect(on_catalog)
-            header_layout.addWidget(button)
         layout.addWidget(header)
+        if on_catalog is not None:
+            button = QPushButton(f" Choose {title} from Catalog…", self)
+            set_button_role(button, "primary", "propulsion_component_database")
+            button.clicked.connect(on_catalog)
+            layout.addWidget(button)
         table = self._property_table(rows)
         layout.addWidget(table)
         self._content_layout.addWidget(section)
@@ -208,7 +208,7 @@ class PropulsorMotorEditor(_PropulsorPage):
         super().__init__(api, component)
         self.motor_table = self._create_section(
             "Motor",
-            "fa6s.gear",
+            "propulsion_motor",
             [(key, _FIELDS[key].label) for key in self._KEYS],
             self._open_catalog,
         )
@@ -275,7 +275,7 @@ class PropulsorPropellerEditor(_PropulsorPage):
         super().__init__(api, component)
         self.propeller_table = self._create_section(
             "Propeller",
-            "fa6s.fan",
+            "propulsion_propeller",
             [(key, _FIELDS[key].label) for key in self._KEYS],
             self._open_catalog,
         )
@@ -322,25 +322,23 @@ class PropulsorPropellerEditor(_PropulsorPage):
 
 
 def propulsor_part_nodes(component: dict[str, Any]) -> tuple[dict[str, str], ...]:
-    """Selections of a propulsor's motor and propeller nodes in the project tree."""
-    params = component["parameters"]
+    """Selections of a propulsor's motor and propeller nodes in the project tree.
+
+    The nodes are named after their part; the picked catalog model shows in the editor.
+    """
     component_id = str(component["id"])
-    motor = f"Motor: {params['motor_model']}" if has_motor(params) else "Motor"
-    propeller = (
-        f"Propeller: {params['propeller_catalog_id']}" if has_propeller(params) else "Propeller"
-    )
     return (
         {
             "kind": MOTOR_SELECTION_KIND,
             "id": f"{component_id}:motor",
             "component_id": component_id,
-            "name": motor,
+            "name": "Motor",
         },
         {
             "kind": PROPELLER_SELECTION_KIND,
             "id": f"{component_id}:propeller",
             "component_id": component_id,
-            "name": propeller,
+            "name": "Propeller",
         },
     )
 
