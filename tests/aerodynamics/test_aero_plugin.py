@@ -320,10 +320,25 @@ class AerodynamicsPluginTests(unittest.TestCase):
             field for field in ControlDeflectionSolver.PARAMETER_FIELDS if field.key == "channel"
         )
         assert channel_field.options is not None
-        offered = tuple(value for _label, value in channel_field.options)
+        offered = tuple(value for value, _label in channel_field.options)
         self.assertEqual(offered, CONTROL_CHANNELS)
         self.assertNotIn("elevon", offered)
         self.assertNotIn("ruddervator", offered)
+
+    def test_option_values_are_what_the_solvers_read(self) -> None:
+        """Options are (value, label): the editor stores the value the solver parses."""
+        from plugins.aerodynamics.engine.base import AnalysisMethod
+
+        for solver_cls in SOLVER_CLASSES.values():
+            for field in solver_cls.PARAMETER_FIELDS:
+                if not field.options:
+                    continue
+                values = [option[0] for option in field.options if isinstance(option, tuple)]
+                if field.key == "method":
+                    for value in values:
+                        self.assertEqual(AnalysisMethod.from_value(value).value, value)
+                if field.key == "channel":
+                    self.assertEqual(tuple(values), CONTROL_CHANNELS)
 
     def test_sweep_solver_rejects_reversed_bounds(self) -> None:
         parameters = {
