@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 
 from PySide6.QtGui import QCloseEvent, QHideEvent
@@ -26,6 +27,7 @@ from setuav_studio.ui.widget.spinbox import (
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 from ...engine.airfoil import airfoil_label
+from ...engine.lifting_surface_layout import derive_profiles
 from .control_surfaces_section import ControlSurfacesSectionMixin
 from .general_section import GeneralSectionMixin
 from .planform_section import PlanformSectionMixin
@@ -55,8 +57,6 @@ class LiftingSurfaceEditor(
         self._component = component
         self._section_index = -1
         self._control_surface_index = -1
-        self._driver_mode = "area_ar_taper"
-        self._sweep_loc = float(self._geometry().get("sweep_location", 0.25))
         self._loading = False
 
         layout = QVBoxLayout(self)
@@ -202,6 +202,21 @@ class LiftingSurfaceEditor(
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
         self._api.edit_component(self._component, description, change_fn)
 
+    def _edit_layout(self, description: str, change: Callable[[dict[str, Any]], None]) -> None:
+        """Apply ``change`` to the wing geometry as one edit.
+
+        The change is tried on a copy first; when the wing cannot be built from the
+        result, the status bar says why and the wing stays as it was.
+        """
+        trial = deepcopy(self._geometry())
+        try:
+            change(trial)
+            derive_profiles(trial, symmetric=self._is_symmetric(), y_offset=self._y_offset())
+        except ValueError as exc:
+            self._api.show_status(f"{description}: {exc}", "error", 6000)
+            return
+        self._edit_component(description, lambda: change(self._geometry()))
+
     def _parameters(self) -> dict[str, Any]:
         params = self._component.get("parameters")
         if not isinstance(params, dict):
@@ -217,11 +232,8 @@ class LiftingSurfaceEditor(
         return geom
 
     def _profiles(self) -> list[dict[str, Any]]:
-        profs = self._geometry().get("profiles")
-        if not isinstance(profs, list):
-            profs = []
-            self._geometry()["profiles"] = profs
-        return profs
+        """The profile stations derived from the wing's sections."""
+        return self._geometry()["profiles"]
 
     def _cs_geom(self, cs: dict[str, Any]) -> dict[str, Any]:
         params = cs.setdefault("parameters", {})

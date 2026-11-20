@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from setuav_studio.api import (
@@ -11,6 +12,7 @@ from setuav_studio.api import (
 )
 
 from .engine.fuselage_geometry import create_default_section
+from .engine.lifting_surface_layout import DEFAULT_ACTIVE_DRIVERS, build_profiles
 
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
@@ -224,14 +226,7 @@ class AirframeCreationController:
                 "offset_mm": {"x": root_chord / 2.0, "y": span_offset, "z": 0.0},
             },
             "parameters": {
-                "geometry": {
-                    "mirror": mirrored,
-                    "profiles": [
-                        self._wing_profile(0.0, root_chord, airfoil),
-                        self._wing_profile(span, tip_chord, airfoil),
-                    ],
-                    "tip_treatment": {"type": "flat"},
-                }
+                "geometry": self._wing_geometry(mirrored, span, root_chord, tip_chord, airfoil)
             },
         }
         self._append_component(component, f"Add {base_name.lower()}")
@@ -408,16 +403,33 @@ class AirframeCreationController:
         return [item for item in components if isinstance(item, dict)]
 
     @staticmethod
-    def _wing_profile(
-        span_position: float,
-        chord: float,
-        airfoil: str,
+    def _wing_geometry(
+        mirrored: bool, span: float, root_chord: float, tip_chord: float, airfoil: str
     ) -> dict[str, Any]:
+        """One straight-leading-edge section from the root to the tip."""
+        sweep_location = 0.25
+        # The leading edge stays straight, so the sweep-location line follows the taper.
+        sweep = math.degrees(math.atan(sweep_location * (tip_chord - root_chord) / span))
+        root = {"chord": root_chord, "airfoil": airfoil}
+        sections = [
+            {
+                "span": span,
+                "sweep": sweep,
+                "dihedral": 0.0,
+                "twist": 0.0,
+                "tip": {"chord": tip_chord, "airfoil": airfoil},
+            }
+        ]
         return {
-            "position": {"x": 0.0, "y": span_position, "z": 0.0},
-            "chord": chord,
-            "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "airfoil": airfoil,
+            "mirror": mirrored,
+            "sweep_location": sweep_location,
+            "twist_location": 0.25,
+            "section_align": "xz",
+            "planform": {"active_drivers": list(DEFAULT_ACTIVE_DRIVERS)},
+            "root": root,
+            "sections": sections,
+            "tip_treatment": {"type": "flat"},
+            "profiles": build_profiles(root, sections, sweep_location),
         }
 
     @staticmethod

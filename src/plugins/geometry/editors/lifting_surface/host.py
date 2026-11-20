@@ -25,7 +25,6 @@ if TYPE_CHECKING:
         _loading: bool
         _section_index: int
         _control_surface_index: int
-        _sweep_loc: float
 
         # SectionsSectionMixin
         sections_table: QTableWidget
@@ -46,6 +45,10 @@ if TYPE_CHECKING:
 
         def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None: ...
 
+        def _edit_layout(
+            self, description: str, change: Callable[[dict[str, Any]], None]
+        ) -> None: ...
+
         def _geometry(self) -> dict[str, Any]: ...
 
         def _profiles(self) -> list[dict[str, Any]]: ...
@@ -62,6 +65,10 @@ if TYPE_CHECKING:
 
         # PlanformSectionMixin
         def _refresh_planform_table(self) -> None: ...
+
+        def _is_symmetric(self) -> bool: ...
+
+        def _y_offset(self) -> float: ...
 
         # SectionsSectionMixin
         def _get_sections(self) -> list[dict[str, Any]]: ...

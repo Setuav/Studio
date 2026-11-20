@@ -26,6 +26,20 @@ def _sample_wing(mirror: bool = True) -> dict[str, Any]:
         "parameters": {
             "geometry": {
                 "mirror": mirror,
+                "sweep_location": 0.0,
+                "twist_location": 0.25,
+                "section_align": "xz",
+                "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                "root": {"chord": 200.0, "airfoil": "2412"},
+                "sections": [
+                    {
+                        "span": 600.0,
+                        "sweep": math.degrees(math.atan(50.0 / 600.0)),
+                        "dihedral": math.degrees(math.atan(30.0 / 600.0)),
+                        "twist": 0.0,
+                        "tip": {"chord": 100.0, "airfoil": "2412"},
+                    },
+                ],
                 "profiles": [
                     {
                         "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -362,7 +376,8 @@ class GeometryEnvelopeTests(unittest.TestCase):
         cs_size = dict(cs["envelope"]["size_mm"])
 
         def scale_chords() -> None:
-            for profile in wing["parameters"]["geometry"]["profiles"]:
+            geometry = wing["parameters"]["geometry"]
+            for profile in (geometry["root"], *(s["tip"] for s in geometry["sections"])):
                 profile["chord"] = 2.0 * float(profile["chord"])
 
         # Editing the wing re-derives the wing and the control surface cut from it.

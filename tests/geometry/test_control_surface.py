@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import unittest
 from copy import deepcopy
 from pathlib import Path
@@ -321,6 +322,20 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "type": "org.setuav.core:lifting-surface",
             "parameters": {
                 "geometry": {
+                    "sweep_location": 0.0,
+                    "twist_location": 0.25,
+                    "section_align": "xz",
+                    "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                    "root": {"chord": 200.0, "airfoil": "2412"},
+                    "sections": [
+                        {
+                            "span": 1000.0,
+                            "sweep": math.degrees(math.atan(50.0 / 1000.0)),
+                            "dihedral": 0.0,
+                            "twist": 0.0,
+                            "tip": {"chord": 100.0, "airfoil": "2412"},
+                        },
+                    ],
                     "profiles": [
                         {
                             "chord": 200.0,
@@ -394,7 +409,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.addCleanup(plugin.deactivate, api)
 
         def stretch() -> None:
-            wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
+            wing_comp["parameters"]["geometry"]["sections"][0]["span"] = 2000.0
 
         api.edit_component(wing_comp, "Stretch wing", stretch)
 
@@ -421,6 +436,20 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "type": "org.setuav.core:lifting-surface",
             "parameters": {
                 "geometry": {
+                    "sweep_location": 0.0,
+                    "twist_location": 0.25,
+                    "section_align": "xz",
+                    "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                    "root": {"chord": 200.0, "airfoil": "2412"},
+                    "sections": [
+                        {
+                            "span": 1000.0,
+                            "sweep": math.degrees(math.atan(50.0 / 1000.0)),
+                            "dihedral": 0.0,
+                            "twist": 0.0,
+                            "tip": {"chord": 100.0, "airfoil": "2412"},
+                        },
+                    ],
                     "profiles": [
                         {
                             "chord": 200.0,
@@ -510,6 +539,20 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "parameters": {
                         "geometry": {
                             "mirror": True,
+                            "sweep_location": 0.0,
+                            "twist_location": 0.25,
+                            "section_align": "xz",
+                            "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                            "root": {"chord": 200.0, "airfoil": "2412"},
+                            "sections": [
+                                {
+                                    "span": 500.0,
+                                    "sweep": math.degrees(math.atan(50.0 / 500.0)),
+                                    "dihedral": 0.0,
+                                    "twist": 0.0,
+                                    "tip": {"chord": 100.0, "airfoil": "2412"},
+                                },
+                            ],
                             "profiles": [
                                 {
                                     "position": {"x": 0.0, "y": 0.0, "z": 0.0},

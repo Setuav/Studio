@@ -3,7 +3,9 @@
 Provides an 8-row table with:
 - Column 0: Driver Checkbox (Enforces exactly max 3 active drivers; disables remaining when 3 are selected).
 - Column 1: Parameter Name.
-- Column 2: Value (Editable spinbox for active drivers, calculated display for others).
+- Column 2: Value (Editable number or formula for active drivers, measured value for others).
+
+The table reports an edited driver as its value and formula; the editor applies it.
 """
 
 from __future__ import annotations
@@ -29,7 +31,6 @@ from ...engine.lifting_surface_driver_solver import (
     PLANFORM_PARAM_KEYS,
     PLANFORM_PARAM_LABELS,
     PLANFORM_PARAM_UNITS,
-    solve_8_parameter_driver,
 )
 
 
@@ -38,32 +39,19 @@ class DriverPlanformTable(QTableWidget):
 
     def __init__(
         self,
-        default_drivers: list[str] | None = None,
-        on_values_changed: Callable[[dict[str, float]], None] | None = None,
-        on_drivers_changed: Callable[[list[str]], None] | None = None,
-        api: Any | None = None,
+        active_drivers: list[str],
+        on_driver_changed: Callable[[str, float, str | None], None],
+        on_drivers_changed: Callable[[list[str]], None],
+        api: Any,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(8, 3, parent)
         self._api = api
-        self._active_drivers: list[str] = list(
-            default_drivers or ["span", "root_chord", "tip_chord"]
-        )
-        self._on_values_changed = on_values_changed
+        self._active_drivers = list(active_drivers)
+        self._on_driver_changed = on_driver_changed
         self._on_drivers_changed = on_drivers_changed
         self._driver_expressions: dict[str, str] = {}
-        self._current_values: dict[str, float] = {
-            "area": 200000.0,
-            "span": 1200.0,
-            "aspect_ratio": 7.2,
-            "taper_ratio": 0.5,
-            "root_chord": 222.2,
-            "tip_chord": 111.1,
-            "ave_chord": 166.7,
-            "mac": 172.8,
-        }
-        self._is_symmetric = True
-        self._y_offset = 0.0
+        self._current_values: dict[str, float] = {}
         self._updating = False
 
         self._setup_ui()
@@ -115,31 +103,17 @@ class DriverPlanformTable(QTableWidget):
         self,
         values: dict[str, float],
         *,
-        active_drivers: list[str] | None = None,
-        expressions: dict[str, str] | None = None,
-        is_symmetric: bool = True,
-        y_offset: float = 0.0,
+        active_drivers: list[str],
+        expressions: dict[str, str],
     ) -> None:
-        """Update table with full 8 parameters and refresh input cells/labels."""
-        self._is_symmetric = is_symmetric
-        self._y_offset = y_offset
-        self._current_values.update(values)
-        if active_drivers is not None:
-            valid = [d for d in active_drivers if d in PLANFORM_PARAM_KEYS]
-            if valid:
-                self._active_drivers = valid
-        if expressions is not None:
-            self._driver_expressions = dict(expressions)
+        """Show the 8 planform values, the active drivers and the drivers' formulas."""
+        self._current_values = {key: values[key] for key in PLANFORM_PARAM_KEYS}
+        self._active_drivers = list(active_drivers)
+        self._driver_expressions = dict(expressions)
         self._refresh_table_widgets()
 
     def get_active_drivers(self) -> list[str]:
         return list(self._active_drivers)
-
-    def get_driver_expressions(self) -> dict[str, str]:
-        return dict(self._driver_expressions)
-
-    def get_current_values(self) -> dict[str, float]:
-        return dict(self._current_values)
 
     def _on_driver_toggled(self, key: str, checked: bool) -> None:
         if self._updating:
@@ -157,10 +131,7 @@ class DriverPlanformTable(QTableWidget):
                 self._active_drivers.remove(key)
 
         self._refresh_table_widgets()
-        if self._on_drivers_changed:
-            self._on_drivers_changed(list(self._active_drivers))
-        elif self._on_values_changed:
-            self._on_values_changed(self._current_values)
+        self._on_drivers_changed(list(self._active_drivers))
 
     def _update_checkbox_ui(self, key: str, checked: bool) -> None:
         row = PLANFORM_PARAM_KEYS.index(key)
@@ -280,39 +251,11 @@ class DriverPlanformTable(QTableWidget):
             clean,
             self._api,
             cell=cell if isinstance(cell, ExpressionPropertyCell) else None,
-            label=PLANFORM_PARAM_LABELS.get(edited_key, edited_key),
+            label=PLANFORM_PARAM_LABELS[edited_key],
         )
         if parsed is None:
             return
 
+        # The cell hands over typed numbers already converted to base units.
         num_val, expr_to_store = parsed
-        if expr_to_store is not None:
-            self._driver_expressions[edited_key] = expr_to_store
-            eval_val = num_val
-        else:
-            self._driver_expressions.pop(edited_key, None)
-            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
-
-            unit = PLANFORM_PARAM_UNITS.get(edited_key, "")
-            q_id = get_quantity_for_unit(unit)
-            eval_val = get_unit_manager().to_base(num_val, q_id) if q_id else num_val
-
-        self._on_spinbox_value_changed(edited_key, eval_val)
-
-    def _on_spinbox_value_changed(self, edited_key: str, value: float) -> None:
-        inputs = dict(self._current_values)
-        inputs[edited_key] = float(value)
-
-        # If exactly 3 drivers, solve for all 8; if fewer, solve with active drivers
-        solved = solve_8_parameter_driver(
-            self._active_drivers,
-            inputs,
-            self._current_values,
-            is_symmetric=self._is_symmetric,
-            y_offset=self._y_offset,
-        )
-        self._current_values = solved
-        self._refresh_table_widgets()
-
-        if self._on_values_changed:
-            self._on_values_changed(self._current_values)
+        self._on_driver_changed(edited_key, num_val, expr_to_store)

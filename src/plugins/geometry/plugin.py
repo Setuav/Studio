@@ -111,7 +111,7 @@ class AirframeDesignPlugin:
 
         # Data derived from each geometry component's parameters
         api.register_component_deriver(_FUSELAGE_TYPE, _derive_envelope)
-        api.register_component_deriver(_LIFTING_SURFACE_TYPE, _derive_envelope)
+        api.register_component_deriver(_LIFTING_SURFACE_TYPE, _derive_lifting_surface)
         api.register_component_deriver(_CONTROL_SURFACE_TYPE, _derive_control_surface)
         api.derive_components()
 
@@ -157,6 +157,24 @@ def _derive_envelope(component: dict[str, Any], components: Mapping[str, dict[st
     from .engine.envelope import sync_component_envelope
 
     sync_component_envelope(component, components.get(str(component.get("attach_to"))))
+
+
+def _derive_lifting_surface(
+    component: dict[str, Any], components: Mapping[str, dict[str, Any]]
+) -> None:
+    """Build the profiles from the wing's sections, then derive its envelope.
+
+    An instance draws its source's geometry and has no sections of its own.
+    """
+    from setuav_studio.utilities.transform import get_local_transform
+
+    from .engine.lifting_surface_layout import derive_profiles
+
+    if component.get("kind") != "instance":
+        geometry = component["parameters"]["geometry"]
+        (_x, y_offset, _z), _rotation = get_local_transform(component)
+        derive_profiles(geometry, symmetric=geometry.get("mirror") is True, y_offset=y_offset)
+    _derive_envelope(component, components)
 
 
 def _derive_control_surface(

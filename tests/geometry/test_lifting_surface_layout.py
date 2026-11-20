@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from copy import deepcopy
 from typing import Any
 
 from plugins.geometry.engine.lifting_surface_layout import (
@@ -160,6 +161,82 @@ class LiftingSurfaceLayoutTests(unittest.TestCase):
             ValueError, "wing span formula would change the section 1 span formula"
         ):
             apply_wing_formulas(geometry, symmetric=False, y_offset=0.0)
+
+    def test_a_layout_that_cannot_be_derived_is_left_unchanged(self) -> None:
+        geometry = _geometry()
+        geometry["profiles"] = []
+        set_expression(geometry["sections"][1], "sweep", "OUTER")
+        geometry["planform"]["sweep"] = 30.0
+        set_expression(geometry["planform"], "sweep", "SWEEP")
+        geometry["planform"]["span"] = 2000.0
+        set_expression(geometry["planform"], "span", "SPAN")
+        before = deepcopy(geometry)
+
+        with self.assertRaisesRegex(ValueError, "section 2 sweep formula"):
+            derive_profiles(geometry, symmetric=False, y_offset=0.0)
+
+        self.assertEqual(geometry, before)
+
+    def test_a_saved_wing_keeps_its_fields_in_a_fixed_order(self) -> None:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from plugins.geometry.plugin import AirframeDesignPlugin
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import open_project, save_project
+        from tests._common import TEST_PROJECT_PATH, get_qapp
+
+        get_qapp()
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+        plugin = AirframeDesignPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        wing = next(c for c in doc.data["components"] if c["id"] == "main-wing")
+        geometry = wing["parameters"]["geometry"]
+
+        # An edit through a formula adds keys in whatever order the editor writes them.
+        def edit() -> None:
+            set_expression(geometry["sections"][0], "twist", "1.5 * 2")
+            geometry["planform"]["dihedral"] = 2.0
+            set_expression(geometry["planform"], "dihedral", "2")
+
+        api.edit_component(wing, "Edit wing", edit)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "project.json"
+            save_project(doc, target)
+            saved = json.loads(target.read_text(encoding="utf-8"))
+
+        stored = next(c for c in saved["components"] if c["id"] == "main-wing")
+        stored_geometry = stored["parameters"]["geometry"]
+        self.assertEqual(
+            list(stored_geometry),
+            [
+                "mirror",
+                "sweep_location",
+                "twist_location",
+                "section_align",
+                "planform",
+                "root",
+                "sections",
+                "tip_treatment",
+                "profiles",
+            ],
+        )
+        self.assertEqual(
+            list(stored_geometry["planform"]), ["active_drivers", "dihedral", "_expressions"]
+        )
+        self.assertEqual(list(stored_geometry["root"]), ["chord", "airfoil"])
+        self.assertEqual(
+            list(stored_geometry["sections"][0]),
+            ["span", "sweep", "dihedral", "twist", "tip", "_expressions"],
+        )
+        self.assertEqual(list(stored_geometry["sections"][0]["tip"]), ["chord", "airfoil"])
+        self.assertEqual(
+            list(stored_geometry["profiles"][0]), ["position", "chord", "rotation", "airfoil"]
+        )
 
     def test_split_append_and_delete_sections(self) -> None:
         geometry = _geometry()

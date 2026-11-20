@@ -27,6 +27,7 @@ from plugins.geometry.engine.lifting_surface_tips import (
 )
 from plugins.geometry.engine.scene import build_project_geometry
 from plugins.geometry.scene_controller import _collect_primitives
+from setuav_studio.model.expression import get_expression
 from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.ui.viewport.mesh import (
     WIRE_FEATURE,
@@ -122,16 +123,32 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(left.sections[0].points[0], (10.0, -1.0, 0.0))
         self.assertEqual(right.sections[0].points[0], (10.0, 1.0, 0.0))
 
-    def test_sections_table_cells_are_numbers_in_display_units(self) -> None:
+    def _fixture_wing_editor(self) -> tuple[Any, Any, dict[str, Any]]:
+        """The editor of the fixture's main wing, with the geometry plugin deriving it."""
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from plugins.geometry.plugin import AirframeDesignPlugin
         from setuav_studio.api import StudioAPI
-        from setuav_studio.units import get_unit_manager
 
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
+        plugin = AirframeDesignPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
         wing = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
         editor = LiftingSurfaceEditor(api, wing)
+        self.addCleanup(editor.deleteLater)
+        return api, editor, wing
+
+    @staticmethod
+    def _type_into(cell: ExpressionPropertyCell, text: str) -> None:
+        cell.line_edit.setText(text)
+        cell._commit_line_edit(force=True)
+
+    def test_sections_table_cells_are_numbers_in_display_units(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        _api, editor, _wing = self._fixture_wing_editor()
         um = get_unit_manager()
         length_unit = um.get_display_unit("length")
         try:
@@ -141,77 +158,86 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             assert header is not None
             self.assertEqual(header.text(), "Span [in]")
 
-            table_item(editor.sections_table, 0, 1).setText("10")
+            self._type_into(cell_widget(editor.sections_table, 0, 1, ExpressionPropertyCell), "10")
             self.assertAlmostEqual(editor._get_sections()[0]["span"], 254.0, places=3)
 
-            table_item(editor.sections_table, 0, 1).setText("wide")
+            self._type_into(
+                cell_widget(editor.sections_table, 0, 1, ExpressionPropertyCell), "=wide"
+            )
             self.assertAlmostEqual(editor._get_sections()[0]["span"], 254.0, places=3)
-            self.assertEqual(table_item(editor.sections_table, 0, 1).text(), "10.0")
         finally:
             um.set_display_unit("length", length_unit)
-        editor.deleteLater()
+
+    def test_section_formulas_are_kept_and_follow_project_parameters(self) -> None:
+        api, editor, wing = self._fixture_wing_editor()
+        geometry = wing["parameters"]["geometry"]
+
+        def set_parameter(value: float) -> None:
+            api.edit_project(
+                "Set panel span",
+                lambda: api.project.data["parameters"].__setitem__("panel_span", value),
+            )
+
+        set_parameter(600.0)
+        self._type_into(
+            cell_widget(editor.sections_table, 0, 1, ExpressionPropertyCell), "=panel_span"
+        )
+        self.assertEqual(get_expression(geometry["sections"][0], "span"), "=panel_span")
+        self.assertAlmostEqual(geometry["profiles"][-1]["position"]["y"], 600.0)
+
+        set_parameter(700.0)
+        self.assertAlmostEqual(geometry["sections"][0]["span"], 700.0)
+        self.assertAlmostEqual(geometry["profiles"][-1]["position"]["y"], 700.0)
+
+        # A wing span formula would change the section's span formula: refused.
+        span_row = PLANFORM_PARAM_KEYS.index("span")
+        self._type_into(
+            cell_widget(editor.planform_table, span_row, 2, ExpressionPropertyCell), "=2000"
+        )
+        self.assertIsNone(get_expression(geometry["planform"], "span"))
+        self.assertAlmostEqual(geometry["sections"][0]["span"], 700.0)
 
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
-        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
-        from setuav_studio.api import StudioAPI
-
-        get_qapp()
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-
-        wing_comp = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
-        editor = LiftingSurfaceEditor(api, wing_comp)
+        api, editor, wing_comp = self._fixture_wing_editor()
+        geometry = wing_comp["parameters"]["geometry"]
 
         self.assertEqual(editor.planform_table.rowCount(), 8)
-        self.assertIn("span", editor.planform_table.get_current_values())
 
-        # Test Wing Planform Sizing driver resize
+        # A planform span spreads over the sections. The tip-to-tip span is
+        # 2 * (y_offset + y_tip); with the 75 mm root offset the local tip is at 525 mm.
         span_row = PLANFORM_PARAM_KEYS.index("span")
         cell_widget(editor.planform_table, span_row, 2, ExpressionPropertyCell).setValue(1200.0)
-        # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
-        # With attachment y_offset = 75.0 mm, local tip position is at 525.0 mm
-        self.assertAlmostEqual(
-            float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["y"]),
-            525.0,
-            places=1,
-        )
+        self.assertAlmostEqual(geometry["profiles"][-1]["position"]["y"], 525.0, places=6)
+        self.assertNotIn("_expressions", geometry["planform"])
 
-        # Test Angles table
-        self.assertEqual(editor.angles_table.rowCount(), 6)
-        editor._on_angle_changed("dihedral", 3.0)
-        self.assertGreater(
-            float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["z"]), 0.0
-        )
-        editor._on_angle_changed("sweep_curvature", 25.0)
-        self.assertEqual(wing_comp["parameters"]["geometry"].get("sweep_curvature"), 25.0)
+        # Overall angles: a number changes the sections, a formula is kept on the planform.
+        self.assertEqual(editor.angles_table.rowCount(), 5)
+        editor._on_angle_changed("dihedral", "3.0")
+        tip = geometry["profiles"][-1]["position"]
+        self.assertAlmostEqual(tip["z"], tip["y"] * math.tan(math.radians(3.0)))
+        editor._on_angle_changed("twist", "=-2")
+        self.assertEqual(get_expression(geometry["planform"], "twist"), "=-2")
+        self.assertAlmostEqual(geometry["profiles"][-1]["rotation"]["y"], -2.0)
 
-        # Check sections table, section planform sizing, angles, and airfoils
+        # Sections and the profiles of the selected one
         self.assertGreaterEqual(editor.sections_table.rowCount(), 1)
         editor._load_section(0)
-        self.assertEqual(editor.section_planform_table.rowCount(), 8)
-        self.assertEqual(editor.section_properties_table.rowCount(), 6)
+        self.assertEqual(editor.section_properties_table.rowCount(), 4)
         self.assertTrue(editor.insert_section_button.isEnabled())
         self.assertTrue(editor.split_section_button.isEnabled())
 
-        # Test Wing Sections table direct cell editing
-        table_item(editor.sections_table, 0, 1).setText("600.0")
-        editor._update_sections_table_cell(0, 1)
+        self._type_into(cell_widget(editor.sections_table, 0, 1, ExpressionPropertyCell), "600")
         self.assertAlmostEqual(editor._get_sections()[0]["span"], 600.0)
 
-        # Test Section Driver: when 3 drivers are active, checking a 4th is blocked
-        init_drivers = list(editor.section_planform_table.get_active_drivers())
+        # The planform table allows three drivers: a fourth is blocked until one is freed.
+        init_drivers = list(editor.planform_table.get_active_drivers())
         self.assertEqual(len(init_drivers), 3)
-        editor.section_planform_table._on_driver_toggled("area", True)
-        self.assertEqual(editor.section_planform_table.get_active_drivers(), init_drivers)
-
-        # Unchecking one frees up a slot
-        editor.section_planform_table._on_driver_toggled("tip_chord", False)
-        self.assertEqual(len(editor.section_planform_table.get_active_drivers()), 2)
-        # Now checking area succeeds
-        editor.section_planform_table._on_driver_toggled("area", True)
-        self.assertIn("area", editor.section_planform_table.get_active_drivers())
-        self.assertEqual(len(editor.section_planform_table.get_active_drivers()), 3)
+        editor.planform_table._on_driver_toggled("area", True)
+        self.assertEqual(editor.planform_table.get_active_drivers(), init_drivers)
+        editor.planform_table._on_driver_toggled("tip_chord", False)
+        self.assertEqual(geometry["planform"]["active_drivers"], ["span", "root_chord"])
+        editor.planform_table._on_driver_toggled("area", True)
+        self.assertEqual(geometry["planform"]["active_drivers"], ["span", "root_chord", "area"])
 
         # Add control surface
         init_cs = editor.control_surfaces_table.rowCount()
@@ -268,15 +294,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertTrue(wing_comp["parameters"]["geometry"]["mirror"])
         self.assertTrue(editor._is_symmetric())
 
-        # Edit tip_chord in section_planform_table
-        sec_values = editor.section_planform_table.get_current_values()
-        sec_values["tip_chord"] = 180.0
-        editor._on_section_planform_changed(sec_values)
-        self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["chord"], 180.0)
-
-        # Edit dihedral in section_angles_table
-        editor._on_section_angle_changed("dihedral", 5.0)
-        self.assertIn("5.0", table_item(editor.sections_table, 0, 3).text())
+        # The selected section's tip chord is the next station's chord.
+        self._type_into(editor._property_cell(editor.section_properties_table, "tip_chord"), "180")
+        self.assertEqual(geometry["profiles"][1]["chord"], 180.0)
 
         # Split section
         init_secs = editor.sections_table.rowCount()
@@ -833,6 +853,20 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             "type": "org.setuav.core:lifting-surface",
             "parameters": {
                 "geometry": {
+                    "sweep_location": 0.0,
+                    "twist_location": 0.25,
+                    "section_align": "xz",
+                    "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                    "root": {"chord": 200.0, "airfoil": "0012"},
+                    "sections": [
+                        {
+                            "span": 500.0,
+                            "sweep": 0.0,
+                            "dihedral": 0.0,
+                            "twist": 0.0,
+                            "tip": {"chord": 100.0, "airfoil": "0012"},
+                        },
+                    ],
                     "profiles": [
                         {
                             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -844,7 +878,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                             "chord": 100.0,
                             "airfoil": "0012",
                         },
-                    ]
+                    ],
                 }
             },
         }
@@ -925,6 +959,20 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             "type": "org.setuav.core:lifting-surface",
             "parameters": {
                 "geometry": {
+                    "sweep_location": 0.0,
+                    "twist_location": 0.25,
+                    "section_align": "xz",
+                    "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
+                    "root": {"chord": 200.0, "airfoil": "0012"},
+                    "sections": [
+                        {
+                            "span": 500.0,
+                            "sweep": math.degrees(math.atan(60.0 / 500.0)),
+                            "dihedral": 0.0,
+                            "twist": 0.0,
+                            "tip": {"chord": 120.0, "airfoil": "0012"},
+                        },
+                    ],
                     "profiles": [
                         {
                             "position": {"x": 0.0, "y": 0.0, "z": 0.0},

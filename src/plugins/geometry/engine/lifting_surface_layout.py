@@ -30,6 +30,25 @@ from .lifting_surface_planform_engine import compute_planform_metrics
 ANGLE_KEYS = ("sweep", "dihedral", "twist")
 DEFAULT_ACTIVE_DRIVERS = ("span", "root_chord", "tip_chord")
 
+# The order a wing's geometry is stored in: the wing-wide settings, the planform drivers,
+# the layout from root to tip, the shaping of its airfoils and tip, and last the profile
+# stations built from all of it.
+GEOMETRY_KEY_ORDER = (
+    "mirror",
+    "sweep_location",
+    "twist_location",
+    "section_align",
+    "planform",
+    "root",
+    "sections",
+    "airfoil_shaping",
+    "tip_treatment",
+    "profiles",
+)
+_PLANFORM_KEY_ORDER = ("active_drivers", *PLANFORM_PARAM_KEYS, *ANGLE_KEYS)
+_SECTION_KEY_ORDER = ("span", *ANGLE_KEYS, "tip")
+_PROFILE_KEY_ORDER = ("chord", "airfoil")
+
 # Span of a section appended at the tip relative to the current tip section, and its
 # tip chord relative to the current tip chord.
 _INSERTED_SPAN_RATIO = 0.8
@@ -167,11 +186,21 @@ def apply_wing_formulas(geometry: dict[str, Any], *, symmetric: bool, y_offset: 
 
 
 def derive_profiles(geometry: dict[str, Any], *, symmetric: bool, y_offset: float) -> None:
-    """Apply the wing formulas and rebuild ``geometry["profiles"]`` from the layout."""
-    apply_wing_formulas(geometry, symmetric=symmetric, y_offset=y_offset)
-    geometry["profiles"] = build_profiles(
-        geometry["root"], geometry["sections"], geometry["sweep_location"]
-    )
+    """Apply the wing formulas and rebuild ``geometry["profiles"]`` from the layout.
+
+    Nothing changes when the layout cannot be derived.
+    """
+    layout = {key: deepcopy(geometry[key]) for key in ("root", "sections", "planform")}
+    layout["sweep_location"] = geometry["sweep_location"]
+    apply_wing_formulas(layout, symmetric=symmetric, y_offset=y_offset)
+    profiles = build_profiles(layout["root"], layout["sections"], layout["sweep_location"])
+    _replace(geometry["root"], _ordered(layout["root"], _PROFILE_KEY_ORDER))
+    for section, derived in zip(geometry["sections"], layout["sections"], strict=True):
+        _replace(section["tip"], _ordered(derived["tip"], _PROFILE_KEY_ORDER))
+        _replace(section, _ordered({**derived, "tip": section["tip"]}, _SECTION_KEY_ORDER))
+    _replace(geometry["planform"], _ordered(geometry["planform"], _PLANFORM_KEY_ORDER))
+    geometry["profiles"] = profiles
+    _replace(geometry, _ordered(geometry, GEOMETRY_KEY_ORDER))
 
 
 def split_section(root: dict[str, Any], sections: list[dict[str, Any]], index: int) -> None:
@@ -217,6 +246,23 @@ def delete_section(sections: list[dict[str, Any]], index: int) -> None:
     if len(sections) == 1:
         raise ValueError("A lifting surface needs at least one section")
     del sections[index]
+
+
+def _ordered(values: dict[str, Any], order: tuple[str, ...]) -> dict[str, Any]:
+    """``values`` with the keys of ``order`` first, in that order, and formulas last."""
+    rank = {key: index for index, key in enumerate(order)}
+    return dict(
+        sorted(
+            values.items(),
+            key=lambda item: (item[0] == "_expressions", rank.get(item[0], len(order))),
+        )
+    )
+
+
+def _replace(target: dict[str, Any], values: dict[str, Any]) -> None:
+    """Give ``target`` the contents of ``values``, keeping the dict others hold."""
+    target.clear()
+    target.update(values)
 
 
 def _profile(

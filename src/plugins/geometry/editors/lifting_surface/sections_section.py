@@ -1,7 +1,9 @@
-"""Wing Sections and Section Properties handling for the Lifting Surface Editor."""
+"""Wing sections and their root and tip profiles in the Lifting Surface Editor."""
 
 from __future__ import annotations
 
+import weakref
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
@@ -16,55 +18,47 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.widget.button import set_native_button
-from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
-from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
-from ...engine.lifting_surface_planform_engine import SWEEP_LOCATIONS
-from ...engine.lifting_surface_sections_engine import (
+from ...engine.lifting_surface_layout import (
+    append_section,
     delete_section,
-    insert_section,
-    profiles_to_sections,
-    sections_to_profiles,
+    section_root,
     split_section,
 )
 from .airfoil_dialog import AirfoilDialog
 from .host import LiftingSurfaceEditorHost
-from .planform_driver_table import DriverPlanformTable
 
-# The editable columns of the sections table.
-_SECTION_COLUMNS = {1: "span", 2: "sweep", 3: "dihedral"}
+# The sections table columns after the section number: key, header and quantity.
+_SECTION_COLUMNS = (
+    ("span", "Span", "length"),
+    ("sweep", "Sweep", "angle"),
+    ("dihedral", "Dihedral", "angle"),
+    ("twist", "Twist", "angle"),
+)
+_CHORD_ROWS = {"root_chord": "Root Chord", "tip_chord": "Tip Chord"}
 
 
 class SectionsSectionMixin(LiftingSurfaceEditorHost):
-    """Parametric lifting surface sections, section-level driver sizing, and section properties."""
+    """The wing's sections and the root and tip profile of the selected section."""
 
     # -------------------------------------------------------------------------
     # UI Sections Creation
     # -------------------------------------------------------------------------
 
     def _create_sections_section(self) -> None:
-        """Section panel list table and panel action buttons."""
+        """Section list table and section action buttons."""
         layout = self._create_section("Sections", "mdi6.vector-polygon")
 
-        self.sections_table = self._table(
-            [
-                "#",
-                "Span",
-                "Sweep",
-                "Dihedral",
-            ]
-        )
-        self.sections_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
+        self.sections_table = self._table(["#", *(label for _key, label, _q in _SECTION_COLUMNS)])
+        self.sections_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.sections_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.sections_table.setColumnWidth(0, 30)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
         self.sections_table.itemSelectionChanged.connect(self._on_sections_selection_changed)
-        self.sections_table.cellChanged.connect(self._update_sections_table_cell)
         layout.addWidget(self.sections_table)
 
         section_actions = QHBoxLayout()
@@ -91,24 +85,13 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         layout.addLayout(section_actions)
 
     def _create_section_properties_section(self) -> None:
-        """Section Planform (8 parameters with 3-driver checkboxes) and Section Properties table."""
-        # 1. Section Planform
-        planform_layout = self._create_section("Section Planform", "fa6s.ruler-combined")
-        self.section_planform_table = DriverPlanformTable(
-            default_drivers=["span", "root_chord", "tip_chord"],
-            on_values_changed=self._on_section_planform_changed,
-        )
-        planform_layout.addWidget(self.section_planform_table)
-
-        # 2. Section Properties (Sweep, Sweep Location, Dihedral, Twist, Root Airfoil, Tip Airfoil)
-        props_layout = self._create_section("Section Properties", "fa6s.sliders")
+        """Root and tip profile (chord and airfoil) of the selected section."""
+        props_layout = self._create_section("Section Profiles", "fa6s.sliders")
         self.section_properties_table = self._property_table(
             [
-                ("sweep", "Sweep Angle"),
-                ("sweep_loc", "Sweep Location"),
-                ("dihedral", "Dihedral Angle"),
-                ("twist", "Twist Angle"),
+                ("root_chord", "Root Chord"),
                 ("root_airfoil", "Root Airfoil"),
+                ("tip_chord", "Tip Chord"),
                 ("tip_airfoil", "Tip Airfoil"),
             ]
         )
@@ -140,11 +123,17 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
     # -------------------------------------------------------------------------
 
     def _get_sections(self) -> list[dict[str, Any]]:
-        profiles = self._profiles()
-        geom = self._geometry()
-        sw_loc = float(geom.get("sweep_location", self._sweep_loc))
-        self._sweep_loc = sw_loc
-        return profiles_to_sections(profiles, sw_loc)
+        return self._geometry()["sections"]
+
+    def _section_cell_changed(self, index: int, key: str) -> Callable[[str], None]:
+        editor_ref = weakref.ref(self)
+
+        def on_changed(text: str) -> None:
+            editor = editor_ref()
+            if editor is not None:
+                editor._on_section_value_changed(index, key, text)
+
+        return on_changed
 
     def _populate_sections(self) -> None:
         was_loading = self._loading
@@ -153,51 +142,48 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             from setuav_studio.units import get_unit_manager
 
             um = get_unit_manager()
-            length_sym = um.get_unit_symbol("length")
-            angle_sym = um.get_unit_symbol("angle")
             sections = self._get_sections()
             self.sections_table.setHorizontalHeaderLabels(
-                ["#", f"Span [{length_sym}]", f"Sweep [{angle_sym}]", f"Dihedral [{angle_sym}]"]
+                [
+                    "#",
+                    *(
+                        f"{label} [{um.get_unit_symbol(quantity)}]"
+                        for _key, label, quantity in _SECTION_COLUMNS
+                    ),
+                ]
             )
             self.sections_table.setRowCount(len(sections))
 
-            for r, sec in enumerate(sections):
-                num_item = QTableWidgetItem(str(r + 1))
+            for row, section in enumerate(sections):
+                num_item = QTableWidgetItem(str(row + 1))
                 num_item.setFlags(num_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 num_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.sections_table.setItem(r, 0, num_item)
-
-                disp_span = um.to_display(sec["span"], "length")
-                span_item = QTableWidgetItem(f"{disp_span:.1f}")
-                span_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.sections_table.setItem(r, 1, span_item)
-
-                disp_sw = um.to_display(sec["sweep"], "angle")
-                sw_item = QTableWidgetItem(f"{disp_sw:.1f}")
-                sw_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.sections_table.setItem(r, 2, sw_item)
-
-                disp_dih = um.to_display(sec["dihedral"], "angle")
-                dih_item = QTableWidgetItem(f"{disp_dih:.1f}")
-                dih_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.sections_table.setItem(r, 3, dih_item)
+                self.sections_table.setItem(row, 0, num_item)
+                for column, (key, label, quantity) in enumerate(_SECTION_COLUMNS, start=1):
+                    self.sections_table.setItem(row, column, QTableWidgetItem(""))
+                    set_table_spinbox(
+                        self.sections_table,
+                        row,
+                        column,
+                        float(section[key]),
+                        decimals=1 if quantity == "length" else 2,
+                        quantity=quantity,
+                        unit=um.get_unit_symbol(quantity),
+                        expression=get_expression(section, key),
+                        property_key=key,
+                        raw_callback=True,
+                        on_changed=self._section_cell_changed(row, key),
+                        api=self._api,
+                        label=f"Section {row + 1} {label}",
+                    )
 
             self._fit_table_height(self.sections_table, len(sections))
-
             self._update_section_actions()
         finally:
             self._loading = was_loading
 
     def _update_section_actions(self) -> None:
-        can_delete = len(self._get_sections()) > 1
-        if hasattr(self, "delete_section_button"):
-            self.delete_section_button.setEnabled(can_delete)
+        self.delete_section_button.setEnabled(len(self._get_sections()) > 1)
 
     def _on_sections_selection_changed(self) -> None:
         row = self.sections_table.currentRow()
@@ -236,85 +222,41 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
     def _handle_section_property_selection(self, row: int) -> None:
         comp_id = str(self._component["id"])
         key = self._property_key(self.section_properties_table, row)
-        idx = self._section_index
-        if key == "root_airfoil":
-            # Highlight specifically the Root Airfoil Station (Station i)
-            self._api.set_section_selection((comp_id, 0, idx))
-        elif key == "tip_airfoil":
-            # Highlight specifically the Tip Airfoil Station (Station i + 1)
-            self._api.set_section_selection((comp_id, 0, idx + 1))
-        else:
-            self._api.set_section_selection((comp_id, 0, idx))
+        # The root profile is station i, the tip profile station i + 1.
+        station = self._section_index + (1 if key.startswith("tip_") else 0)
+        self._api.set_section_selection((comp_id, 0, station))
+
+    def _section_profile(self, index: int, key: str) -> dict[str, Any]:
+        """The root or tip profile (chord and airfoil) of section ``index``."""
+        geometry = self._geometry()
+        if key.startswith("root_"):
+            return section_root(geometry["root"], geometry["sections"], index)
+        return geometry["sections"][index]["tip"]
 
     def _load_section(self, idx: int) -> None:
         sections = self._get_sections()
         if not (0 <= idx < len(sections)):
             return
 
-        sec = sections[idx]
         was_loading = self._loading
         self._loading = True
         try:
-            # 1. Section Planform Sizing (8 parameters)
-            sec_all_8 = compute_all_8_parameters(
-                sec["span"],
-                sec["root_chord"],
-                sec["tip_chord"],
-                is_symmetric=False,
-                y_offset=0.0,
-            )
-            self.section_planform_table.set_parameters(
-                sec_all_8,
-                is_symmetric=False,
-                y_offset=0.0,
-            )
-
-            # 2. Section Properties (Sweep, Sweep Location, Dihedral, Twist, Airfoils)
-            self._set_property_spinbox(
-                self.section_properties_table,
-                "sweep",
-                float(sec.get("sweep", 0.0)),
-                min_val=-85.0,
-                max_val=85.0,
-                step=0.5,
-                decimals=2,
-                suffix="°",
-                on_changed=lambda val: self._on_section_angle_changed("sweep", val),
-            )
-            self._set_property_combo(
-                self.section_properties_table,
-                "sweep_loc",
-                str(sec.get("sweep_loc", self._sweep_loc)),
-                [(str(val), label) for val, label in SWEEP_LOCATIONS],
-                self._on_section_sweep_loc_changed,
-            )
-            self._set_property_spinbox(
-                self.section_properties_table,
-                "dihedral",
-                float(sec.get("dihedral", 0.0)),
-                min_val=-85.0,
-                max_val=85.0,
-                step=0.5,
-                decimals=2,
-                suffix="°",
-                on_changed=lambda val: self._on_section_angle_changed("dihedral", val),
-            )
-            self._set_property_spinbox(
-                self.section_properties_table,
-                "twist",
-                float(sec.get("twist", 0.0)),
-                min_val=-45.0,
-                max_val=45.0,
-                step=0.5,
-                decimals=2,
-                suffix="°",
-                on_changed=lambda val: self._on_section_angle_changed("twist", val),
-            )
-
-            # Setup Root and Tip Airfoil rows with normal font size and inline choose button
-            self._setup_airfoil_cell(4, sec["root_airfoil"], is_root=True)
-            self._setup_airfoil_cell(5, sec["tip_airfoil"], is_root=False)
-
+            for key, label in _CHORD_ROWS.items():
+                profile = self._section_profile(idx, key)
+                self._set_property_spinbox(
+                    self.section_properties_table,
+                    key,
+                    float(profile["chord"]),
+                    decimals=1,
+                    quantity="length",
+                    expression=get_expression(profile, "chord"),
+                    raw_callback=True,
+                    on_changed=self._section_cell_changed(idx, key),
+                    api=self._api,
+                    label=f"Section {idx + 1} {label}",
+                )
+            self._setup_airfoil_cell(1, self._section_profile(idx, "root_")["airfoil"], True)
+            self._setup_airfoil_cell(3, self._section_profile(idx, "tip_")["airfoil"], False)
         finally:
             self._loading = was_loading
 
@@ -405,186 +347,83 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         )
 
     # -------------------------------------------------------------------------
-    # Section Mutations & Table Cell Editing
+    # Section Mutations
     # -------------------------------------------------------------------------
 
-    def _update_sections_table_cell(self, row: int, column: int) -> None:
-        """Apply direct table cell edits to the underlying wing section."""
-        if self._loading or column not in _SECTION_COLUMNS:
+    def _on_section_value_changed(self, index: int, key: str, text: str) -> None:
+        """Store a number or formula typed into a section or profile cell."""
+        if self._loading:
             return
-        item = self.sections_table.item(row, column)
-        if not item:
-            return
+        if key in _CHORD_ROWS:
+            cell = self._property_cell(self.section_properties_table, key)
+            label = _CHORD_ROWS[key]
+        else:
+            column = 1 + [k for k, _label, _q in _SECTION_COLUMNS].index(key)
+            widget = self.sections_table.cellWidget(index, column)
+            cell = widget if isinstance(widget, ExpressionPropertyCell) else None
+            label = _SECTION_COLUMNS[column - 1][1]
         parsed = evaluate_table_cell_input(
-            item.text(), self._api, label=f"Section {row + 1} {_SECTION_COLUMNS[column]}"
+            text, self._api, cell=cell, label=f"Section {index + 1} {label}"
         )
         if parsed is None:
-            self._populate_sections()
             return
-        val = parsed[0]
-        sections = self._get_sections()
-        if not (0 <= row < len(sections)):
-            return
+        value, expression = parsed
 
-        self._apply_section_cell(sections, row, column, val)
+        def change(geometry: dict[str, Any]) -> None:
+            if key in _CHORD_ROWS:
+                target = (
+                    section_root(geometry["root"], geometry["sections"], index)
+                    if key == "root_chord"
+                    else geometry["sections"][index]["tip"]
+                )
+                field = "chord"
+            else:
+                target = geometry["sections"][index]
+                field = key
+            set_expression(target, field, expression)
+            target[field] = value
 
-        sw_loc = self._sweep_loc
-        new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
+        self._edit_layout(f"Change section {index + 1} {label.lower()}", change)
+        self._refresh_sections(index)
 
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component(f"Edit section {row + 1} table cell", change)
+    def _refresh_sections(self, index: int) -> None:
+        """Show the sections, the selected section and the planform after an edit."""
         self._populate_sections()
-        self.sections_table.selectRow(row)
-        self._refresh_planform_table()
-        self._load_section(row)
-
-    @staticmethod
-    def _apply_section_cell(
-        sections: list[dict[str, Any]], row: int, column: int, value: float
-    ) -> None:
-        from setuav_studio.units import get_unit_manager
-
-        um = get_unit_manager()
-        section = sections[row]
-        field = _SECTION_COLUMNS[column]
-        raw_val = um.to_base(value, "length") if column == 1 else um.to_base(value, "angle")
-        section[field] = max(raw_val, 1.0) if column == 1 else float(raw_val)
-
-    def _on_section_planform_changed(self, new_metrics: dict[str, float]) -> None:
-        if self._loading:
-            return
-        idx = self._section_index
-        if idx < 0:
-            return
-        sections = self._get_sections()
-        if not (0 <= idx < len(sections)):
-            return
-
-        sec = sections[idx]
-        sec["span"] = new_metrics["span"]
-        sec["root_chord"] = new_metrics["root_chord"]
-        sec["tip_chord"] = new_metrics["tip_chord"]
-
-        if idx + 1 < len(sections):
-            sections[idx + 1]["root_chord"] = sec["tip_chord"]
-        if idx > 0:
-            sections[idx - 1]["tip_chord"] = sec["root_chord"]
-
-        sw_loc = self._sweep_loc
-        new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component(f"Resize section {idx + 1}", change)
-        self._populate_sections()
-        self.sections_table.selectRow(idx)
+        index = min(index, len(self._get_sections()) - 1)
+        self._section_index = index
+        self.sections_table.selectRow(index)
+        self._load_section(index)
         self._refresh_planform_table()
         self._refresh_control_surfaces()
-
-    def _on_section_angle_changed(self, key: str, value: float) -> None:
-        if self._loading:
-            return
-        idx = self._section_index
-        if idx < 0:
-            return
-        sections = self._get_sections()
-        if not (0 <= idx < len(sections)):
-            return
-
-        sections[idx][key] = value
-        sw_loc = self._sweep_loc
-        new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component(f"Change section {idx + 1} {key}", change)
-        self._populate_sections()
-        self.sections_table.selectRow(idx)
-        self._refresh_planform_table()
-
-    def _on_section_sweep_loc_changed(self, val_str: str) -> None:
-        if self._loading:
-            return
-        idx = self._section_index
-        if idx < 0:
-            return
-        sections = self._get_sections()
-        if not (0 <= idx < len(sections)):
-            return
-
-        sections[idx]["sweep_loc"] = float(val_str)
-
-        sw_loc = self._sweep_loc
-        new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component(f"Change section {idx + 1} sweep location", change)
-        self._populate_sections()
-        self.sections_table.selectRow(idx)
-        self._refresh_planform_table()
 
     def _split_section(self) -> None:
         idx = self._section_index
         if idx < 0:
             return
-        profiles = self._profiles()
-        sw_loc = self._sweep_loc
-        new_profiles = split_section(profiles, idx, sw_loc)
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component("Split wing section", change)
-        self._populate_sections()
-        self.sections_table.selectRow(idx)
-        self._load_section(idx)
-        self._refresh_planform_table()
+        self._edit_layout(
+            "Split wing section",
+            lambda geometry: split_section(geometry["root"], geometry["sections"], idx),
+        )
+        self._refresh_sections(idx)
 
     def _insert_section(self) -> None:
-        profiles = self._profiles()
-        sw_loc = self._sweep_loc
-        new_profiles = insert_section(profiles, sw_loc)
-        insert_idx = len(new_profiles) - 2
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component("Insert wing section", change)
-        self._populate_sections()
-        self.sections_table.selectRow(insert_idx)
-        self._load_section(insert_idx)
-        self._refresh_planform_table()
+        self._edit_layout(
+            "Insert wing section", lambda geometry: append_section(geometry["sections"])
+        )
+        self._refresh_sections(len(self._get_sections()) - 1)
 
     def _delete_section(self) -> None:
         idx = self._section_index
         if idx < 0:
             return
-        profiles = self._profiles()
-        sw_loc = self._sweep_loc
-        new_profiles = delete_section(profiles, idx, sw_loc)
-        new_idx = max(0, min(idx, len(new_profiles) - 2))
-
-        def change() -> None:
-            self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-        self._edit_component("Delete wing section", change)
-        self._populate_sections()
-        self.sections_table.selectRow(new_idx)
-        self._load_section(new_idx)
-        self._refresh_planform_table()
+        self._edit_layout(
+            "Delete wing section", lambda geometry: delete_section(geometry["sections"], idx)
+        )
+        self._refresh_sections(idx)
 
     def _open_section_airfoil_dialog(self, is_root: bool) -> None:
         idx = self._section_index
-        if idx < 0:
-            return
-        sections = self._get_sections()
-        if not (0 <= idx < len(sections)):
+        if not (0 <= idx < len(self._get_sections())):
             return
 
         comp_id = str(self._component["id"])
@@ -592,33 +431,24 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         self._api.set_section_selection((comp_id, 0, station_idx))
 
         key = "root_airfoil" if is_root else "tip_airfoil"
-        curr_af = sections[idx][key]
+        dialog = AirfoilDialog(self._section_profile(idx, key)["airfoil"], self)
+        if dialog.exec() != AirfoilDialog.DialogCode.Accepted:
+            return
+        new_af, apply_all = dialog.get_selected_airfoil()
 
-        dialog = AirfoilDialog(curr_af, self)
-        if dialog.exec() == AirfoilDialog.DialogCode.Accepted:
-            new_af, apply_all = dialog.get_selected_airfoil()
+        def change(geometry: dict[str, Any]) -> None:
             if apply_all:
-                for s in sections:
-                    s["root_airfoil"] = deepcopy(new_af)
-                    s["tip_airfoil"] = deepcopy(new_af)
+                profiles = [geometry["root"], *(s["tip"] for s in geometry["sections"])]
+            elif is_root:
+                profiles = [section_root(geometry["root"], geometry["sections"], idx)]
             else:
-                sections[idx][key] = deepcopy(new_af)
-                if key == "tip_airfoil" and idx + 1 < len(sections):
-                    sections[idx + 1]["root_airfoil"] = deepcopy(new_af)
-                elif key == "root_airfoil" and idx > 0:
-                    sections[idx - 1]["tip_airfoil"] = deepcopy(new_af)
+                profiles = [geometry["sections"][idx]["tip"]]
+            for profile in profiles:
+                profile["airfoil"] = deepcopy(new_af)
 
-            sw_loc = self._sweep_loc
-            new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
-
-            def change() -> None:
-                self._component["parameters"]["geometry"]["profiles"] = new_profiles
-
-            self._edit_component(f"Apply airfoil to section {idx + 1}", change)
-            self._populate_sections()
-            self.sections_table.selectRow(idx)
-            self._load_section(idx)
-            self._api.set_section_selection((comp_id, 0, station_idx))
+        self._edit_layout(f"Apply airfoil to section {idx + 1}", change)
+        self._refresh_sections(idx)
+        self._api.set_section_selection((comp_id, 0, station_idx))
 
     def _on_section_align_changed(self, value: str) -> None:
         if self._loading:
