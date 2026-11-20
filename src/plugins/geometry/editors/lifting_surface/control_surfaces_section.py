@@ -19,7 +19,7 @@ from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.control_surface_geometry import sizing_mode as read_sizing_mode
-from ...engine.control_surface_geometry import sync_sizing_values
+from ...engine.control_surface_geometry import surface_span_info
 from .host import LiftingSurfaceEditorHost
 
 
@@ -126,36 +126,11 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
 
     def _surface_span_info(self) -> tuple[float, float, float, float]:
         """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for this lifting surface."""
-        profiles = self._profiles()
-        if profiles:
-            span_values = [
-                float(p.get("position", {}).get("y", 0.0))
-                for p in profiles
-                if isinstance(p.get("position"), dict)
-            ]
-            y0 = span_values[0] if span_values else 0.0
-            y1 = span_values[-1] if span_values else 0.0
-            semi_span = abs(y1 - y0) if len(span_values) >= 2 else 400.0
-            root_chord = float(profiles[0].get("chord", 150.0))
-            tip_chord = float(profiles[-1].get("chord", 100.0))
-            wing_area_dm2 = (semi_span * (root_chord + tip_chord)) / 10000.0
-            return (
-                max(semi_span, 1.0),
-                max(root_chord, 1.0),
-                max(tip_chord, 1.0),
-                max(wing_area_dm2, 0.01),
-            )
-        return 400.0, 150.0, 100.0, 10.0
+        return surface_span_info(self._profiles())
 
-    def _sync_control_surfaces_with_surface(self) -> None:
-        """Synchronize control surface span/chord values according to their sizing mode."""
+    def _refresh_control_surfaces(self) -> None:
+        """Show the control surfaces as derived for the current surface."""
         cs_list = self._control_surfaces()
-        if not cs_list:
-            return
-        semi_span, root_chord, *_ = self._surface_span_info()
-        for cs in cs_list:
-            sync_sizing_values(self._cs_geom(cs), semi_span, root_chord)
-
         self._populate_control_surfaces()
         if 0 <= self._control_surface_index < len(cs_list):
             self._load_control_surface(self._control_surface_index)

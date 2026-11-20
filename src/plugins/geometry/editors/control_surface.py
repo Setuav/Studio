@@ -25,6 +25,7 @@ from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 from ..engine.control_surface_geometry import sizing_mode as read_sizing_mode
+from ..engine.control_surface_geometry import surface_span_info
 
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),
@@ -161,33 +162,14 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
     def _surface_info(self) -> tuple[float, float, float, float]:
         """Return (semi_span, root_chord, tip_chord, area_dm2) of the lifting surface."""
-        surface_id = str(self._component.get("attach_to") or "")
         project = self._api.project
-        if project and isinstance(project.data.get("components"), list):
-            for c in project.data["components"]:
-                if isinstance(c, dict) and str(c["id"]) == surface_id:
-                    params = c.get("parameters", {})
-                    geom = params.get("geometry", {})
-                    profs = geom.get("profiles", [])
-                    if isinstance(profs, list) and profs:
-                        span_values = [
-                            float(p.get("position", {}).get("y", 0.0))
-                            for p in profs
-                            if isinstance(p.get("position"), dict)
-                        ]
-                        y0 = span_values[0] if span_values else 0.0
-                        y1 = span_values[-1] if span_values else 0.0
-                        semi_span = abs(y1 - y0) if len(span_values) >= 2 else 400.0
-                        root_chord = float(profs[0].get("chord", 150.0))
-                        tip_chord = float(profs[-1].get("chord", 100.0))
-                        wing_area_dm2 = (semi_span * (root_chord + tip_chord)) / 10000.0
-                        return (
-                            max(semi_span, 1.0),
-                            max(root_chord, 1.0),
-                            max(tip_chord, 1.0),
-                            max(wing_area_dm2, 0.01),
-                        )
-        return 400.0, 150.0, 100.0, 10.0
+        assert project is not None
+        surface = project.get_component(str(self._component["attach_to"]))
+        if surface is None:
+            raise ValueError(
+                f"Control surface {self._component['id']} is not attached to a surface"
+            )
+        return surface_span_info(surface["parameters"]["geometry"]["profiles"])
 
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")

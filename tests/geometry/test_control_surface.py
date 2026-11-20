@@ -244,6 +244,21 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             },
         }
 
+        wing_comp = {
+            "id": "main-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0},
+                        {"position": {"x": 0.0, "y": 800.0, "z": 0.0}, "chord": 150.0},
+                    ]
+                }
+            },
+        }
+        api._host.set_project(
+            ProjectDocument(Path("test.json"), "json", {"components": [wing_comp, cs_comp]})
+        )
         editor = ControlSurfaceEditor(api, cs_comp)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
         type_widget = cell_widget(editor.properties_table, 0, 1, QComboBox)
@@ -371,9 +386,17 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom0["eta_start"], 0.6)
         self.assertAlmostEqual(geom0["span_start"], 600.0)  # 0.6 * 1000.0
 
-        # 2. Scale the wing span from 1000 to 2000 mm
-        wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
-        editor._sync_control_surfaces_with_surface()
+        # 2. Scale the wing span from 1000 to 2000 mm; the plugin re-derives its control surfaces
+        from plugins.geometry.plugin import AirframeDesignPlugin
+
+        plugin = AirframeDesignPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+
+        def stretch() -> None:
+            wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
+
+        api.edit_component(wing_comp, "Stretch wing", stretch)
 
         # Ratio aileron should scale its span_start from 600mm to 1200mm (0.6 * 2000)
         self.assertAlmostEqual(geom0["span_start"], 1200.0)

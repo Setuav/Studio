@@ -26,6 +26,17 @@ def chord_follows_ratio(geometry: dict[str, Any]) -> bool:
     return sizing_mode(geometry) != "dimension"
 
 
+def surface_span_info(profiles: list[dict[str, Any]]) -> tuple[float, float, float, float]:
+    """Semi-span, root chord and tip chord (mm) and area (dm²) of the surface a control
+    surface is cut from."""
+    if len(profiles) < 2:
+        raise ValueError("A lifting surface needs at least two profiles")
+    semi_span = abs(float(profiles[-1]["position"]["y"]) - float(profiles[0]["position"]["y"]))
+    root_chord = float(profiles[0]["chord"])
+    tip_chord = float(profiles[-1]["chord"])
+    return semi_span, root_chord, tip_chord, semi_span * (root_chord + tip_chord) / 10000.0
+
+
 def resolve_span_values(
     geometry: dict[str, Any], semi_span: float
 ) -> tuple[float, float, float, float]:
@@ -183,5 +194,6 @@ __all__ = [
     "sizing_mode",
     "solve_control_surface_from_area",
     "span_follows_ratio",
+    "surface_span_info",
     "sync_sizing_values",
 ]

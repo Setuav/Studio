@@ -59,7 +59,7 @@ class AirframeDesignPlugin:
 
         self._component_types = [
             ComponentTypeContribution(
-                id="org.setuav.core:fuselage",
+                id=_FUSELAGE_TYPE,
                 name="Fuselage",
                 icon="geometry_add_fuselage",
                 model=FuselageModel,
@@ -67,7 +67,7 @@ class AirframeDesignPlugin:
                 category="Airframe Design",
             ),
             ComponentTypeContribution(
-                id="org.setuav.core:lifting-surface",
+                id=_LIFTING_SURFACE_TYPE,
                 name="Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 model=LiftingSurfaceModel,
@@ -76,7 +76,7 @@ class AirframeDesignPlugin:
                 describe=_describe_lifting_surface,
             ),
             ComponentTypeContribution(
-                id="org.setuav.core:control-surface",
+                id=_CONTROL_SURFACE_TYPE,
                 name="Control Surface",
                 icon="geometry_add_control_surface",
                 model=ControlSurfaceModel,
@@ -94,8 +94,8 @@ class AirframeDesignPlugin:
         from .engine.lifting_surface_geometry import build_lifting_surface_geometry
 
         self._providers = {
-            "org.setuav.core:fuselage": build_fuselage_geometry,
-            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+            _FUSELAGE_TYPE: build_fuselage_geometry,
+            _LIFTING_SURFACE_TYPE: build_lifting_surface_geometry,
         }
 
         # Central Viewport Synchronization
@@ -109,9 +109,10 @@ class AirframeDesignPlugin:
         if api.project is not None:
             self._scene_controller.sync(api.project)
 
-        # Envelopes derived from each geometry component's parameters
-        for type_id in _GEOMETRY_TYPES:
-            api.register_component_deriver(type_id, _derive_envelope)
+        # Data derived from each geometry component's parameters
+        api.register_component_deriver(_FUSELAGE_TYPE, _derive_envelope)
+        api.register_component_deriver(_LIFTING_SURFACE_TYPE, _derive_envelope)
+        api.register_component_deriver(_CONTROL_SURFACE_TYPE, _derive_control_surface)
         api.derive_components()
 
     def deactivate(self, api: StudioAPI) -> None:
@@ -146,14 +147,28 @@ def _describe_control_surface(component: dict[str, Any]) -> str:
     return f"Control Surface ({kind.capitalize()})"
 
 
-_GEOMETRY_TYPES = (
-    "org.setuav.core:fuselage",
-    "org.setuav.core:lifting-surface",
-    "org.setuav.core:control-surface",
-)
+_FUSELAGE_TYPE = "org.setuav.core:fuselage"
+_LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
+_CONTROL_SURFACE_TYPE = "org.setuav.core:control-surface"
+_GEOMETRY_TYPES = (_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE, _CONTROL_SURFACE_TYPE)
 
 
 def _derive_envelope(component: dict[str, Any], components: Mapping[str, dict[str, Any]]) -> None:
     from .engine.envelope import sync_component_envelope
 
     sync_component_envelope(component, components.get(str(component.get("attach_to"))))
+
+
+def _derive_control_surface(
+    component: dict[str, Any], components: Mapping[str, dict[str, Any]]
+) -> None:
+    """Size the control surface on its lifting surface, then derive its envelope."""
+    from .engine.control_surface_geometry import surface_span_info, sync_sizing_values
+
+    surface = components.get(str(component.get("attach_to")))
+    if surface is not None and surface.get("type") == _LIFTING_SURFACE_TYPE:
+        semi_span, root_chord, _tip_chord, _area = surface_span_info(
+            surface["parameters"]["geometry"]["profiles"]
+        )
+        sync_sizing_values(component["parameters"]["geometry"], semi_span, root_chord)
+    _derive_envelope(component, components)

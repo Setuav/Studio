@@ -334,4 +334,4 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
         elif self._get_sections():
             self._load_section(0)
 
-        self._sync_control_surfaces_with_surface()
+        self._refresh_control_surfaces()

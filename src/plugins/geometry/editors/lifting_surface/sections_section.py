@@ -482,7 +482,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         self._populate_sections()
         self.sections_table.selectRow(idx)
         self._refresh_planform_table()
-        self._sync_control_surfaces_with_surface()
+        self._refresh_control_surfaces()
 
     def _on_section_angle_changed(self, key: str, value: float) -> None:
         if self._loading:
