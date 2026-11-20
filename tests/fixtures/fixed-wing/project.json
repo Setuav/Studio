@@ -2284,6 +2284,7 @@
       "parameters": {
         "geometry": {
           "type": "aileron",
+          "sizing_mode": "ratio",
           "span_start": 304.3,
           "span_end": 642.4,
           "chord": 64.3,
@@ -2634,6 +2635,7 @@
       "parameters": {
         "geometry": {
           "type": "ruddervator",
+          "sizing_mode": "ratio",
           "span_start": 22.2,
           "span_end": 177.5,
           "chord": 49.6,
@@ -2909,12 +2911,11 @@
       "parameters": {
         "geometry": {
           "type": "flap",
-          "span_mode": "ratio",
+          "sizing_mode": "ratio",
           "span_start": 54.1,
           "span_end": 287.4,
           "eta_start": 0.08,
           "eta_end": 0.425,
-          "chord_mode": "ratio",
           "chord_fraction": 0.29,
           "chord": 69.6,
           "hinge_sweep": -0.5,

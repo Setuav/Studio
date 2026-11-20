@@ -614,6 +614,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.5,
                         "eta_end": 0.95,
                         "chord_fraction": 0.25,
@@ -714,6 +715,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
@@ -776,6 +778,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "flap",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.10,
                         "eta_end": 0.65,
                         "chord_fraction": 0.30,
@@ -791,6 +794,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.45,
                         "eta_end": 0.90,
                         "chord_fraction": 0.25,
@@ -874,6 +878,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "parameters": {
                         "geometry": {
                             "type": surface_type,
+                            "sizing_mode": "ratio",
                             "eta_start": 0.2,
                             "eta_end": 0.9,
                             "chord_fraction": 0.3,
@@ -949,6 +954,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "parameters": {
                         "geometry": {
                             "type": surface_type,
+                            "sizing_mode": "ratio",
                             "eta_start": 0.2,
                             "eta_end": 0.9,
                             "chord_fraction": 0.3,

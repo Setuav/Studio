@@ -171,6 +171,7 @@ class TestParametricSweeps(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
@@ -186,6 +187,7 @@ class TestParametricSweeps(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "rudder",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,

@@ -291,12 +291,11 @@ class AirframeCreationController:
             "parameters": {
                 "geometry": {
                     "type": surface_type,
-                    "span_mode": "ratio",
+                    "sizing_mode": "ratio",
                     "span_start": round(semi_span * eta_start, 1),
                     "span_end": round(semi_span * eta_end, 1),
                     "eta_start": eta_start,
                     "eta_end": eta_end,
-                    "chord_mode": "ratio",
                     "chord_fraction": chord_fraction,
                     "chord": round(root_chord * chord_fraction, 1),
                     "hinge_sweep": 0.0,

@@ -50,6 +50,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         cs_geom = {
             "id": "aileron_1",
             "type": "aileron",
+            "sizing_mode": "dimension",
             "span_start": 200.0,
             "span_end": 450.0,
             "chord": 40.0,
@@ -156,6 +157,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             {
                 "id": "elevator",
                 "type": "elevator",
+                "sizing_mode": "dimension",
                 "span_start": 50.0,
                 "span_end": 100.0,
                 "chord": 30.0,
@@ -199,6 +201,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             {
                 "id": "aileron",
                 "type": "aileron",
+                "sizing_mode": "dimension",
                 "span_start": 100.0,
                 "span_end": 400.0,
                 "chord": 40.0,
@@ -231,6 +234,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "type": "aileron",
+                    "sizing_mode": "dimension",
                     "span_start": 250.0,
                     "span_end": 500.0,
                     "chord": 70.0,
@@ -260,6 +264,37 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(cs_comp["parameters"]["geometry"]["type"], "elevon")
         editor._on_prop_combo_changed("symmetry_mode", "symmetric")
         self.assertEqual(cs_comp["parameters"]["geometry"]["symmetry_mode"], "symmetric")
+
+    def test_sizing_mode_decides_whether_span_and_chord_keep_ratio_or_mm(self) -> None:
+        from plugins.geometry.engine.control_surface_geometry import sync_sizing_values
+        from plugins.geometry.engine.lifting_surface_cuts import control_chord_fraction
+
+        def control(mode: str) -> dict[str, float | str]:
+            return {
+                "sizing_mode": mode,
+                "span_start": 200.0,
+                "span_end": 400.0,
+                "eta_start": 0.4,
+                "eta_end": 0.8,
+                "chord": 50.0,
+                "chord_fraction": 0.25,
+            }
+
+        # The wing grows from a 500 mm semi-span and 200 mm root chord.
+        dimension = control("dimension")
+        sync_sizing_values(dimension, semi_span=1000.0, root_chord=400.0)
+        self.assertEqual((dimension["span_start"], dimension["chord"]), (200.0, 50.0))
+        self.assertEqual((dimension["eta_start"], dimension["chord_fraction"]), (0.2, 0.125))
+        self.assertIsNone(control_chord_fraction(dimension))
+
+        ratio = control("ratio")
+        sync_sizing_values(ratio, semi_span=1000.0, root_chord=400.0)
+        self.assertEqual((ratio["eta_start"], ratio["chord_fraction"]), (0.4, 0.25))
+        self.assertEqual((ratio["span_start"], ratio["chord"]), (400.0, 100.0))
+        self.assertEqual(control_chord_fraction(ratio), 0.25)
+
+        with self.assertRaisesRegex(ValueError, "Unknown control surface sizing mode"):
+            sync_sizing_values(control("chord"), semi_span=1000.0, root_chord=400.0)
 
     def test_control_surface_sizing_modes_and_live_sync(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
@@ -294,12 +329,11 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "type": "aileron",
-                    "span_mode": "ratio",
+                    "sizing_mode": "ratio",
                     "eta_start": 0.5,
                     "eta_end": 0.9,
                     "span_start": 500.0,
                     "span_end": 900.0,
-                    "chord_mode": "ratio",
                     "chord_fraction": 0.25,
                     "chord": 50.0,
                 }
@@ -313,12 +347,11 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "type": "flap",
-                    "span_mode": "dimension",
+                    "sizing_mode": "dimension",
                     "span_start": 100.0,
                     "span_end": 400.0,
                     "eta_start": 0.1,
                     "eta_end": 0.4,
-                    "chord_mode": "dimension",
                     "chord": 45.0,
                     "chord_fraction": 0.225,
                 }
@@ -388,10 +421,9 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "type": "aileron",
-                    "span_mode": "ratio",
+                    "sizing_mode": "ratio",
                     "eta_start": 0.5,
                     "eta_end": 0.9,
-                    "chord_mode": "ratio",
                     "chord_fraction": 0.25,
                 }
             },
@@ -479,6 +511,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "parameters": {
                         "geometry": {
                             "type": "aileron",
+                            "sizing_mode": "dimension",
                             "span_start": 200.0,
                             "span_end": 450.0,
                             "chord": 40.0,

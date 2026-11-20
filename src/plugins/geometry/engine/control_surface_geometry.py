@@ -5,6 +5,26 @@ from __future__ import annotations
 import math
 from typing import Any
 
+SIZING_MODES = ("ratio", "dimension", "area_chord", "area_span")
+
+
+def sizing_mode(geometry: dict[str, Any]) -> str:
+    """The sizing mode chosen for the control surface in its editor."""
+    mode = geometry["sizing_mode"]
+    if mode not in SIZING_MODES:
+        raise ValueError(f"Unknown control surface sizing mode {mode!r}")
+    return mode
+
+
+def span_follows_ratio(geometry: dict[str, Any]) -> bool:
+    """Whether the span extent is kept as a fraction of the semi-span (eta) rather than in mm."""
+    return sizing_mode(geometry) == "ratio"
+
+
+def chord_follows_ratio(geometry: dict[str, Any]) -> bool:
+    """Whether the chord is kept as a fraction of the surface chord rather than in mm."""
+    return sizing_mode(geometry) != "dimension"
+
 
 def resolve_span_values(
     geometry: dict[str, Any], semi_span: float
@@ -139,26 +159,29 @@ def solve_control_surface_from_area(
 
 def sync_sizing_values(geometry: dict[str, Any], semi_span: float, root_chord: float) -> None:
     """Synchronize span/chord units between ratio and absolute values."""
-    sizing_mode = str(geometry.get("sizing_mode", geometry.get("span_mode", "ratio"))).lower()
-    if "ratio" in sizing_mode:
+    if span_follows_ratio(geometry):
         _span_start, eta_start, _span_end, eta_end = resolve_span_values(geometry, semi_span)
         geometry["span_start"] = round(eta_start * semi_span, 1)
         geometry["span_end"] = round(eta_end * semi_span, 1)
     else:
-        geometry["eta_start"] = round(float(geometry.get("span_start", 0.0)) / semi_span, 4)
-        geometry["eta_end"] = round(float(geometry.get("span_end", 0.0)) / semi_span, 4)
+        geometry["eta_start"] = round(float(geometry["span_start"]) / semi_span, 4)
+        geometry["eta_end"] = round(float(geometry["span_end"]) / semi_span, 4)
 
-    if str(geometry.get("chord_mode", "ratio")).lower() == "ratio":
+    if chord_follows_ratio(geometry):
         _, fraction = resolve_chord_values(geometry, root_chord)
         geometry["chord"] = round(fraction * root_chord, 1)
     else:
-        geometry["chord_fraction"] = round(float(geometry.get("chord", 40.0)) / root_chord, 3)
+        geometry["chord_fraction"] = round(float(geometry["chord"]) / root_chord, 3)
 
 
 __all__ = [
+    "SIZING_MODES",
+    "chord_follows_ratio",
     "compute_control_surface_metrics",
     "resolve_chord_values",
     "resolve_span_values",
+    "sizing_mode",
     "solve_control_surface_from_area",
+    "span_follows_ratio",
     "sync_sizing_values",
 ]

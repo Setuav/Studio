@@ -320,6 +320,7 @@ def _build_fuselage_component() -> dict:
             "parameters": {
                 "geometry": {
                     "type": "aileron",
+                    "sizing_mode": "dimension",
                     "span_start": 200.0,
                     "span_end": 450.0,
                     "chord": 40.0,

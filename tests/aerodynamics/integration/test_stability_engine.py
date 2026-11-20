@@ -228,6 +228,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.6,
                         "eta_end": 1.0,
                         "chord_fraction": 0.25,
@@ -242,6 +243,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
@@ -256,6 +258,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "type": "rudder",
+                        "sizing_mode": "ratio",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,

@@ -24,6 +24,8 @@ from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
+from ..engine.control_surface_geometry import sizing_mode as read_sizing_mode
+
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),
     ("flap", "Flap"),
@@ -226,7 +228,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             )
 
             cs_type = str(geom.get("type") or "aileron").lower()
-            sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
+            sizing_mode = read_sizing_mode(geom)
 
             hinge_sweep = float(geom.get("hinge_sweep", 0.0))
             deflection = float(geom.get("deflection", 0.0))
@@ -400,7 +402,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         from ..engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
-            driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()
+            driver_mode = read_sizing_mode(geometry)
             solve_control_surface_from_area(
                 geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
             )

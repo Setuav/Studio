@@ -18,6 +18,7 @@ from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
+from ...engine.control_surface_geometry import sizing_mode as read_sizing_mode
 from ...engine.control_surface_geometry import sync_sizing_values
 from .host import LiftingSurfaceEditorHost
 
@@ -147,7 +148,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         return 400.0, 150.0, 100.0, 10.0
 
     def _sync_control_surfaces_with_surface(self) -> None:
-        """Synchronize control surface span/chord values according to their span_mode and chord_mode."""
+        """Synchronize control surface span/chord values according to their sizing mode."""
         cs_list = self._control_surfaces()
         if not cs_list:
             return
@@ -228,7 +229,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
 
             name_val = str(cs.get("name") or cs.get("id") or "")
             cs_type = str(geom.get("type") or "aileron").lower()
-            sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
+            sizing_mode = read_sizing_mode(geom)
 
             hinge_sweep = float(geom.get("hinge_sweep", 0.0))
             deflection = float(geom.get("deflection", 0.0))
@@ -403,7 +404,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         from ...engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
-            driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()
+            driver_mode = read_sizing_mode(geometry)
             solve_control_surface_from_area(
                 geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
             )
@@ -588,12 +589,11 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
-                        "span_mode": "ratio",
+                        "sizing_mode": "ratio",
                         "span_start": def_start,
                         "span_end": def_end,
                         "eta_start": round(def_start / semi_span, 3),
                         "eta_end": round(def_end / semi_span, 3),
-                        "chord_mode": "ratio",
                         "chord_fraction": 0.25,
                         "chord": def_chord,
                         "hinge_sweep": 0.0,

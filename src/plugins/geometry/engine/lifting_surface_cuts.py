@@ -7,6 +7,7 @@ from collections.abc import Callable
 from itertools import pairwise
 from typing import Any, Literal
 
+from .control_surface_geometry import chord_follows_ratio, span_follows_ratio
 from .data import LoftGeometry, Point3D, Section
 from .lifting_surface_math import (
     mapping,
@@ -149,22 +150,9 @@ def valid_control_surfaces(
 
 
 def control_span_values(control: dict[str, Any], semi_span: float) -> tuple[float, float]:
-    mode = str(control.get("span_mode", "ratio")).lower()
-    if mode == "dimension" and ("span_start" in control or "span_end" in control):
-        return float(control.get("span_start", 0.0)), float(control.get("span_end", 0.0))
-    if mode == "ratio" and ("eta_start" in control or "eta_end" in control):
-        return (
-            float(control.get("eta_start", 0.0)) * semi_span,
-            float(control.get("eta_end", 0.0)) * semi_span,
-        )
-    if "span_start" in control or "span_end" in control:
-        return float(control.get("span_start", 0.0)), float(control.get("span_end", 0.0))
-    if "eta_start" in control or "eta_end" in control:
-        return (
-            float(control.get("eta_start", 0.0)) * semi_span,
-            float(control.get("eta_end", 0.0)) * semi_span,
-        )
-    return 0.0, 0.0
+    if span_follows_ratio(control):
+        return float(control["eta_start"]) * semi_span, float(control["eta_end"]) * semi_span
+    return float(control["span_start"]), float(control["span_end"])
 
 
 def normalized_control_surface(
@@ -188,7 +176,7 @@ def normalized_control_surface(
         "eta_start": round(span_start / semi_span, 4),
         "eta_end": round(span_end / semi_span, 4),
         "chord_fraction": control_chord_fraction(control),
-        "chord": max(float(control.get("chord", 40.0)), 1.0),
+        "chord": max(float(control["chord"]), 1.0),
         "hinge_sweep": (
             float(control["hinge_sweep"]) if control.get("hinge_sweep") is not None else None
         ),
@@ -197,15 +185,10 @@ def normalized_control_surface(
 
 
 def control_chord_fraction(control: dict[str, Any]) -> float | None:
-    if str(control.get("chord_mode", "ratio")).lower() == "dimension":
+    """The chord fraction of a ratio-sized control surface; None when its chord is in mm."""
+    if not chord_follows_ratio(control):
         return None
-    value = control.get("chord_fraction")
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return None
+    return float(control["chord_fraction"])
 
 
 def span_partitions(

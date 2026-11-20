@@ -7,6 +7,7 @@ from copy import deepcopy
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
+from plugins.geometry.engine.control_surface_geometry import chord_follows_ratio, span_follows_ratio
 from setuav_studio.utilities.transform import (
     Point3D,
     Rotation3D,
@@ -279,24 +280,14 @@ class AeroSandboxGeometryMixin:
 
     @staticmethod
     def _control_span_range(control: dict[str, Any], total_span: float) -> tuple[float, float]:
-        if "eta_start" in control and "eta_end" in control:
-            eta_start = float(np.clip(float(control["eta_start"]), 0.0, 1.0))
-            eta_end = float(np.clip(float(control["eta_end"]), 0.0, 1.0))
-        elif "span_start" in control and "span_end" in control:
-            span_start = float(control["span_start"])
-            span_end = float(control["span_end"])
-            ratio_mode = str(control.get("span_mode") or "dimension").lower() == "ratio"
-            if ratio_mode and abs(span_start) <= 1.0 and abs(span_end) <= 1.0:
-                eta_start = float(np.clip(span_start, 0.0, 1.0))
-                eta_end = float(np.clip(span_end, 0.0, 1.0))
-            else:
-                if abs(span_start) > 5.0 or abs(span_end) > 5.0:
-                    span_start /= 1000.0
-                    span_end /= 1000.0
-                eta_start = float(np.clip(span_start / total_span, 0.0, 1.0))
-                eta_end = float(np.clip(span_end / total_span, 0.0, 1.0))
+        if span_follows_ratio(control):
+            eta_start = float(control["eta_start"])
+            eta_end = float(control["eta_end"])
         else:
-            eta_start, eta_end = 0.0, 1.0
+            eta_start = float(control["span_start"]) / 1000.0 / total_span
+            eta_end = float(control["span_end"]) / 1000.0 / total_span
+        eta_start = float(np.clip(eta_start, 0.0, 1.0))
+        eta_end = float(np.clip(eta_end, 0.0, 1.0))
         return (eta_end, eta_start) if eta_start > eta_end else (eta_start, eta_end)
 
     def _control_chord_fraction(
@@ -306,12 +297,9 @@ class AeroSandboxGeometryMixin:
         eta_end: float,
         stations: list[dict[str, Any]],
     ) -> float:
-        fraction = float(control.get("chord_fraction", 0.25))
-        if control.get("chord_mode") != "dimension" or "chord" not in control:
-            return float(np.clip(fraction, 0.05, 0.95))
-        chord = float(control["chord"])
-        if chord > 5.0:
-            chord /= 1000.0
+        if chord_follows_ratio(control):
+            return float(np.clip(float(control["chord_fraction"]), 0.05, 0.95))
+        chord = float(control["chord"]) / 1000.0
         mid_chord = self._chord_at_eta(stations, 0.5 * (eta_start + eta_end))
         return float(np.clip(chord / max(mid_chord, 0.01), 0.05, 0.95))
 

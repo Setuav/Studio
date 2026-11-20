@@ -88,6 +88,7 @@ def _sample_control_surface(parent_id: str = "test-wing") -> dict[str, Any]:
         "parameters": {
             "geometry": {
                 "type": "aileron",
+                "sizing_mode": "area_chord",
                 "span_start": 200.0,
                 "span_end": 500.0,
                 "chord": 45.0,
