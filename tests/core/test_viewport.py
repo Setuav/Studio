@@ -522,6 +522,33 @@ class TestStudioViewport(unittest.TestCase):
         self.assertGreater(distance[1], distance[0])
         viewer.deleteLater()
 
+    def test_equal_primitives_reuse_their_vertices(self) -> None:
+        """Rebuilt scene objects with the same primitives are not tessellated again."""
+        from setuav_studio.ui.viewport.widget import OpenGLViewer
+
+        viewer = OpenGLViewer()
+        builds: list[str] = []
+
+        def build() -> list[float]:
+            builds.append("built")
+            return [1.0]
+
+        box = BoxPrimitive(center=(0.0, 0.0, 0.0), size=(1.0, 1.0, 1.0))
+        first = viewer._object_vertices("solid", "wing", [box], "colored", build)
+        again = viewer._object_vertices(
+            "solid",
+            "wing",
+            [BoxPrimitive(center=(0.0, 0.0, 0.0), size=(1.0, 1.0, 1.0))],
+            "colored",
+            build,
+        )
+        self.assertIs(first, again)
+        moved = BoxPrimitive(center=(5.0, 0.0, 0.0), size=(1.0, 1.0, 1.0))
+        viewer._object_vertices("solid", "wing", [moved], "colored", build)
+        viewer._object_vertices("solid", "wing", [moved], "monochrome", build)
+        self.assertEqual(len(builds), 3)
+        viewer.deleteLater()
+
     def test_objects_follow_the_component_they_draw(self) -> None:
         """Selection, hover picking and envelopes follow ``SceneObject.component_id``."""
         from setuav_studio.ui.viewport.mesh import build_envelope_wire_vertices, hit_test_scene

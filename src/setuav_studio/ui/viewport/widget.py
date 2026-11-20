@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from array import array
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
@@ -299,6 +300,15 @@ class OpenGLViewer(QOpenGLWidget):
         self._overlays: dict[str, list[VisualPrimitive]] = {}
         self._on_top_overlays: set[str] = set()
         self._scene_objects: dict[str, SceneObject] = {}
+        # Vertices built for a scene object or an overlay, keyed by (kind, id): the
+        # primitives they were built from, the drawing parameters, and the vertices.
+        # Primitives are immutable, so equal primitives give equal vertices: a
+        # selection, a hover or an edit of another component reuses the
+        # tessellated model instead of rebuilding it.
+        self._mesh_cache: dict[
+            tuple[str, str], tuple[tuple[VisualPrimitive, ...], Hashable, list[float]]
+        ] = {}
+        self._grid_z: float | None = None
         self._show_solid = True
         self._show_wireframe = True
         self._wire_mode = WIRE_FEATURE
@@ -640,6 +650,7 @@ class OpenGLViewer(QOpenGLWidget):
 
     def update_theme_style(self) -> None:
         """Queue palette-dependent GPU data for the next valid paint context."""
+        self._mesh_cache.clear()
         self._mesh_dirty = True
         self.update()
 
@@ -889,6 +900,23 @@ class OpenGLViewer(QOpenGLWidget):
         self._mesh_dirty = True
         self.update()
 
+    def _object_vertices(
+        self,
+        kind: str,
+        obj_id: str,
+        primitives: list[VisualPrimitive],
+        params: Hashable,
+        build: Callable[[], list[float]],
+    ) -> list[float]:
+        """The vertices of ``primitives`` for ``kind``, built once per content and parameters."""
+        source = tuple(primitives)
+        cached = self._mesh_cache.get((kind, obj_id))
+        if cached is not None and cached[0] == source and cached[1] == params:
+            return cached[2]
+        values = build()
+        self._mesh_cache[(kind, obj_id)] = (source, params, values)
+        return values
+
     def _build_highlight_vertices(self) -> list[float]:
         from setuav_studio.ui.style.theme import chart_color, tokens
 
@@ -899,11 +927,17 @@ class OpenGLViewer(QOpenGLWidget):
             for obj_id, obj in self._scene_objects.items():
                 if obj.component_id == self._selected_component_id:
                     highlight_values.extend(
-                        build_primitive_highlight_vertices(
+                        self._object_vertices(
+                            "highlight",
+                            obj_id,
                             obj.primitives,
-                            sel_color,
-                            wire_mode=self._wire_mode,
-                            object_id=obj_id,
+                            (sel_color, self._wire_mode),
+                            lambda obj=obj, obj_id=obj_id: build_primitive_highlight_vertices(
+                                obj.primitives,
+                                sel_color,
+                                wire_mode=self._wire_mode,
+                                object_id=obj_id,
+                            ),
                         )
                     )
 
@@ -917,11 +951,17 @@ class OpenGLViewer(QOpenGLWidget):
             for obj_id, obj in self._scene_objects.items():
                 if obj.component_id == hovered:
                     highlight_values.extend(
-                        build_primitive_highlight_vertices(
+                        self._object_vertices(
+                            "hover",
+                            obj_id,
                             obj.primitives,
-                            hov_color,
-                            wire_mode=self._wire_mode,
-                            object_id=obj_id,
+                            (hov_color, self._wire_mode),
+                            lambda obj=obj, obj_id=obj_id: build_primitive_highlight_vertices(
+                                obj.primitives,
+                                hov_color,
+                                wire_mode=self._wire_mode,
+                                object_id=obj_id,
+                            ),
                         )
                     )
         return highlight_values
@@ -987,9 +1027,14 @@ class OpenGLViewer(QOpenGLWidget):
                     and obj.component_id == self._hovered_component_id
                 )
                 primitive_solid_values.extend(
-                    build_primitive_solid_vertices(
+                    self._object_vertices(
+                        "solid",
+                        obj_id,
                         prims,
-                        face_style=self._face_style,
+                        self._face_style,
+                        lambda prims=prims: build_primitive_solid_vertices(
+                            prims, face_style=self._face_style
+                        ),
                     )
                 )
 
@@ -1000,51 +1045,61 @@ class OpenGLViewer(QOpenGLWidget):
                 scene_primitives.extend(prims)
 
                 primitive_wire_values.extend(
-                    build_primitive_wire_vertices(
+                    self._object_vertices(
+                        "wire",
+                        obj_id,
                         prims,
-                        face_style=self._face_style,
-                        wire_mode=self._wire_mode,
-                        object_id=obj_id,
+                        (self._face_style, self._wire_mode),
+                        lambda prims=prims, obj_id=obj_id: build_primitive_wire_vertices(
+                            prims,
+                            face_style=self._face_style,
+                            wire_mode=self._wire_mode,
+                            object_id=obj_id,
+                        ),
                     )
                 )
 
-        overlay_prims = [prim for prims in self._overlays.values() for prim in prims]
-        on_top_prims = [
-            prim
-            for overlay_id, prims in self._overlays.items()
-            if overlay_id in self._on_top_overlays
-            for prim in prims
-        ]
         on_top_values: list[float] = []
-        if on_top_prims:
-            on_top_values.extend(
-                build_primitive_annotation_vertices(on_top_prims, face_style=self._face_style)
-            )
-            on_top_values.extend(
-                build_primitive_wire_vertices(
-                    on_top_prims, face_style=self._face_style, wire_mode=self._wire_mode
-                )
-            )
-
-        if overlay_prims:
+        overlay_annotation_values: list[float] = []
+        for overlay_id, prims in self._overlays.items():
             primitive_solid_values.extend(
-                build_primitive_solid_vertices(
-                    overlay_prims,
-                    face_style=self._face_style,
+                self._object_vertices(
+                    "overlay_solid",
+                    overlay_id,
+                    prims,
+                    self._face_style,
+                    lambda prims=prims: build_primitive_solid_vertices(
+                        prims, face_style=self._face_style
+                    ),
                 )
             )
-            primitive_wire_values.extend(
-                build_primitive_wire_vertices(
-                    overlay_prims,
-                    face_style=self._face_style,
-                    wire_mode=self._wire_mode,
-                )
+            wire = self._object_vertices(
+                "overlay_wire",
+                overlay_id,
+                prims,
+                (self._face_style, self._wire_mode),
+                lambda prims=prims: build_primitive_wire_vertices(
+                    prims, face_style=self._face_style, wire_mode=self._wire_mode
+                ),
             )
+            annotation = self._object_vertices(
+                "overlay_annotation",
+                overlay_id,
+                prims,
+                self._face_style,
+                lambda prims=prims: build_primitive_annotation_vertices(
+                    prims, face_style=self._face_style
+                ),
+            )
+            primitive_wire_values.extend(wire)
+            overlay_annotation_values.extend(annotation)
+            if overlay_id in self._on_top_overlays:
+                on_top_values.extend(annotation)
+                on_top_values.extend(wire)
 
-        all_prims_for_annotation = scene_primitives + overlay_prims
-        primitive_annotation_values = build_primitive_annotation_vertices(
-            all_prims_for_annotation,
-            face_style=self._face_style,
+        primitive_annotation_values = (
+            build_primitive_annotation_vertices(scene_primitives, face_style=self._face_style)
+            + overlay_annotation_values
         )
 
         self._primitive_solid_count = self._allocate(
@@ -1095,11 +1150,11 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _grid_height(self) -> float:
         """The grid lies just below the lowest point of the model, like a floor."""
-        points = self._scene_points()
-        if not points:
-            return 0.0
-        lowest = min(point[2] for point in points)
-        return min(0.0, lowest) - _GRID_CLEARANCE_MM
+        if self._grid_z is None:
+            points = self._scene_points()
+            lowest = min((point[2] for point in points), default=0.0)
+            self._grid_z = min(0.0, lowest) - _GRID_CLEARANCE_MM if points else 0.0
+        return self._grid_z
 
     @staticmethod
     def _reference_grid_vertices(
@@ -1325,6 +1380,8 @@ class OpenGLViewer(QOpenGLWidget):
         """Stop drawing the overlay *overlay_id*."""
         self._overlays.pop(overlay_id, None)
         self._on_top_overlays.discard(overlay_id)
+        for kind in ("overlay_solid", "overlay_wire", "overlay_annotation"):
+            self._mesh_cache.pop((kind, overlay_id), None)
         self._mesh_dirty = True
         self.update()
 
@@ -1332,6 +1389,12 @@ class OpenGLViewer(QOpenGLWidget):
         """Set active scene objects mapped by object_id for rendering, picking and highlighting."""
         had_objects = bool(self._scene_objects)
         self._scene_objects = dict(objects)
+        self._mesh_cache = {
+            key: entry
+            for key, entry in self._mesh_cache.items()
+            if key[0].startswith("overlay_") or key[1] in self._scene_objects
+        }
+        self._grid_z = None
         self._mesh_dirty = True
         if not had_objects and self._scene_objects:
             self.fit_view()
