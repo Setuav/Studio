@@ -42,13 +42,13 @@ class ProjectExplorerPanel(QWidget):
         )
         s_layout.addWidget(self.search_edit)
         self.expand_all_button = self._tree_action_button(
-            "fa6s.square-plus",
+            "mdi6.unfold-more-horizontal",
             "Expand All",
             self._expand_all,
         )
         s_layout.addWidget(self.expand_all_button)
         self.collapse_all_button = self._tree_action_button(
-            "fa6s.square-minus",
+            "mdi6.unfold-less-horizontal",
             "Collapse All",
             self._collapse_all,
         )
