@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any
 
@@ -604,109 +604,6 @@ def resolve_component_envelope(
         return resolve_envelope_definition(existing)
 
     return _empty_envelope()
-
-
-def resolve_component_aggregate_envelope(
-    component: dict[str, Any],
-    project_or_components: Any,
-    subpart_types: Collection[str],
-) -> dict[str, Any]:
-    """Resolve the bounding envelope of a component and its subparts."""
-    comp_id = str(component["id"])
-
-    from setuav_studio.utilities.mass_balance import (
-        get_all_components,
-        get_component_subparts,
-        is_mirrored_component,
-    )
-    from setuav_studio.utilities.transform import (
-        inverse_rotate_vector,
-        resolve_world_transform,
-        rotate_vector,
-    )
-
-    subparts = get_component_subparts(comp_id, project_or_components, subpart_types)
-    if not subparts:
-        return resolve_component_envelope(component)
-    by_id = {str(c["id"]): c for c in get_all_components(project_or_components)}
-
-    # 1. World transform of the component
-    p_world_pos, p_world_rot = resolve_world_transform(comp_id, by_id)
-
-    corners_in_owner: list[Point3D] = []
-    total_volume_mm3 = 0.0
-
-    # 2. The component's own envelope
-    owner_env = resolve_component_envelope(component)
-    p_size = _to_vec3(owner_env.get("size_mm"))
-    if p_size[0] > 0.0 or p_size[1] > 0.0 or p_size[2] > 0.0:
-        p_offset = _to_vec3(owner_env.get("offset_mm"))
-        total_volume_mm3 += float(owner_env.get("volume_mm3", 0.0) or 0.0)
-        for dx in (-0.5 * p_size[0], 0.5 * p_size[0]):
-            for dy in (-0.5 * p_size[1], 0.5 * p_size[1]):
-                for dz in (-0.5 * p_size[2], 0.5 * p_size[2]):
-                    corners_in_owner.append((p_offset[0] + dx, p_offset[1] + dy, p_offset[2] + dz))
-
-    # 3. Subpart envelopes transformed into the component's frame
-    for subpart in subparts:
-        c_id = str(subpart.get("id") or "")
-        c_env = resolve_component_envelope(subpart)
-        c_size = _to_vec3(c_env.get("size_mm"))
-        c_offset = _to_vec3(c_env.get("offset_mm"))
-        total_volume_mm3 += float(c_env.get("volume_mm3", 0.0) or 0.0)
-
-        c_world_pos, c_world_rot = resolve_world_transform(c_id, by_id)
-        is_mirror = is_mirrored_component(subpart, by_id)
-
-        # 8 corners in the subpart's local frame
-        for dx in (-0.5 * c_size[0], 0.5 * c_size[0]):
-            for dy in (-0.5 * c_size[1], 0.5 * c_size[1]):
-                for dz in (-0.5 * c_size[2], 0.5 * c_size[2]):
-                    local_pt = (c_offset[0] + dx, c_offset[1] + dy, c_offset[2] + dz)
-                    rx, ry, rz = rotate_vector(local_pt, c_world_rot)
-                    world_pt = (c_world_pos[0] + rx, c_world_pos[1] + ry, c_world_pos[2] + rz)
-
-                    # Transform into the component's frame
-                    delta = (
-                        world_pt[0] - p_world_pos[0],
-                        world_pt[1] - p_world_pos[1],
-                        world_pt[2] - p_world_pos[2],
-                    )
-                    owner_pt = inverse_rotate_vector(delta, p_world_rot)
-                    corners_in_owner.append(owner_pt)
-
-                    if is_mirror:
-                        mirrored_world = (world_pt[0], -world_pt[1], world_pt[2])
-                        delta_m = (
-                            mirrored_world[0] - p_world_pos[0],
-                            mirrored_world[1] - p_world_pos[1],
-                            mirrored_world[2] - p_world_pos[2],
-                        )
-                        owner_m_pt = inverse_rotate_vector(delta_m, p_world_rot)
-                        corners_in_owner.append(owner_m_pt)
-
-    if not corners_in_owner:
-        return _empty_envelope()
-
-    min_x = min(pt[0] for pt in corners_in_owner)
-    max_x = max(pt[0] for pt in corners_in_owner)
-    min_y = min(pt[1] for pt in corners_in_owner)
-    max_y = max(pt[1] for pt in corners_in_owner)
-    min_z = min(pt[2] for pt in corners_in_owner)
-    max_z = max(pt[2] for pt in corners_in_owner)
-
-    size_x = max(max_x - min_x, 1.0)
-    size_y = max(max_y - min_y, 1.0)
-    size_z = max(max_z - min_z, 1.0)
-
-    offset_x = (min_x + max_x) * 0.5
-    offset_y = (min_y + max_y) * 0.5
-    offset_z = (min_z + max_z) * 0.5
-
-    box_env = compute_box_envelope((size_x, size_y, size_z), (offset_x, offset_y, offset_z))
-    if total_volume_mm3 > 0.0:
-        box_env["volume_mm3"] = round(total_volume_mm3, 1)
-    return box_env
 
 
 def _empty_envelope() -> dict[str, Any]:

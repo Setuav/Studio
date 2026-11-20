@@ -10,7 +10,6 @@ from setuav_studio.utilities.envelope import (
     compute_loft_envelope,
     compute_mesh_mass_properties,
     is_geometry_envelope,
-    resolve_component_aggregate_envelope,
     resolve_component_envelope,
     resolve_envelope_definition,
 )
@@ -64,7 +63,6 @@ __all__ = [
     "matrix_to_euler",
     "multiply_rotations",
     "resolve_aircraft_mass_properties",
-    "resolve_component_aggregate_envelope",
     "resolve_component_aggregate_mass_properties",
     "resolve_component_envelope",
     "resolve_component_intrinsic_mass_properties",

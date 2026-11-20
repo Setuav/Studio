@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Sequence
 from typing import Any, cast
 
 from PySide6.QtCore import QSettings, Signal
@@ -35,7 +34,7 @@ class MockRenderer(QWidget):
         self.scene_objects: dict[str, SceneObject] = {}
         self.selected_component: str | None = None
         self.selected_section: tuple[str, int, int] | None = None
-        self.selected_envelope: str | Sequence[str] | None = None
+        self.selected_envelope: str | None = None
         self.fit_view_called: bool = False
         self.view_angles: tuple[float, float] | None = None
         self.orthographic: bool = True
@@ -73,7 +72,7 @@ class MockRenderer(QWidget):
         else:
             self.selected_section = None
 
-    def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None:
+    def set_selected_envelope(self, component_id: str | None) -> None:
         self.selected_envelope = component_id
 
     def fit_view(self) -> None:

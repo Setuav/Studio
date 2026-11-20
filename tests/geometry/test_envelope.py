@@ -462,7 +462,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("300.0", table_item(editor.sections_table, 1, 0).text())
         self.assertIn("800.0", table_item(editor.sections_table, 2, 0).text())
 
-    def test_envelope_editor_unites_a_component_with_its_subparts(self) -> None:
+    def test_envelope_editor_shows_only_the_component_envelope(self) -> None:
         from pathlib import Path
 
         from setuav_studio.api import ComponentTypeContribution, StudioAPI
@@ -491,20 +491,16 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 },
             }
 
-        # A battery is only mounted on the fuselage; the pod is part of it.
-        battery = box_at("battery-1", "org.setuav.core:battery", 2000.0)
         pod = box_at("pod-1", "test:pod", 1000.0)
-        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, battery, pod]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, pod]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(api, fuse)
-        assert editor.shape_combo is not None
-        self.assertEqual(editor.shape_combo.currentData(), "box")
-        self.assertTrue(editor._sections_container.isHidden())
-        # The union spans the fuselage nose through the pod's aft face at x = 1050 mm.
-        fuse_envelope = fuse["envelope"]
-        nose_x = fuse_envelope["offset_mm"]["x"] - fuse_envelope["size_mm"]["x"] / 2.0
-        self.assertAlmostEqual(editor.dimension_spins["x"].value(), 1050.0 - nose_x, places=3)
+        # The pod subpart does not widen the fuselage's own envelope.
+        self.assertFalse(editor._sections_container.isHidden())
+        self.assertAlmostEqual(
+            editor.dimension_spins["x"].value(), fuse["envelope"]["size_mm"]["x"], places=3
+        )
 
     def test_build_project_geometry_includes_envelopes(self) -> None:
         from pathlib import Path
@@ -640,6 +636,31 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIsNone(renderer._selected_component_id)
         renderer._upload_meshes()
         self.assertEqual(renderer._envelope_count, 0)
+
+    def test_envelope_view_leaves_out_subparts(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.api import ComponentTypeContribution, StudioAPI
+        from setuav_studio.project import ProjectDocument
+        from setuav_studio.ui.viewport import StudioViewport
+
+        api = StudioAPI()
+        api.register_component_type(
+            ComponentTypeContribution(id="test:pod", name="Pod", subpart=True)
+        )
+        fuse = _sample_fuselage()
+        pod = {"id": "pod-1", "type": "test:pod", "attach_to": fuse["id"]}
+        api._host.set_project(
+            ProjectDocument(Path("test.json"), "json", {"components": [fuse, pod]})
+        )
+        viewport = StudioViewport(api=api)
+        self.addCleanup(viewport.deleteLater)
+        renderer = viewport.viewer
+        assert renderer is not None
+
+        viewport.set_selected_envelope(fuse["id"])
+
+        self.assertEqual(renderer._selected_envelope_component_id, fuse["id"])
 
     def test_lifting_surface_tip_cap_envelope_lines(self) -> None:
         from plugins.geometry.engine.scene import _append_lifting_surface_tip_envelope_lines

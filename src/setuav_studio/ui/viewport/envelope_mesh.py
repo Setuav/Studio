@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 
 from setuav_studio.utilities.transform import rotate_vector
 
@@ -145,17 +144,14 @@ def _append_scene_object_envelope_wire(
 
 def build_envelope_wire_vertices(
     scene_objects: dict[str, SceneObject],
-    selected_envelope_component_id: str | Sequence[str] | None,
+    selected_envelope_component_id: str | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
 ) -> list[float]:
     """Build vertices for the green wireframe envelope highlighting the selected component's bounding volume."""
-    if isinstance(selected_envelope_component_id, str):
-        targets = {selected_envelope_component_id} if selected_envelope_component_id else set()
-    else:
-        targets = {str(x) for x in selected_envelope_component_id or () if x}
-
     vertices: list[float] = []
+    if not selected_envelope_component_id:
+        return vertices
     for obj in scene_objects.values():
-        if obj.component_id in targets:
+        if obj.component_id == selected_envelope_component_id:
             _append_scene_object_envelope_wire(vertices, obj, color)
     return vertices

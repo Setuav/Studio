@@ -85,7 +85,7 @@ class ViewportRenderer(Protocol):
         section_index: int | None = None,
         color: tuple[float, float, float] | str | None = None,
     ) -> None: ...
-    def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None: ...
+    def set_selected_envelope(self, component_id: str | None) -> None: ...
     def fit_view(self) -> None: ...
     def set_view(self, azimuth: float, elevation: float) -> None: ...
     def set_orthographic(self, enabled: bool) -> None: ...
@@ -925,21 +925,9 @@ class StudioViewport(QWidget):
             self.set_selected_cg(self._selected_cg_component_id)
 
     def set_selected_envelope(self, component_id: str | None) -> None:
-        """Show the envelope wireframe of the selected component and its subparts."""
+        """Show the envelope wireframe of the selected component."""
         self._selected_envelope_component_id = component_id
-        if component_id is None or self._api is None:
-            self._renderer.set_selected_envelope(None)
-            return
-
-        target_ids = [component_id]
-        project = self._api.project
-        if project is not None:
-            from setuav_studio.utilities.mass_balance import get_component_subparts
-
-            for subpart in get_component_subparts(component_id, project, self._api.subpart_types):
-                target_ids.append(str(subpart["id"]))
-
-        self._renderer.set_selected_envelope(target_ids if len(target_ids) > 1 else component_id)
+        self._renderer.set_selected_envelope(component_id)
 
     def update_aircraft_cg(self) -> None:
         """Refresh the aircraft total CG marker overlay."""
