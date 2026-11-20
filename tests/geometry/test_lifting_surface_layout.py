@@ -37,6 +37,7 @@ def _geometry() -> dict[str, Any]:
     """A cranked wing: an inner section with little sweep, an outer one swept and tapered."""
     return {
         "sweep_location": 0.25,
+        "section_align": "xz",
         "planform": {"active_drivers": ["span", "root_chord", "tip_chord"]},
         "root": {"chord": 240.0, "airfoil": "2412"},
         "sections": [
@@ -50,7 +51,7 @@ class LiftingSurfaceLayoutTests(unittest.TestCase):
     def test_profiles_chain_from_the_root_along_the_sections(self) -> None:
         geometry = _geometry()
 
-        profiles = build_profiles(geometry["root"], geometry["sections"], 0.25)
+        profiles = build_profiles(geometry["root"], geometry["sections"], 0.25, "xz")
 
         def tan(degrees: float) -> float:
             return math.tan(math.radians(degrees))
@@ -71,15 +72,40 @@ class LiftingSurfaceLayoutTests(unittest.TestCase):
         self.assertEqual(profiles[0]["airfoil"], "2412")
         self.assertEqual(profiles[2]["rotation"], {"x": 0.0, "y": -3.0, "z": 0.0})
 
+    def test_normal_sections_roll_with_the_local_dihedral(self) -> None:
+        from plugins.geometry.engine.lifting_surface_geometry import (
+            build_lifting_surface_geometry,
+        )
+
+        geometry = _geometry()
+        geometry["section_align"] = "normal"
+        derive_profiles(geometry, symmetric=False, y_offset=0.0)
+
+        # The root and tip take their section's dihedral, the crank the mean of both.
+        rolls = [profile["rotation"]["x"] for profile in geometry["profiles"]]
+        self.assertEqual(rolls, [1.0, 3.5, 6.0])
+
+        # The tip airfoil stands normal to the outer section: its thickness leans inboard.
+        loft = build_lifting_surface_geometry({"id": "wing", "parameters": {"geometry": geometry}})[
+            0
+        ]
+        tip = loft.sections[-1].points
+        upper = max(tip, key=lambda point: point[2])
+        lower = min(tip, key=lambda point: point[2])
+        lean = math.degrees(math.atan2(lower[1] - upper[1], upper[2] - lower[2]))
+        self.assertGreater(lean, 0.0)
+        with self.assertRaisesRegex(ValueError, "Unknown lifting surface section alignment"):
+            build_profiles(geometry["root"], geometry["sections"], 0.25, "chord")
+
     def test_a_non_positive_span_or_chord_is_an_error(self) -> None:
         geometry = _geometry()
         geometry["sections"][1]["span"] = 0.0
         with self.assertRaisesRegex(ValueError, "Section 2 span must be positive"):
-            build_profiles(geometry["root"], geometry["sections"], 0.25)
+            build_profiles(geometry["root"], geometry["sections"], 0.25, "xz")
         geometry = _geometry()
         geometry["root"]["chord"] = -5.0
         with self.assertRaisesRegex(ValueError, "Root chord must be positive"):
-            build_profiles(geometry["root"], geometry["sections"], 0.25)
+            build_profiles(geometry["root"], geometry["sections"], 0.25, "xz")
 
     def test_span_spreads_over_the_sections_and_keeps_the_crank(self) -> None:
         geometry = _geometry()
@@ -242,7 +268,7 @@ class LiftingSurfaceLayoutTests(unittest.TestCase):
         from plugins.geometry.models import LiftingSurfaceModel
 
         geometry = _geometry()
-        geometry["profiles"] = build_profiles(geometry["root"], geometry["sections"], 0.25)
+        geometry["profiles"] = build_profiles(geometry["root"], geometry["sections"], 0.25, "xz")
         wing = LiftingSurfaceModel({"id": "wing", "parameters": {"geometry": geometry}})
 
         # A profile is a station; a section runs between two of them.

@@ -528,7 +528,6 @@ def _compute_lifting_surface_trapezoidal_slices(
     te_th = number_field(shaping, "te_thickness", 0.0)
     th_scale = number_field(shaping, "thickness_scale", 1.0)
     cb_scale = number_field(shaping, "camber_scale", 1.0)
-    sec_align = str(geometry.get("section_align", "xz")).lower()
 
     for i, (prof, chord) in enumerate(zip(valid_profiles, chords, strict=True)):
         px, py, pz = _position(_dict_field(prof, "position"))
@@ -547,7 +546,6 @@ def _compute_lifting_surface_trapezoidal_slices(
             te_thickness=te_th,
             thickness_scale=th_scale,
             camber_scale=cb_scale,
-            section_align=sec_align,
         )
 
         if sec_geo is None:

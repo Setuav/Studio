@@ -429,7 +429,7 @@ class AirframeCreationController:
             "root": root,
             "sections": sections,
             "tip_treatment": {"type": "flat"},
-            "profiles": build_profiles(root, sections, sweep_location),
+            "profiles": build_profiles(root, sections, sweep_location, "xz"),
         }
 
     @staticmethod

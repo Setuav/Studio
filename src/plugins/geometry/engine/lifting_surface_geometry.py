@@ -9,7 +9,6 @@ from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Section
 from .lifting_surface_cuts import build_lifting_surface_with_control_surfaces
 from .lifting_surface_math import (
-    mapping,
     sample_structured_airfoil_round,
 )
 from .lifting_surface_tips import (
@@ -47,8 +46,6 @@ def build_lifting_surface_geometry(
     te_thickness = float(shaping.get("te_thickness", 0.0))
     thickness_scale = float(shaping.get("thickness_scale", 1.0))
     camber_scale = float(shaping.get("camber_scale", 1.0))
-    # Section alignment: "xz" (default) | "normal" (perpendicular to span)
-    section_align = str(geometry.get("section_align", "xz")).lower()
 
     tip_type = tip_treatment_type(geometry)
 
@@ -64,7 +61,6 @@ def build_lifting_surface_geometry(
                     te_thickness=te_thickness,
                     thickness_scale=thickness_scale,
                     camber_scale=camber_scale,
-                    section_align=section_align,
                 )
             )
             is not None
@@ -94,7 +90,6 @@ def build_lifting_surface_geometry(
                 te_thickness=te_thickness,
                 thickness_scale=thickness_scale,
                 camber_scale=camber_scale,
-                section_align=section_align,
             )
         )
 
@@ -203,22 +198,14 @@ def _apply_shaping(
     )
 
 
-def _section_with_align(
+def _station_section(
     matrix: Matrix4,
     chord: float,
     main_2d: tuple[tuple[float, float], ...],
-    dihedral_rad: float,
-    section_align: str,
     is_station: bool = True,
 ) -> Section:
-    """Build a 3D Section, optionally rotating the airfoil plane to be normal to the span direction."""
-    if section_align == "normal" and abs(dihedral_rad) > 1e-4:
-        cos_d = math.cos(dihedral_rad)
-        sin_d = math.sin(dihedral_rad)
-        corrected: list[tuple[float, float, float]] = []
-        for x, z in main_2d:
-            corrected.append((x * chord, -z * chord * sin_d, z * chord * cos_d))
-        return Section(tuple(transform_point(matrix, p) for p in corrected), is_station=is_station)
+    """The airfoil ``main_2d`` scaled to ``chord`` and placed by its station's ``matrix``,
+    which also rolls, twists and yaws it with the station."""
     return Section(
         tuple(transform_point(matrix, (x * chord, 0.0, z * chord)) for x, z in main_2d),
         is_station=is_station,
@@ -231,7 +218,6 @@ def _build_profile_section(
     te_thickness: float = 0.0,
     thickness_scale: float = 1.0,
     camber_scale: float = 1.0,
-    section_align: str = "xz",
 ) -> Section | None:
     profile = value if isinstance(value, dict) else None
     if profile is None:
@@ -241,11 +227,9 @@ def _build_profile_section(
         return None
     coords = sample_airfoil_points(profile.get("airfoil"))
     coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-    rot = mapping(profile.get("rotation"))
-    dihedral_rad = math.radians(float(rot.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     main_2d, _ = sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
-    return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)
+    return _station_section(matrix, chord, main_2d)
 
 
 def _build_lifting_surface_with_control_surfaces(
@@ -257,7 +241,6 @@ def _build_lifting_surface_with_control_surfaces(
     te_thickness: float = 0.0,
     thickness_scale: float = 1.0,
     camber_scale: float = 1.0,
-    section_align: str = "xz",
 ) -> tuple[LoftGeometry, ...]:
     return build_lifting_surface_with_control_surfaces(
         comp_id=comp_id,
@@ -268,11 +251,10 @@ def _build_lifting_surface_with_control_surfaces(
         te_thickness=te_thickness,
         thickness_scale=thickness_scale,
         camber_scale=camber_scale,
-        section_align=section_align,
         plain_surface_builder=_plain_lifting_surface,
         interpolate_station_fn=_interpolate_station_props,
         apply_shaping_fn=_apply_shaping,
-        section_with_align_fn=_section_with_align,
+        station_section_fn=_station_section,
     )
 
 
@@ -280,10 +262,10 @@ def _plain_lifting_surface(
     comp_id: str,
     profiles: list[dict[str, Any]],
     interpolation: Literal["linear", "smooth"],
+    twist_location: float,
     te_thickness: float,
     thickness_scale: float,
     camber_scale: float,
-    section_align: str,
 ) -> tuple[LoftGeometry, ...]:
     sections = tuple(
         section
@@ -291,10 +273,10 @@ def _plain_lifting_surface(
         if (
             section := _build_profile_section(
                 profile,
+                twist_location=twist_location,
                 te_thickness=te_thickness,
                 thickness_scale=thickness_scale,
                 camber_scale=camber_scale,
-                section_align=section_align,
             )
         )
         is not None

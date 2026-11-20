@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
+from itertools import pairwise
 from typing import Any
 
 from setuav_studio.model.expression import get_expression
@@ -28,6 +29,7 @@ from .lifting_surface_driver_solver import (
 from .lifting_surface_planform_engine import compute_planform_metrics
 
 ANGLE_KEYS = ("sweep", "dihedral", "twist")
+SECTION_ALIGNS = ("xz", "normal")
 DEFAULT_ACTIVE_DRIVERS = ("span", "root_chord", "tip_chord")
 
 # The order a wing's geometry is stored in: the wing-wide settings, the planform drivers,
@@ -63,13 +65,23 @@ def build_profiles(
     root: dict[str, Any],
     sections: list[dict[str, Any]],
     sweep_location: float,
+    section_align: str,
 ) -> list[dict[str, Any]]:
-    """Profile stations of the wing, from its root along its sections."""
+    """Profile stations of the wing, from its root along its sections.
+
+    With ``section_align`` "normal" each station's airfoil plane is rolled to stand
+    normal to the wing: by its section's dihedral at the root and tip, and by the
+    mean of the two sections' dihedrals where they meet. With "xz" the airfoils
+    stay parallel to the XZ plane.
+    """
     if not sections:
         raise ValueError("A lifting surface needs at least one section")
+    if section_align not in SECTION_ALIGNS:
+        raise ValueError(f"Unknown lifting surface section alignment {section_align!r}")
+    rolls = _station_rolls(sections) if section_align == "normal" else [0.0] * (len(sections) + 1)
     x = y = z = pitch = 0.0
     chord = _positive(root["chord"], "Root chord")
-    profiles = [_profile(x, y, z, pitch, chord, root["airfoil"])]
+    profiles = [_profile(x, y, z, rolls[0], pitch, chord, root["airfoil"])]
     for number, section in enumerate(sections, start=1):
         span = _positive(section["span"], f"Section {number} span")
         tip_chord = _positive(section["tip"]["chord"], f"Section {number} tip chord")
@@ -80,8 +92,14 @@ def build_profiles(
         z += span * math.tan(math.radians(float(section["dihedral"])))
         pitch += float(section["twist"])
         chord = tip_chord
-        profiles.append(_profile(x, y, z, pitch, chord, section["tip"]["airfoil"]))
+        profiles.append(_profile(x, y, z, rolls[number], pitch, chord, section["tip"]["airfoil"]))
     return profiles
+
+
+def _station_rolls(sections: list[dict[str, Any]]) -> list[float]:
+    dihedrals = [float(section["dihedral"]) for section in sections]
+    inner = [(a + b) / 2.0 for a, b in pairwise(dihedrals)]
+    return [dihedrals[0], *inner, dihedrals[-1]]
 
 
 def section_root(
@@ -95,7 +113,10 @@ def layout_planform(
     geometry: dict[str, Any], *, symmetric: bool, y_offset: float
 ) -> dict[str, float]:
     """The eight planform driver values and the overall angles of the wing."""
-    profiles = build_profiles(geometry["root"], geometry["sections"], geometry["sweep_location"])
+    # Rolling the airfoils does not change the planform.
+    profiles = build_profiles(
+        geometry["root"], geometry["sections"], geometry["sweep_location"], "xz"
+    )
     metrics = compute_planform_metrics(
         profiles, geometry["sweep_location"], symmetric=symmetric, y_offset=y_offset
     )
@@ -193,7 +214,9 @@ def derive_profiles(geometry: dict[str, Any], *, symmetric: bool, y_offset: floa
     layout = {key: deepcopy(geometry[key]) for key in ("root", "sections", "planform")}
     layout["sweep_location"] = geometry["sweep_location"]
     apply_wing_formulas(layout, symmetric=symmetric, y_offset=y_offset)
-    profiles = build_profiles(layout["root"], layout["sections"], layout["sweep_location"])
+    profiles = build_profiles(
+        layout["root"], layout["sections"], layout["sweep_location"], geometry["section_align"]
+    )
     _replace(geometry["root"], _ordered(layout["root"], _PROFILE_KEY_ORDER))
     for section, derived in zip(geometry["sections"], layout["sections"], strict=True):
         _replace(section["tip"], _ordered(derived["tip"], _PROFILE_KEY_ORDER))
@@ -266,12 +289,12 @@ def _replace(target: dict[str, Any], values: dict[str, Any]) -> None:
 
 
 def _profile(
-    x: float, y: float, z: float, pitch: float, chord: float, airfoil: Any
+    x: float, y: float, z: float, roll: float, pitch: float, chord: float, airfoil: Any
 ) -> dict[str, Any]:
     return {
         "position": {"x": x, "y": y, "z": z},
         "chord": chord,
-        "rotation": {"x": 0.0, "y": pitch, "z": 0.0},
+        "rotation": {"x": roll, "y": pitch, "z": 0.0},
         "airfoil": deepcopy(airfoil),
     }
 

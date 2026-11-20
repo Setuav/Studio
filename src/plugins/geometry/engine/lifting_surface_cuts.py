@@ -27,14 +27,13 @@ def build_lifting_surface_with_control_surfaces(
     te_thickness: float = 0.0,
     thickness_scale: float = 1.0,
     camber_scale: float = 1.0,
-    section_align: str = "xz",
     *,
     plain_surface_builder: Callable[..., tuple[LoftGeometry, ...]],
     interpolate_station_fn: Callable[
         ..., tuple[float, dict[str, Any], tuple[tuple[float, float], ...]]
     ],
     apply_shaping_fn: Callable[..., tuple[tuple[float, float], ...]],
-    section_with_align_fn: Callable[..., Section],
+    station_section_fn: Callable[..., Section],
 ) -> tuple[LoftGeometry, ...]:
     """Build spanwise wing partitions with independent control-surface bays."""
     span_values, root, semi_span, span_direction = profile_span_context(profiles)
@@ -51,10 +50,10 @@ def build_lifting_surface_with_control_surfaces(
             comp_id,
             profiles,
             interpolation,
+            twist_location,
             te_thickness,
             thickness_scale,
             camber_scale,
-            section_align,
         )
 
     lofts: list[LoftGeometry] = []
@@ -75,10 +74,9 @@ def build_lifting_surface_with_control_surfaces(
                     te_thickness,
                     thickness_scale,
                     camber_scale,
-                    section_align,
                     interpolate_station_fn=interpolate_station_fn,
                     apply_shaping_fn=apply_shaping_fn,
-                    section_with_align_fn=section_with_align_fn,
+                    station_section_fn=station_section_fn,
                 )
             )
         else:
@@ -96,10 +94,9 @@ def build_lifting_surface_with_control_surfaces(
                     te_thickness,
                     thickness_scale,
                     camber_scale,
-                    section_align,
                     interpolate_station_fn=interpolate_station_fn,
                     apply_shaping_fn=apply_shaping_fn,
-                    section_with_align_fn=section_with_align_fn,
+                    station_section_fn=station_section_fn,
                 )
             )
     return tuple(lofts)
@@ -235,13 +232,12 @@ def build_uncut_segment(
     te_thickness: float,
     thickness_scale: float,
     camber_scale: float,
-    section_align: str,
     *,
     interpolate_station_fn: Callable[
         ..., tuple[float, dict[str, Any], tuple[tuple[float, float], ...]]
     ],
     apply_shaping_fn: Callable[..., tuple[tuple[float, float], ...]],
-    section_with_align_fn: Callable[..., Section],
+    station_section_fn: Callable[..., Section],
 ) -> LoftGeometry:
     sections: list[Section] = []
     for station in stations:
@@ -252,8 +248,6 @@ def build_uncut_segment(
             thickness_scale,
             camber_scale,
         )
-        rotation = mapping(profile.get("rotation"))
-        dihedral = math.radians(float(rotation.get("x", 0.0)))
         matrix = section_transform(profile, chord=chord, twist_location=twist_location)
         main_2d, _ = sample_structured_airfoil_round(
             coordinates,
@@ -261,12 +255,10 @@ def build_uncut_segment(
             is_flap=False,
         )
         sections.append(
-            section_with_align_fn(
+            station_section_fn(
                 matrix,
                 chord,
                 main_2d,
-                dihedral,
-                section_align,
                 is_station=is_original_station(station, span_values),
             )
         )
@@ -294,13 +286,12 @@ def build_control_segment(
     te_thickness: float,
     thickness_scale: float,
     camber_scale: float,
-    section_align: str,
     *,
     interpolate_station_fn: Callable[
         ..., tuple[float, dict[str, Any], tuple[tuple[float, float], ...]]
     ],
     apply_shaping_fn: Callable[..., tuple[tuple[float, float], ...]],
-    section_with_align_fn: Callable[..., Section],
+    station_section_fn: Callable[..., Section],
 ) -> tuple[LoftGeometry, LoftGeometry]:
     hinge_orig = hinge_origin(control, root, span_direction, profiles, interpolate_station_fn)
     main_sections: list[Section] = []
@@ -318,10 +309,9 @@ def build_control_segment(
             te_thickness,
             thickness_scale,
             camber_scale,
-            section_align,
             interpolate_station_fn=interpolate_station_fn,
             apply_shaping_fn=apply_shaping_fn,
-            section_with_align_fn=section_with_align_fn,
+            station_section_fn=station_section_fn,
         )
         main_sections.append(main)
         flap_sections.append(flap)
@@ -381,13 +371,12 @@ def control_station_sections(
     te_thickness: float,
     thickness_scale: float,
     camber_scale: float,
-    section_align: str,
     *,
     interpolate_station_fn: Callable[
         ..., tuple[float, dict[str, Any], tuple[tuple[float, float], ...]]
     ],
     apply_shaping_fn: Callable[..., tuple[tuple[float, float], ...]],
-    section_with_align_fn: Callable[..., Section],
+    station_section_fn: Callable[..., Section],
 ) -> tuple[Section, Section, Point3D]:
     chord, profile, coordinates = interpolate_station_fn(station, profiles)
     coordinates = apply_shaping_fn(
@@ -396,8 +385,6 @@ def control_station_sections(
         thickness_scale,
         camber_scale,
     )
-    rotation = mapping(profile.get("rotation"))
-    dihedral = math.radians(float(rotation.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     position = mapping(profile.get("position"))
     hinge_frac = hinge_fraction(
@@ -417,20 +404,16 @@ def control_station_sections(
         x_h=hinge_frac,
         is_flap=True,
     )
-    main = section_with_align_fn(
+    main = station_section_fn(
         matrix,
         chord,
         main_2d,
-        dihedral,
-        section_align,
         is_station=is_original_station(station, span_values),
     )
-    flap = section_with_align_fn(
+    flap = station_section_fn(
         matrix,
         chord,
         flap_2d,
-        dihedral,
-        section_align,
         is_station=False,
     )
     hinge_3d = transform_point(
