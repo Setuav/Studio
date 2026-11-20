@@ -8,6 +8,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_PACKAGE_ROOT = PROJECT_ROOT / "src" / "setuav_studio"
 RESOURCE_DIRECTORIES = ("assets", "data")
+# Source-only folders inside the resource directories: the icon generator.
+SOURCE_ONLY = (Path("assets") / "icons" / "tools",)
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -31,6 +33,7 @@ def main() -> int:
         for directory in RESOURCE_DIRECTORIES
         for path in (SOURCE_PACKAGE_ROOT / directory).rglob("*")
         if path.is_file()
+        and not any(path.relative_to(SOURCE_PACKAGE_ROOT).is_relative_to(s) for s in SOURCE_ONLY)
     }
     missing = sorted(
         str(resource)
