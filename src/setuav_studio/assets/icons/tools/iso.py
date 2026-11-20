@@ -25,7 +25,8 @@ COLORS = {
     "k": (0x4A, 0x4E, 0x55),  # black lead
     "l": (0xA6, 0xDA, 0xFF),  # motor light blue
     "s": (0xE6, 0xC8, 0x8C),  # propeller sand
-    "o": (0xFF, 0xA0, 0x40),  # mass orange
+    "o": (0xFF, 0xA0, 0x40),  # folder orange
+    "u": (0xE8, 0xC8, 0x6A),  # point mass light gold
     "x": (0xFF, 0xFF, 0xFF),  # paper white
     "t": (0x00, 0xD1, 0xD1),  # spar tube cyan, as in the 3D view
     "h": (0xFF, 0x69, 0xB5),  # hinge tube pink, as in the 3D view
@@ -526,7 +527,7 @@ def icon_propulsion_battery():
 
 def icon_point_mass():
     """The weight symbol: a tapered block with a ring handle."""
-    sc = Scene(body="o")
+    sc = Scene(body="u")
 
     def rounded_square(z, half, r=0.12, k=4):
         pts = []
