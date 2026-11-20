@@ -15,18 +15,8 @@ from setuav_studio.utilities.transform import (
     resolve_world_transform,
 )
 
+from .aerosandbox_module import asb, np
 from .base import AeroAnalysisError, ControlSurfaceType, FlightCondition
-
-if TYPE_CHECKING:
-    asb: Any = None
-    np: Any = None
-else:
-    try:
-        import aerosandbox as asb
-        import aerosandbox.numpy as np
-    except ImportError:
-        asb = None
-        np = None
 
 
 def metric_frame(position_mm: Point3D, rotation_deg: Rotation3D) -> tuple[Any, Any]:

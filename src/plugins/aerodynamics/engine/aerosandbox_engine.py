@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from plugins.geometry.engine.airfoil import (
     airfoil_label,
@@ -15,6 +15,7 @@ from setuav_studio.utilities.transform import euler_to_matrix, resolve_world_tra
 
 from .aerosandbox_analysis import AeroSandboxAnalysisMixin
 from .aerosandbox_geometry import AeroSandboxGeometryMixin, metric_frame
+from .aerosandbox_module import HAS_AEROSANDBOX, asb, np
 from .base import (
     AeroEngine,
     AnalysisMethod,
@@ -22,21 +23,6 @@ from .base import (
     EngineCapabilities,
     FlightCondition,
 )
-
-if TYPE_CHECKING:
-    asb: Any = None
-    np: Any = None
-    HAS_AEROSANDBOX = True
-else:
-    try:
-        import aerosandbox as asb
-        import aerosandbox.numpy as np
-
-        HAS_AEROSANDBOX = True
-    except ImportError:
-        HAS_AEROSANDBOX = False
-        asb = None
-        np = None
 
 
 class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, AeroEngine):

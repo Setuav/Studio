@@ -9,6 +9,7 @@ import numpy as onp
 
 from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
+from .aerosandbox_module import HAS_AEROSANDBOX, asb, np
 from .aerosandbox_results import AeroSandboxResultMixin
 from .base import (
     AeroResult,
@@ -23,21 +24,6 @@ from .base import (
 from .stability_engine import StabilityAnalysisEngine
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    asb: Any = None
-    np: Any = None
-    HAS_AEROSANDBOX = True
-else:
-    try:
-        import aerosandbox as asb
-        import aerosandbox.numpy as np
-
-        HAS_AEROSANDBOX = True
-    except ImportError:
-        HAS_AEROSANDBOX = False
-        asb = None
-        np = None
 
 
 DEFAULT_SOLVER_SETTINGS: dict[str, Any] = {

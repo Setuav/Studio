@@ -8,13 +8,7 @@ from typing import Any
 
 import numpy as np
 
-try:
-    import aerosandbox as asb
-
-    HAS_AEROSANDBOX = True
-except ImportError:
-    HAS_AEROSANDBOX = False
-
+from .aerosandbox_module import HAS_AEROSANDBOX, asb
 from .airfoil_cache import AirfoilPolarCache, global_airfoil_cache
 from .airfoil_models import AirfoilPolar, AirfoilPolarPoint
 

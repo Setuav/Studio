@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from .aerosandbox_module import asb, np
 from .base import (
     AeroAnalysisError,
     AeroForcesMoments,
@@ -16,17 +17,6 @@ from .base import (
     SweepType,
     SweepVariable,
 )
-
-if TYPE_CHECKING:
-    asb: Any = None
-    np: Any = None
-else:
-    try:
-        import aerosandbox as asb
-        import aerosandbox.numpy as np
-    except ImportError:
-        asb = None
-        np = None
 
 
 class AeroSandboxResultMixin:
