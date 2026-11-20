@@ -189,6 +189,24 @@ class TestComponentEditor(unittest.TestCase):
         assert isinstance(editor2, BaseComponentEditor)
         self.assertEqual(editor2._component["parameters"]["span"], 4.0)
 
+    def test_replacing_the_properties_widget_twice_opens_no_stray_window(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        from setuav_studio.ui.panels.properties import PropertiesPanel
+
+        panel = PropertiesPanel(StudioAPI())
+        self.addCleanup(panel.deleteLater)
+        panel.show()
+        QApplication.processEvents()
+
+        # Two replacements in one event-loop pass, as on startup.
+        panel.set_selection(None)
+        panel.set_selection(None)
+        QApplication.processEvents()
+
+        stray = [w for w in QApplication.topLevelWidgets() if w.isVisible() and w is not panel]
+        self.assertEqual(stray, [])
+
     def test_on_expression_cell_changed_with_float_and_spinbox_callback(self) -> None:
         api = StudioAPI()
         doc = ProjectDocument(

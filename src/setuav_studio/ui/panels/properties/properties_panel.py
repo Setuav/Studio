@@ -216,8 +216,10 @@ class PropertiesPanel(QWidget):
                 if getattr(cell, "_is_focused", False):
                     cell._on_focus_out()
 
+            # Hide instead of unparenting: a widget added to the layout in this same
+            # event-loop pass still has a pending show, which would open it as its own window.
             self._layout.removeWidget(self._current_widget)
-            self._current_widget.setParent(None)
+            self._current_widget.hide()
             self._current_widget.deleteLater()
         self._current_widget = widget
         if widget is not None:
