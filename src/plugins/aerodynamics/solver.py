@@ -267,7 +267,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
 
         table = TableDefinition(
             id="alpha_polar",
-            title="Aerodynamic Polar Data",
+            title="Polar",
             columns=[
                 TableColumn("alpha", "AoA (α)", unit="°", quantity_id="angle"),
                 TableColumn("cl", "CL"),
@@ -295,7 +295,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
         plots = [
             PlotDefinition(
                 id="cl_alpha",
-                title="Lift Curve (CL vs α)",
+                title="CL vs α",
                 table_id="alpha_polar",
                 x_column="alpha",
                 series=[PlotSeriesDef("cl", "CL", color="#3b82f6")],
@@ -304,7 +304,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cd_alpha",
-                title="Drag Curve (CD vs α)",
+                title="CD vs α",
                 table_id="alpha_polar",
                 x_column="alpha",
                 series=[
@@ -317,7 +317,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="drag_polar",
-                title="Drag Polar (CL vs CD)",
+                title="CL vs CD",
                 table_id="alpha_polar",
                 x_column="cd",
                 series=[PlotSeriesDef("cl", "Polar", color="#10b981")],
@@ -326,7 +326,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cl_over_cd",
-                title="Lift-to-Drag Ratio (L/D vs α)",
+                title="L/D vs α",
                 table_id="alpha_polar",
                 x_column="alpha",
                 series=[PlotSeriesDef("cl_over_cd", "L/D", color="#06b6d4")],
@@ -335,7 +335,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cm_alpha",
-                title="Pitching Moment (Cm vs α)",
+                title="Cm vs α",
                 table_id="alpha_polar",
                 x_column="alpha",
                 series=[PlotSeriesDef("cm", "Cm", color="#f59e0b")],
@@ -539,7 +539,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
 
         table = TableDefinition(
             id="beta_polar",
-            title="Sideslip Aerodynamic Data",
+            title="Sideslip",
             columns=[
                 TableColumn("beta", "Sideslip (β)", unit="°", quantity_id="angle"),
                 TableColumn("cy", "CY"),
@@ -559,7 +559,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
         plots = [
             PlotDefinition(
                 id="cy_beta",
-                title="Side Force (CY vs β)",
+                title="CY vs β",
                 table_id="beta_polar",
                 x_column="beta",
                 series=[PlotSeriesDef("cy", "CY", color="#3b82f6")],
@@ -568,7 +568,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cl_roll_beta",
-                title="Rolling Moment (Cl vs β)",
+                title="Cl vs β",
                 table_id="beta_polar",
                 x_column="beta",
                 series=[PlotSeriesDef("cl_roll", "Cl (Roll)", color="#8b5cf6")],
@@ -577,7 +577,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cn_beta",
-                title="Yawing Moment (Cn vs β)",
+                title="Cn vs β",
                 table_id="beta_polar",
                 x_column="beta",
                 series=[PlotSeriesDef("cn", "Cn (Yaw)", color="#f59e0b")],
@@ -809,7 +809,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         table = TableDefinition(
             id="control_polar",
-            title=f"Control Response Data ({channel.capitalize()})",
+            title="Response",
             columns=[
                 TableColumn(
                     "deflection", f"Deflection δ ({channel})", unit="°", quantity_id="angle"
@@ -833,7 +833,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
         plots = [
             PlotDefinition(
                 id="cm_delta",
-                title=f"Pitching Moment vs Deflection (Cm vs δ_{channel})",
+                title="Cm vs δ",
                 table_id="control_polar",
                 x_column="deflection",
                 series=[PlotSeriesDef("cm", "Cm", color="#f59e0b")],
@@ -842,7 +842,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="cl_delta",
-                title=f"Lift vs Deflection (CL vs δ_{channel})",
+                title="CL vs δ",
                 table_id="control_polar",
                 x_column="deflection",
                 series=[PlotSeriesDef("cl", "CL", color="#3b82f6")],
@@ -851,7 +851,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             ),
             PlotDefinition(
                 id="roll_yaw_delta",
-                title=f"Roll & Yaw Moments vs Deflection (Cl, Cn vs δ_{channel})",
+                title="Cl, Cn vs δ",
                 table_id="control_polar",
                 x_column="deflection",
                 series=[
@@ -1071,7 +1071,7 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
 
         table = TableDefinition(
             id="operating_point_data",
-            title="Operating Point State Breakdown",
+            title="State",
             columns=[
                 TableColumn("alpha", "AoA (α)", unit="°", quantity_id="angle"),
                 TableColumn("beta", "Sideslip (β)", unit="°", quantity_id="angle"),

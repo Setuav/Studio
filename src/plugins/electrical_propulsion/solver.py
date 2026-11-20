@@ -238,7 +238,7 @@ class BasePropulsionSolver(AbstractSolver):
             table_data["endurance"] = endurances
         dataset_table = TableDefinition(
             id="propulsion_data",
-            title="Propulsion Performance Data",
+            title="Performance",
             columns=table_columns,
             data=table_data,
         )
@@ -246,7 +246,7 @@ class BasePropulsionSolver(AbstractSolver):
         plots: dict[str, PlotDefinition] = {
             "plot_thrust": PlotDefinition(
                 id="plot_thrust",
-                title="Thrust Force",
+                title="Thrust",
                 table_id="propulsion_data",
                 x_column=plot_x_col,
                 x_label=plot_x_label,
@@ -274,7 +274,7 @@ class BasePropulsionSolver(AbstractSolver):
             ),
             "plot_rpm": PlotDefinition(
                 id="plot_rpm",
-                title="Rotational Speed (RPM)",
+                title="RPM",
                 table_id="propulsion_data",
                 x_column=plot_x_col,
                 x_label=plot_x_label,
@@ -284,7 +284,7 @@ class BasePropulsionSolver(AbstractSolver):
             ),
             "plot_efficiency": PlotDefinition(
                 id="plot_efficiency",
-                title="System & Component Efficiency",
+                title="Efficiency",
                 table_id="propulsion_data",
                 x_column=plot_x_col,
                 x_label=plot_x_label,

@@ -467,9 +467,7 @@ class FlightPerformanceSolver(AbstractSolver):
                     "feasible": propulsion.feasible.tolist(),
                 }
             )
-        return TableDefinition(
-            id=_TABLE_ID, title="Level Flight Envelope", columns=columns, data=data
-        )
+        return TableDefinition(id=_TABLE_ID, title="Envelope", columns=columns, data=data)
 
     @staticmethod
     def _plots(envelope: PerformanceEnvelope) -> list[PlotDefinition]:
@@ -479,7 +477,7 @@ class FlightPerformanceSolver(AbstractSolver):
         plots = [
             PlotDefinition(
                 id="power_curves",
-                title="Power Required vs Available",
+                title="Power",
                 table_id=_TABLE_ID,
                 x_column="velocity",
                 series=[
@@ -495,7 +493,7 @@ class FlightPerformanceSolver(AbstractSolver):
             ),
             PlotDefinition(
                 id="thrust_curves",
-                title="Drag vs Thrust Available",
+                title="Drag & Thrust",
                 table_id=_TABLE_ID,
                 x_column="velocity",
                 series=[
@@ -542,7 +540,7 @@ class FlightPerformanceSolver(AbstractSolver):
                     ),
                     PlotDefinition(
                         id="battery_load",
-                        title="Battery Current & Throttle",
+                        title="Current & Throttle",
                         table_id=_TABLE_ID,
                         x_column="velocity",
                         series=[
