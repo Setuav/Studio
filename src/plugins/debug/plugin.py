@@ -363,11 +363,11 @@ class DebugPlugin:
 
         config = SolverConfig(
             solver_id=SOLVER_ID_MOCK_GENERATOR,
-            name="Mock Analysis",
+            name="Mock",
             parameters=MockGeneratorSolver.default_parameters(),
         )
         self._api.add_solver_config(config)
-        self._api.show_status("Added Mock Analysis configuration.", "success", 3000)
+        self._api.show_status("Added Mock configuration.", "success", 3000)
 
 
 def _derive_envelope(component: dict[str, Any], _components: Mapping[str, dict[str, Any]]) -> None:

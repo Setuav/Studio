@@ -610,7 +610,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         explorer = ProjectExplorer(self.api)
         config_item = explorer._item_map[config.config_id]
-        self.assertEqual(config_item.text(0), "Alpha Sweep Analysis")
+        self.assertEqual(config_item.text(0), "Alpha Sweep")
         analyses_group = config_item.parent()
         assert analyses_group is not None
         self.assertEqual(analyses_group.text(0), "Analyses")

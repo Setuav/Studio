@@ -60,7 +60,7 @@ class AerodynamicsPlugin:
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_ALPHA_SWEEP,
-                name="Alpha Sweep Analysis",
+                name="Alpha Sweep",
                 parameters=AlphaSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
@@ -72,7 +72,7 @@ class AerodynamicsPlugin:
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_BETA_SWEEP,
-                name="Beta Sweep Analysis",
+                name="Beta Sweep",
                 parameters=BetaSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
@@ -84,7 +84,7 @@ class AerodynamicsPlugin:
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_CONTROL_DEFLECTION,
-                name="Control Deflection Analysis",
+                name="Control Deflection",
                 parameters=ControlDeflectionSolver.default_parameters(),
             )
             api.add_solver_config(config)
@@ -96,7 +96,7 @@ class AerodynamicsPlugin:
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_OPERATING_POINT,
-                name="Operating Point Analysis",
+                name="Operating Point",
                 parameters=OperatingPointSolver.default_parameters(),
             )
             api.add_solver_config(config)

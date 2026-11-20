@@ -433,15 +433,13 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         api._host.set_project(open_project(TEST_PROJECT_PATH))
         expected = [
-            ("Throttle Sweep Analysis", SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver),
-            ("Airspeed Sweep Analysis", SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver),
-            ("Operating Point Analysis", SOLVER_ID_OPERATING_POINT, OperatingPointSolver),
+            ("Throttle Sweep", SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver),
+            ("Airspeed Sweep", SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver),
+            ("Operating Point", SOLVER_ID_OPERATING_POINT, OperatingPointSolver),
         ]
-        button_titles = {
-            "Operating Point Analysis": "Add Propulsion Operating Point Analysis",
-        }
+        button_titles = {"Operating Point": "Add Propulsion Operating Point Analysis"}
         for name, solver_id, solver_cls in expected:
-            self._press(buttons, button_titles.get(name, f"Add {name}"))
+            self._press(buttons, button_titles.get(name, f"Add {name} Analysis"))
             config = api.get_current_solver_config()
             assert config is not None
             self.assertEqual(config.solver_id, solver_id)

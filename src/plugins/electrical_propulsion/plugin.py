@@ -140,11 +140,11 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_THROTTLE_SWEEP,
-                name="Throttle Sweep Analysis",
+                name="Throttle Sweep",
                 parameters=ThrottleSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
-            api.show_status("Added Throttle Sweep Analysis configuration.", "success", 3000)
+            api.show_status("Added Throttle Sweep configuration.", "success", 3000)
 
         def add_airspeed_sweep_analysis() -> None:
             if api.project is None:
@@ -152,11 +152,11 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_AIRSPEED_SWEEP,
-                name="Airspeed Sweep Analysis",
+                name="Airspeed Sweep",
                 parameters=AirspeedSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
-            api.show_status("Added Airspeed Sweep Analysis configuration.", "success", 3000)
+            api.show_status("Added Airspeed Sweep configuration.", "success", 3000)
 
         def add_operating_point_analysis() -> None:
             if api.project is None:
@@ -164,11 +164,11 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 return
             config = SolverConfig(
                 solver_id=SOLVER_ID_OPERATING_POINT,
-                name="Operating Point Analysis",
+                name="Operating Point",
                 parameters=OperatingPointSolver.default_parameters(),
             )
             api.add_solver_config(config)
-            api.show_status("Added Operating Point Analysis configuration.", "success", 3000)
+            api.show_status("Added Operating Point configuration.", "success", 3000)
 
         analyses = (
             (

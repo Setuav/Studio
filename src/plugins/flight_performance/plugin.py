@@ -56,7 +56,7 @@ class FlightPerformancePlugin:
         api.add_solver_config(
             SolverConfig(
                 solver_id=SOLVER_ID_FLIGHT_PERFORMANCE,
-                name="Flight Performance Analysis",
+                name="Flight Performance",
                 parameters=FlightPerformanceSolver.default_parameters(),
             )
         )
