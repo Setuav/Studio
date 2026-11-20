@@ -1,6 +1,6 @@
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import tokens
 
 
 class PropertiesPanel(QWidget):
@@ -131,7 +132,27 @@ class PropertiesPanel(QWidget):
 
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
-        tabs.tabBar().setDrawBase(False)
+        tabs.setIconSize(QSize(16, 16))
+        tab_bar = tabs.tabBar()
+        # The tabs share the panel width; only the selected one is marked, by an
+        # accent underline and bright text, so selecting a tab never resizes it.
+        tab_bar.setExpanding(True)
+        tab_bar.setUsesScrollButtons(False)
+        tab_bar.setDrawBase(False)
+        colors = tokens()
+        tabs.setStyleSheet(
+            f"QTabBar::tab {{ background: transparent; border: none;"
+            f" border-bottom: 2px solid transparent; color: {colors['text_muted']};"
+            f" padding: 6px 8px; margin: 0; }}"
+            f"QTabBar::tab:hover {{ color: {colors['text']}; }}"
+            f"QTabBar::tab:selected {{ color: {colors['text_bright']};"
+            f" border-bottom: 2px solid {colors['accent']}; }}"
+            f"QTabWidget::pane {{ border-top: 1px solid {colors['border_strong']};"
+            f" padding-top: 6px; }}"
+        )
+
+        def add_tab(page: QWidget, icon: str, title: str) -> None:
+            tabs.addTab(page, get_icon(icon), title)
 
         # Tab 0: Parameters (Primary Component Editor)
         primary_editor = self._api.create_component_editor(component)
@@ -139,19 +160,19 @@ class PropertiesPanel(QWidget):
             name = str(component.get("name") or comp_id)
             ctype = str(component.get("type") or "Unknown")
             primary_editor = self._message(f"{name}\n\nNo primary parameters editor for\n{ctype}")
-        tabs.addTab(primary_editor, get_icon("fa6s.sliders"), "Parameters")
+        add_tab(primary_editor, "fa6s.sliders", "Parameters")
 
         # Tab 1: Transform
         tf_editor = TransformEditor(self._api, component)
-        tabs.addTab(tf_editor, get_icon("transform"), "Transform")
+        add_tab(tf_editor, "transform", "Transform")
 
         # Tab 2: Envelope
         env_editor = EnvelopeEditor(self._api, component)
-        tabs.addTab(env_editor, get_icon("envelope"), "Envelope")
+        add_tab(env_editor, "envelope", "Envelope")
 
         # Tab 3: Mass
         mass_editor = MassPropertiesEditor(self._api, component)
-        tabs.addTab(mass_editor, get_icon("point_mass"), "Mass")
+        add_tab(mass_editor, "point_mass", "Mass")
 
         # Connect tab switching to update viewport CG
         tabs.currentChanged.connect(self._on_component_tab_changed)
