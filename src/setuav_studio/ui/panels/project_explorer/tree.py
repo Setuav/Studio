@@ -53,7 +53,7 @@ class ProjectExplorer(QTreeWidget):
         self.setIndentation(20)
         self.setRootIsDecorated(True)
         self.setUniformRowHeights(True)
-        self.setIconSize(QSize(16, 16))
+        self.setIconSize(QSize(18, 18))
         self.setItemDelegate(ProjectExplorerDelegate(self))
         self._branch_style = _ProjectExplorerBranchStyle(self)
         self.setStyle(self._branch_style)

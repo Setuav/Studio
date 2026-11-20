@@ -44,14 +44,12 @@ class ToolbarManager:
         new_project_action: QAction,
         open_folder_action: QAction,
         save_action: QAction,
-        save_as_action: QAction,
         undo_action: QAction,
         redo_action: QAction,
     ) -> None:
         self.standard_toolbar.addAction(new_project_action)
         self.standard_toolbar.addAction(open_folder_action)
         self.standard_toolbar.addAction(save_action)
-        self.standard_toolbar.addAction(save_as_action)
         self.standard_toolbar.addSeparator()
         self.standard_toolbar.addAction(undo_action)
         self.standard_toolbar.addAction(redo_action)

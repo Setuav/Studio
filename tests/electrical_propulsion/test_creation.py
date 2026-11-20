@@ -9,12 +9,12 @@ from plugins.electrical_propulsion.creation import PropulsionCreationController
 from plugins.electrical_propulsion.models import BatteryModel, PropulsorModel
 from plugins.electrical_propulsion.models.battery import BATTERY_OVERRIDES, battery_pack
 from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
-from setuav_studio.api import StudioAPI, ToolbarContribution, ToolbarMenuItemContribution
+from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 
 
-def _enabled(contribution: ToolbarContribution | ToolbarMenuItemContribution) -> bool:
+def _enabled(contribution: ToolbarContribution) -> bool:
     assert contribution.enabled_when is not None
     return contribution.enabled_when()
 
@@ -38,23 +38,23 @@ class PropulsionCreationTests(unittest.TestCase):
         self.api._host.set_project(self.project)
         self.controller = PropulsionCreationController(self.api)
 
-    def test_toolbar_menu_adds_propulsors_and_batteries(self) -> None:
-        (contribution,) = self.controller.contributions()
-        self.assertEqual(contribution.id, PropulsionCreationController.toolbar_id)
+    def test_toolbar_buttons_add_propulsors_and_batteries(self) -> None:
+        contributions = self.controller.contributions()
         self.assertEqual(
-            [item.title for item in contribution.menu_items], ["Add Propulsor", "Add Battery"]
+            tuple(c.id for c in contributions), PropulsionCreationController.toolbar_ids
         )
-        self.assertTrue(_enabled(contribution))
-        for item in contribution.menu_items:
-            self.assertTrue(_enabled(item))
-            item.callback()
+        self.assertEqual([c.title for c in contributions], ["Add Propulsor", "Add Battery"])
+        for contribution in contributions:
+            self.assertTrue(_enabled(contribution))
+            assert contribution.callback is not None
+            contribution.callback()
         self.assertEqual(
             [c["type"] for c in self.project.data["components"]],
             [PROPULSOR_TYPE, "org.setuav.core:battery"],
         )
 
         self.project.read_only = True
-        self.assertFalse(_enabled(contribution))
+        self.assertFalse(any(_enabled(c) for c in contributions))
 
     def test_new_propulsor_waits_for_its_motor_and_propeller(self) -> None:
         self.controller.add_propulsor()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from plugins.aerodynamics.solver import (
@@ -17,10 +18,10 @@ from plugins.aerodynamics.solver import (
 from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
-    ToolbarMenuItemContribution,
     ToolContribution,
 )
 from setuav_studio.solver import SolverConfig
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
 if TYPE_CHECKING:
     from .airfoil_analysis_tool import AirfoilAnalysisToolWindow
@@ -35,17 +36,22 @@ class AerodynamicsPlugin:
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._tool_windows: set[AirfoilAnalysisToolWindow] = set()
-        self._analysis_tools: list[ToolContribution] = []
-        self._analysis_toolbar_id: str | None = None
+        self._tools: list[ToolContribution] = []
+        self._analysis_toolbar_ids: list[str] = []
 
     def activate(self, api: StudioAPI) -> None:
+        register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
         self._api = api
 
         # 1. Register Aerodynamics Solvers
-        api.register_solver(SOLVER_ID_ALPHA_SWEEP, AlphaSweepSolver)
-        api.register_solver(SOLVER_ID_BETA_SWEEP, BetaSweepSolver)
-        api.register_solver(SOLVER_ID_CONTROL_DEFLECTION, ControlDeflectionSolver)
-        api.register_solver(SOLVER_ID_OPERATING_POINT, OperatingPointSolver)
+        api.register_solver(SOLVER_ID_ALPHA_SWEEP, AlphaSweepSolver, icon="aero_alpha_sweep")
+        api.register_solver(SOLVER_ID_BETA_SWEEP, BetaSweepSolver, icon="aero_beta_sweep")
+        api.register_solver(
+            SOLVER_ID_CONTROL_DEFLECTION, ControlDeflectionSolver, icon="aero_control_deflection"
+        )
+        api.register_solver(
+            SOLVER_ID_OPERATING_POINT, OperatingPointSolver, icon="aero_operating_point"
+        )
 
         # 2. Solver Config Creation Callbacks
         def add_alpha_sweep_analysis() -> None:
@@ -96,88 +102,68 @@ class AerodynamicsPlugin:
             api.add_solver_config(config)
             api.show_status("Added Aerodynamic Operating Point configuration.", "success", 3000)
 
-        # 3. Register Toolbar Item with Dropdown Menu
-        self._analysis_toolbar_id = "aerodynamics.add-analysis"
-        api.register_toolbar_item(
-            ToolbarContribution(
-                id=self._analysis_toolbar_id,
-                title="Add Aerodynamic Analysis",
-                icon="fa6s.wind",
-                menu_items=(
-                    ToolbarMenuItemContribution(
-                        title="Alpha Sweep (Polar) Analysis",
-                        callback=add_alpha_sweep_analysis,
-                        icon="fa6s.chart-line",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Beta Sweep (Sideslip) Analysis",
-                        callback=add_beta_sweep_analysis,
-                        icon="fa6s.arrows-left-right",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Control Deflection Analysis",
-                        callback=add_control_deflection_analysis,
-                        icon="fa6s.sliders",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Operating Point Analysis",
-                        callback=add_operating_point_analysis,
-                        icon="fa6s.crosshairs",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                ),
-                enabled_when=lambda: api.project is not None,
-                group="aerodynamics-creation",
-                order=130,
-            )
+        # 3. Register one toolbar button per analysis
+        analyses = (
+            (
+                "alpha-sweep",
+                "Add Alpha Sweep (Polar) Analysis",
+                add_alpha_sweep_analysis,
+                "aero_alpha_sweep",
+            ),
+            (
+                "beta-sweep",
+                "Add Beta Sweep (Sideslip) Analysis",
+                add_beta_sweep_analysis,
+                "aero_beta_sweep",
+            ),
+            (
+                "control-deflection",
+                "Add Control Deflection Analysis",
+                add_control_deflection_analysis,
+                "aero_control_deflection",
+            ),
+            (
+                "operating-point",
+                "Add Aero Operating Point Analysis",
+                add_operating_point_analysis,
+                "aero_operating_point",
+            ),
         )
+        for index, (key, title, callback, icon) in enumerate(analyses):
+            toolbar_id = f"aerodynamics.add-{key}"
+            api.register_toolbar_item(
+                ToolbarContribution(
+                    id=toolbar_id,
+                    title=title,
+                    callback=callback,
+                    icon=icon,
+                    enabled_when=lambda: api.project is not None,
+                    group="analysis",
+                    order=200 + index,
+                )
+            )
+            self._analysis_toolbar_ids.append(toolbar_id)
 
-        # 4. Register Tools Menu Items
-        self._analysis_tools = [
-            ToolContribution(
-                group="Aerodynamics",
-                title="Add Alpha Sweep (Polar) Analysis",
-                callback=add_alpha_sweep_analysis,
-                icon="fa6s.chart-line",
-            ),
-            ToolContribution(
-                group="Aerodynamics",
-                title="Add Beta Sweep (Sideslip) Analysis",
-                callback=add_beta_sweep_analysis,
-                icon="fa6s.arrows-left-right",
-            ),
-            ToolContribution(
-                group="Aerodynamics",
-                title="Add Control Deflection Analysis",
-                callback=add_control_deflection_analysis,
-                icon="fa6s.sliders",
-            ),
-            ToolContribution(
-                group="Aerodynamics",
-                title="Add Aero Operating Point Analysis",
-                callback=add_operating_point_analysis,
-                icon="fa6s.crosshairs",
-            ),
+        # 4. Register the Tools menu item; the analyses are on the toolbar
+        self._tools = [
             ToolContribution(
                 group="Aerodynamics",
                 title="Airfoil Analysis…",
                 callback=self._open_airfoil_analysis_tool,
-                icon="fa6s.chart-area",
+                icon="aero_airfoil_analysis",
             ),
         ]
-        for tool in self._analysis_tools:
+        for tool in self._tools:
             api.register_tool(tool)
 
     def deactivate(self, api: StudioAPI) -> None:
-        if self._analysis_toolbar_id is not None:
-            api.unregister_toolbar_item(self._analysis_toolbar_id)
+        for toolbar_id in self._analysis_toolbar_ids:
+            api.unregister_toolbar_item(toolbar_id)
+        self._analysis_toolbar_ids.clear()
 
-        for tool in self._analysis_tools:
+        for tool in self._tools:
             api.unregister_tool(tool)
-        self._analysis_tools.clear()
+        self._tools.clear()
 
         api.unregister_solver(SOLVER_ID_ALPHA_SWEEP)
         api.unregister_solver(SOLVER_ID_BETA_SWEEP)
@@ -187,6 +173,7 @@ class AerodynamicsPlugin:
         for window in list(self._tool_windows):
             window.close()
         self._tool_windows.clear()
+        unregister_plugin_icons(self.id)
         self._api = None
 
     def _open_airfoil_analysis_tool(self) -> None:

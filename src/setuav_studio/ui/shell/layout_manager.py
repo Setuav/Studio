@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class LayoutManager:
     """Manages unified workbench dock layout and window geometry."""
 
-    LAYOUT_VERSION = 2
+    LAYOUT_VERSION = 3
     LAYOUT_DEFAULTS_KEY = "workbench_layout_version"
 
     def __init__(self, window: MainWindow, api: StudioAPI) -> None:

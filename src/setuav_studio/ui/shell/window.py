@@ -71,7 +71,6 @@ class MainWindow(QMainWindow):
             self.action_manager.new_project_action,
             self.action_manager.open_folder_action,
             self.action_manager.save_action,
-            self.action_manager.save_as_action,
             self.action_manager.undo_action,
             self.action_manager.redo_action,
         )

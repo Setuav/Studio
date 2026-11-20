@@ -197,7 +197,7 @@ class ProjectTreeBuilder:
             return
 
         analysis_group = QTreeWidgetItem(["Analyses"])
-        analysis_group.setIcon(0, get_icon("fa6s.gears"))
+        analysis_group.setIcon(0, get_icon("run_analysis"))
         analysis_group.setToolTip(0, "Analysis Configurations")
         self._tree._analysis_group_item = analysis_group
         top_level.addChild(analysis_group)

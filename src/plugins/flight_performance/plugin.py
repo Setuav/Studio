@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from setuav_studio.api import StudioAPI, ToolbarContribution, ToolContribution
+from pathlib import Path
+
+from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.solver import SolverConfig
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
 from .solver import SOLVER_ID_FLIGHT_PERFORMANCE, FlightPerformanceSolver
 
@@ -18,36 +21,29 @@ class FlightPerformancePlugin:
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
-        self._tool: ToolContribution | None = None
 
     def activate(self, api: StudioAPI) -> None:
+        register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
         self._api = api
-        api.register_solver(SOLVER_ID_FLIGHT_PERFORMANCE, FlightPerformanceSolver)
+        api.register_solver(
+            SOLVER_ID_FLIGHT_PERFORMANCE, FlightPerformanceSolver, icon="flight_performance"
+        )
         api.register_toolbar_item(
             ToolbarContribution(
                 id=_TOOLBAR_ID,
                 title="Add Flight Performance Analysis",
-                icon="fa6s.gauge-high",
+                icon="flight_performance",
                 callback=self._add_analysis,
                 enabled_when=lambda: api.project is not None,
-                group="performance-creation",
-                order=150,
+                group="analysis",
+                order=220,
             )
         )
-        self._tool = ToolContribution(
-            group="Performance",
-            title="Add Flight Performance Analysis",
-            callback=self._add_analysis,
-            icon="fa6s.gauge-high",
-        )
-        api.register_tool(self._tool)
 
     def deactivate(self, api: StudioAPI) -> None:
         api.unregister_toolbar_item(_TOOLBAR_ID)
-        if self._tool is not None:
-            api.unregister_tool(self._tool)
-            self._tool = None
         api.unregister_solver(SOLVER_ID_FLIGHT_PERFORMANCE)
+        unregister_plugin_icons(self.id)
         self._api = None
 
     def _add_analysis(self) -> None:

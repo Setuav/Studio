@@ -10,11 +10,7 @@ from plugins.electrical_propulsion.models.propulsor import (
     PropulsorModel,
     propulsor_mass,
 )
-from setuav_studio.api import (
-    StudioAPI,
-    ToolbarContribution,
-    ToolbarMenuItemContribution,
-)
+from setuav_studio.api import StudioAPI, ToolbarContribution
 
 _BATTERY_TYPE = "org.setuav.core:battery"
 
@@ -22,7 +18,7 @@ _BATTERY_TYPE = "org.setuav.core:battery"
 class PropulsionCreationController:
     """Add propulsors and battery packs to the vehicle."""
 
-    toolbar_id = "propulsion.add-component"
+    toolbar_ids = ("propulsion.add-propulsor", "propulsion.add-battery")
 
     def __init__(self, api: StudioAPI) -> None:
         self._api = api
@@ -30,26 +26,22 @@ class PropulsionCreationController:
     def contributions(self) -> tuple[ToolbarContribution, ...]:
         return (
             ToolbarContribution(
-                id=self.toolbar_id,
-                title="Add Propulsion Component",
-                icon="add",
-                menu_items=(
-                    ToolbarMenuItemContribution(
-                        title="Add Propulsor",
-                        callback=self.add_propulsor,
-                        icon="component",
-                        enabled_when=self._can_edit_project,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Add Battery",
-                        callback=self.add_battery,
-                        icon="component",
-                        enabled_when=self._can_edit_project,
-                    ),
-                ),
+                id=self.toolbar_ids[0],
+                title="Add Propulsor",
+                callback=self.add_propulsor,
+                icon="propulsion_propulsor",
                 enabled_when=self._can_edit_project,
-                group="propulsion-creation",
-                order=110,
+                group="model",
+                order=130,
+            ),
+            ToolbarContribution(
+                id=self.toolbar_ids[1],
+                title="Add Battery",
+                callback=self.add_battery,
+                icon="propulsion_battery",
+                enabled_when=self._can_edit_project,
+                group="model",
+                order=140,
             ),
         )
 

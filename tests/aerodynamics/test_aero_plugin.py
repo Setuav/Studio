@@ -47,7 +47,6 @@ from setuav_studio.api import (
     ActionContribution,
     StudioAPI,
     ToolbarContribution,
-    ToolbarMenuItemContribution,
 )
 from setuav_studio.project import ProjectDocument
 from setuav_studio.solver import SolverConfig
@@ -56,20 +55,26 @@ from setuav_studio.solver.results import SolverResult
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from tests._common import get_qapp
 
-ANALYSIS_TOOLBAR_ID = "aerodynamics.add-analysis"
+ANALYSIS_TOOLBAR_IDS = (
+    "aerodynamics.add-alpha-sweep",
+    "aerodynamics.add-beta-sweep",
+    "aerodynamics.add-control-deflection",
+    "aerodynamics.add-operating-point",
+)
 SOLVER_CLASSES = {
     SOLVER_ID_ALPHA_SWEEP: AlphaSweepSolver,
     SOLVER_ID_BETA_SWEEP: BetaSweepSolver,
     SOLVER_ID_CONTROL_DEFLECTION: ControlDeflectionSolver,
     SOLVER_ID_OPERATING_POINT: OperatingPointSolver,
 }
-TOOL_TITLES = (
+ANALYSIS_TITLES = (
     "Add Alpha Sweep (Polar) Analysis",
     "Add Beta Sweep (Sideslip) Analysis",
     "Add Control Deflection Analysis",
     "Add Aero Operating Point Analysis",
-    "Airfoil Analysis…",
 )
+# The analyses are toolbar buttons only; the Tools menu keeps the standalone tool.
+TOOL_TITLES = ("Airfoil Analysis…",)
 WING = {"id": "wing", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
 
 
@@ -83,9 +88,14 @@ def _control_surface(component_id: str, surface_type: str) -> dict[str, Any]:
     }
 
 
-def _enabled(item: ToolbarMenuItemContribution) -> bool:
+def _enabled(item: ToolbarContribution) -> bool:
     assert item.enabled_when is not None
     return item.enabled_when()
+
+
+def _trigger(item: ToolbarContribution) -> None:
+    assert item.callback is not None
+    item.callback()
 
 
 def _project(components: list[dict[str, Any]] | None = None) -> ProjectDocument:
@@ -142,11 +152,12 @@ class AerodynamicsPluginTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._app.processEvents()
 
-    def _analysis_toolbar(self) -> ToolbarContribution:
-        return next(item for item in self.toolbar_items if item.id == ANALYSIS_TOOLBAR_ID)
+    def _analysis_buttons(self) -> list[ToolbarContribution]:
+        by_id = {item.id: item for item in self.toolbar_items}
+        return [by_id[toolbar_id] for toolbar_id in ANALYSIS_TOOLBAR_IDS]
 
     def _add_alpha_sweep_analysis(self) -> SolverConfig:
-        self._analysis_toolbar().menu_items[0].callback()
+        _trigger(self._analysis_buttons()[0])
         config = self.api.get_current_solver_config()
         assert config is not None
         return config
@@ -182,31 +193,26 @@ class AerodynamicsPluginTests(unittest.TestCase):
             self.assertIs(self.api.solvers.get_solver_class(solver_id), solver_cls)
 
         self.assertEqual(
-            [item.title for item in self._analysis_toolbar().menu_items],
-            [
-                "Alpha Sweep (Polar) Analysis",
-                "Beta Sweep (Sideslip) Analysis",
-                "Control Deflection Analysis",
-                "Operating Point Analysis",
-            ],
+            tuple(item.title for item in self._analysis_buttons()),
+            ANALYSIS_TITLES,
         )
         self.assertEqual(
             tuple(action.title for action in self.actions if action.menu == "Tools/Aerodynamics"),
             TOOL_TITLES,
         )
 
-    def test_add_analysis_menu_creates_default_solver_configs(self) -> None:
+    def test_add_analysis_buttons_create_default_solver_configs(self) -> None:
         self.plugin.activate(self.api)
-        menu_items = self._analysis_toolbar().menu_items
+        buttons = self._analysis_buttons()
 
-        self.assertFalse(any(_enabled(item) for item in menu_items))
-        menu_items[0].callback()
+        self.assertFalse(any(_enabled(item) for item in buttons))
+        _trigger(buttons[0])
         self.assertEqual(self.statuses[-1][1], "warning")
 
         self.api._host.set_project(_project())
-        self.assertTrue(all(_enabled(item) for item in menu_items))
-        for item in menu_items:
-            item.callback()
+        self.assertTrue(all(_enabled(item) for item in buttons))
+        for item in buttons:
+            _trigger(item)
 
         configs = list(self.api.get_solver_configs().values())
         self.assertEqual(
@@ -227,7 +233,8 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         for solver_id in SOLVER_CLASSES:
             self.assertIsNone(self.api.solvers.get_solver_class(solver_id))
-        self.assertIn(ANALYSIS_TOOLBAR_ID, self.removed_toolbar_items)
+        for toolbar_id in ANALYSIS_TOOLBAR_IDS:
+            self.assertIn(toolbar_id, self.removed_toolbar_items)
         self.assertEqual(
             tuple(title for menu, title in self.removed_actions if menu == "Tools/Aerodynamics"),
             TOOL_TITLES,

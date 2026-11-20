@@ -5,11 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from setuav_studio.api import (
-    StudioAPI,
-    ToolbarContribution,
-    ToolbarMenuItemContribution,
-)
+from setuav_studio.api import StudioAPI, ToolbarContribution
 
 from .engine.fuselage_geometry import create_default_section
 from .engine.lifting_surface_layout import DEFAULT_ACTIVE_DRIVERS, build_profiles
@@ -39,51 +35,25 @@ class AirframeCreationController:
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
                 enabled_when=self._can_edit_project,
-                group="airframe-creation",
+                group="model",
                 order=100,
             ),
             ToolbarContribution(
                 id=self.toolbar_ids[1],
                 title="Add Lifting Surface",
+                callback=self.add_lifting_surface,
                 icon="geometry_add_lifting_surface",
-                menu_items=(
-                    self._lifting_surface_item("Main Wing", "main-wing"),
-                    self._lifting_surface_item(
-                        "Horizontal Tail",
-                        "horizontal-tail",
-                    ),
-                    self._lifting_surface_item("Vertical Tail", "vertical-tail"),
-                    self._lifting_surface_item(
-                        "Generic Lifting Surface",
-                        "generic",
-                    ),
-                ),
                 enabled_when=self._can_edit_project,
-                group="airframe-creation",
+                group="model",
                 order=110,
             ),
             ToolbarContribution(
                 id=self.toolbar_ids[2],
                 title="Add Control Surface",
+                callback=self.add_control_surface,
                 icon="geometry_add_control_surface",
-                menu_items=tuple(
-                    ToolbarMenuItemContribution(
-                        title=title,
-                        callback=lambda surface_type=surface_type: self.add_control_surface(
-                            surface_type
-                        ),
-                        icon="geometry_add_control_surface",
-                        enabled_when=self._can_add_control_surface,
-                    )
-                    for surface_type, title in (
-                        ("aileron", "Aileron"),
-                        ("elevator", "Elevator"),
-                        ("rudder", "Rudder"),
-                        ("flap", "Flap"),
-                    )
-                ),
                 enabled_when=self._can_add_control_surface,
-                group="airframe-creation",
+                group="model",
                 order=120,
             ),
         )
@@ -134,81 +104,23 @@ class AirframeCreationController:
         }
         self._append_component(component, "Add fuselage")
 
-    def add_lifting_surface(self, preset: str) -> None:
+    def add_lifting_surface(self) -> None:
+        """Add a mirrored wing attached to the first fuselage, to be customized."""
         if not self._require_editable_project():
             return
         project = self._api.project
         if project is None:
             return
-        # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
-        presets: dict[str, tuple[str, str, float, float, float, bool, float, str, float, float]] = {
-            "main-wing": (
-                "main-wing",
-                "Main Wing",
-                500.0,
-                220.0,
-                110.0,
-                True,
-                0.0,
-                "2412",
-                250.0,
-                26.0,
-            ),
-            "horizontal-tail": (
-                "horizontal-tail",
-                "Horizontal Tail",
-                250.0,
-                130.0,
-                65.0,
-                True,
-                0.0,
-                "0012",
-                80.0,
-                16.0,
-            ),
-            "vertical-tail": (
-                "vertical-tail",
-                "Vertical Tail",
-                250.0,
-                150.0,
-                60.0,
-                False,
-                90.0,
-                "0012",
-                50.0,
-                18.0,
-            ),
-            "generic": (
-                "lifting-surface",
-                "Lifting Surface",
-                300.0,
-                160.0,
-                80.0,
-                False,
-                0.0,
-                "0012",
-                100.0,
-                20.0,
-            ),
-        }
-        values = presets.get(preset, presets["generic"])
-        (
-            base_id,
-            base_name,
-            span,
-            root_chord,
-            tip_chord,
-            mirrored,
-            roll,
-            airfoil,
-            mass,
-            thickness,
-        ) = values
-        component_id, name = self._unique_identity(base_id, base_name)
+        span, root_chord, tip_chord, airfoil, mass, thickness = (
+            500.0,
+            220.0,
+            110.0,
+            "2412",
+            250.0,
+            26.0,
+        )
+        component_id, name = self._unique_identity("lifting-surface", "Lifting Surface")
         attach_to = self._first_component_id(_FUSELAGE_TYPE)
-        x_position = 0.0 if preset in {"main-wing", "generic"} else 500.0
-        total_span = span * 2.0 if mirrored else span
-        span_offset = 0.0 if mirrored else span / 2.0
         component = {
             "kind": "component",
             "id": component_id,
@@ -217,21 +129,22 @@ class AirframeCreationController:
             **({"attach_to": attach_to} if attach_to else {}),
             "mass": mass,
             "transform": {
-                "position": {"x": x_position, "y": 0.0, "z": 0.0},
-                "rotation": {"roll": roll, "pitch": 0.0, "yaw": 0.0},
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             },
             "envelope": {
                 "shape": "box",
-                "size_mm": {"x": root_chord, "y": total_span, "z": thickness},
-                "offset_mm": {"x": root_chord / 2.0, "y": span_offset, "z": 0.0},
+                "size_mm": {"x": root_chord, "y": span * 2.0, "z": thickness},
+                "offset_mm": {"x": root_chord / 2.0, "y": 0.0, "z": 0.0},
             },
             "parameters": {
-                "geometry": self._wing_geometry(mirrored, span, root_chord, tip_chord, airfoil)
+                "geometry": self._wing_geometry(True, span, root_chord, tip_chord, airfoil)
             },
         }
-        self._append_component(component, f"Add {base_name.lower()}")
+        self._append_component(component, "Add lifting surface")
 
-    def add_control_surface(self, surface_type: str) -> None:
+    def add_control_surface(self) -> None:
+        """Add an aileron to the selected lifting surface, to be customized."""
         if not self._require_editable_project():
             return
         surface = self._selected_lifting_surface()
@@ -243,17 +156,10 @@ class AirframeCreationController:
             )
             return
 
-        labels = {
-            "aileron": "Aileron",
-            "elevator": "Elevator",
-            "rudder": "Rudder",
-            "flap": "Flap",
-        }
-        base_name = labels.get(surface_type, "Control Surface")
         surface_id = str(surface["id"])
         component_id, name = self._unique_identity(
-            f"{surface_id}-{surface_type}",
-            base_name,
+            f"{surface_id}-control-surface",
+            "Control Surface",
         )
         semi_span, root_chord = self._lifting_surface_size(surface)
         eta_start = 0.4
@@ -285,7 +191,7 @@ class AirframeCreationController:
             },
             "parameters": {
                 "geometry": {
-                    "type": surface_type,
+                    "type": "aileron",
                     "sizing_mode": "ratio",
                     "span_start": round(semi_span * eta_start, 1),
                     "span_end": round(semi_span * eta_end, 1),
@@ -299,19 +205,7 @@ class AirframeCreationController:
                 }
             },
         }
-        self._append_component(component, f"Add {base_name.lower()}")
-
-    def _lifting_surface_item(
-        self,
-        title: str,
-        preset: str,
-    ) -> ToolbarMenuItemContribution:
-        return ToolbarMenuItemContribution(
-            title=title,
-            callback=lambda preset=preset: self.add_lifting_surface(preset),
-            icon="geometry_add_lifting_surface",
-            enabled_when=self._can_edit_project,
-        )
+        self._append_component(component, "Add control surface")
 
     def _can_edit_project(self) -> bool:
         project = self._api.project

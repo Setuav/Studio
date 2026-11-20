@@ -26,6 +26,7 @@ from setuav_studio.ui.viewport.constants import (
     ViewPreset,
     WireMode,
 )
+from setuav_studio.ui.viewport.layer import MASS_LAYER
 
 if TYPE_CHECKING:
     from setuav_studio.ui.viewport.viewport import StudioViewport
@@ -152,6 +153,19 @@ class StudioViewportHUD(QFrame):
         self._build_layers_menu()
         layout.addWidget(self.layers_button)
 
+        # Center of gravity toggle: shows or hides the mass layer
+        self.cg_button = QToolButton(self)
+        self.cg_button.setCheckable(True)
+        self.cg_button.setChecked(self._viewport.is_layer_visible(MASS_LAYER))
+        self.cg_button.setIcon(get_icon("center_of_gravity"))
+        self.cg_button.setToolTip("Show Center of Gravity")
+        self.cg_button.setFixedSize(24, 24)
+        self.cg_button.setAutoRaise(True)
+        self.cg_button.toggled.connect(
+            lambda checked: self._viewport.set_layer_visible(MASS_LAYER, checked)
+        )
+        layout.addWidget(self.cg_button)
+
         # Connect viewport layer signals to update layer menu
         self._viewport.layers_changed.connect(self._build_layers_menu)
         self._viewport.layer_visibility_changed.connect(self._on_layer_visibility_changed)
@@ -210,6 +224,7 @@ class StudioViewportHUD(QFrame):
         self.grid_button.setIcon(get_icon("view_grid"))
         self._update_projection_state()
         self.layers_button.setIcon(get_icon("view_layers"))
+        self.cg_button.setIcon(get_icon("center_of_gravity"))
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
         self.fit_button.setIcon(get_icon("view_fit"))
@@ -302,6 +317,10 @@ class StudioViewportHUD(QFrame):
             self._layers_menu.addAction(action)
 
     def _on_layer_visibility_changed(self, layer_id: str, visible: bool) -> None:
+        if layer_id == MASS_LAYER:
+            self.cg_button.blockSignals(True)
+            self.cg_button.setChecked(visible)
+            self.cg_button.blockSignals(False)
         for action in self._layers_menu.actions():
             if action.data() == layer_id:
                 action.blockSignals(True)

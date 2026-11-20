@@ -16,7 +16,7 @@ from plugins.electrical_propulsion.editors.propulsor import (
     PropulsorPropellerEditor,
 )
 from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
-from setuav_studio.api import ActionContribution, StudioAPI
+from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
@@ -411,7 +411,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_analysis_tools_add_solver_configs(self) -> None:
+    def test_analysis_buttons_add_solver_configs(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from plugins.electrical_propulsion.solver import (
             SOLVER_ID_AIRSPEED_SWEEP,
@@ -422,17 +422,12 @@ class TestElectricalPropulsion(unittest.TestCase):
             ThrottleSweepSolver,
         )
 
-        api, actions, statuses = self._headless_api()
+        api, buttons, statuses = self._headless_api()
         plugin = ElectricalPropulsionPlugin()
         plugin.activate(api)
         self.addCleanup(plugin.deactivate, api)
-        tools = {
-            action.title: action
-            for action in actions
-            if action.menu == "Tools/Electrical Propulsion"
-        }
 
-        tools["Add Airspeed Sweep Analysis"].callback()
+        self._press(buttons, "Add Airspeed Sweep Analysis")
         self.assertEqual(api.get_solver_configs(), {})
         self.assertEqual(statuses[-1][:2], ("Open or create a project first.", "warning"))
 
@@ -442,8 +437,11 @@ class TestElectricalPropulsion(unittest.TestCase):
             ("Airspeed Sweep Analysis", SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver),
             ("Operating Point Analysis", SOLVER_ID_OPERATING_POINT, OperatingPointSolver),
         ]
+        button_titles = {
+            "Operating Point Analysis": "Add Propulsion Operating Point Analysis",
+        }
         for name, solver_id, solver_cls in expected:
-            tools[f"Add {name}"].callback()
+            self._press(buttons, button_titles.get(name, f"Add {name}"))
             config = api.get_current_solver_config()
             assert config is not None
             self.assertEqual(config.solver_id, solver_id)
@@ -456,15 +454,12 @@ class TestElectricalPropulsion(unittest.TestCase):
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.solver import SolverResult, SolverStatus
 
-        api, actions, _statuses = self._headless_api()
+        api, buttons, _statuses = self._headless_api()
         plugin = ElectricalPropulsionPlugin()
         plugin.activate(api)
         self.addCleanup(plugin.deactivate, api)
         api._host.set_project(open_project(TEST_PROJECT_PATH))
-        add_airspeed_sweep = next(
-            action for action in actions if action.title == "Add Airspeed Sweep Analysis"
-        )
-        add_airspeed_sweep.callback()
+        self._press(buttons, "Add Airspeed Sweep Analysis")
 
         config = api.get_current_solver_config()
         assert config is not None
@@ -881,15 +876,21 @@ class TestElectricalPropulsion(unittest.TestCase):
             self.app.processEvents()
 
     @staticmethod
-    def _headless_api() -> tuple[StudioAPI, list[ActionContribution], list[tuple[str, str, int]]]:
+    def _headless_api() -> tuple[StudioAPI, list[ToolbarContribution], list[tuple[str, str, int]]]:
         api = StudioAPI()
-        actions: list[ActionContribution] = []
+        buttons: list[ToolbarContribution] = []
         statuses: list[tuple[str, str, int]] = []
-        api._host.bind_action_handlers(actions.append)
+        api._host.bind_toolbar_handlers(buttons.append)
         api._host.bind_status_handler(
             lambda message, level, timeout_ms: statuses.append((message, level, timeout_ms))
         )
-        return api, actions, statuses
+        return api, buttons, statuses
+
+    @staticmethod
+    def _press(buttons: list[ToolbarContribution], title: str) -> None:
+        button = next(button for button in buttons if button.title == title)
+        assert button.callback is not None
+        button.callback()
 
 
 if __name__ == "__main__":

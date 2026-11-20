@@ -49,7 +49,9 @@ class AirframeDesignPlugin:
                 title="Airframe Editor",
                 factory=create_editor_settings_page,
                 apply=apply_editor_settings,
+                icon="settings_general",
                 group="Airframe Design",
+                group_icon="vehicle",
                 order=20,
             )
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from setuav_studio.api import (
@@ -14,6 +15,7 @@ from setuav_studio.api import (
     ToolbarMenuItemContribution,
     ToolContribution,
 )
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 from setuav_studio.ui.viewport import StudioViewport
 
 from .components import (
@@ -84,6 +86,7 @@ class DebugPlugin:
 
     def activate(self, api: StudioAPI) -> None:
         """Activate the debug plugin."""
+        register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
         self._api = api
         self._register_panel(api)
         self._register_component_types(api)
@@ -103,6 +106,7 @@ class DebugPlugin:
 
     def deactivate(self, api: StudioAPI) -> None:
         """Deactivate the debug plugin."""
+        unregister_plugin_icons(self.id)
         api.unregister_toolbar_item(TOOLBAR_ADD_PRIMITIVE_ID)
         api.unregister_toolbar_item(TOOLBAR_MOCK_ANALYSIS_ID)
         for tool in self._tool_contributions:
@@ -302,20 +306,11 @@ class DebugPlugin:
             )
         )
 
-        tool_add = ToolContribution(
-            title="Add Mock Analysis",
-            callback=self._add_mock_analysis_config,
-            group="Debug",
-            icon="fa6s.plus",
-        )
-        api.register_tool(tool_add)
-        self._tool_contributions.append(tool_add)
-
         tool_panel = ToolContribution(
             title="Open Debug Panel",
             callback=lambda: api.show_panel(PANEL_ID_DEBUG),
             group="Debug",
-            icon="fa6s.bug",
+            icon="debug_panel",
         )
         api.register_tool(tool_panel)
         self._tool_contributions.append(tool_panel)
@@ -336,7 +331,7 @@ class DebugPlugin:
                 title="Debug",
                 factory=lambda: DebugPanel(api),
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.bug",
+                icon="debug_panel",
                 default_visible=False,
             )
         )

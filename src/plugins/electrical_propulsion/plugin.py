@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
@@ -27,10 +28,15 @@ from setuav_studio.api import (
     StudioPlugin,
     ToolContribution,
 )
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
-_ANALYSIS_TOOLBAR_ID = "propulsion.add-analysis"
+_ANALYSIS_TOOLBAR_PREFIX = "propulsion.add-"
+_ANALYSIS_KEYS = ("throttle-sweep", "airspeed-sweep", "operating-point")
 _TREE_PROVIDER_ID = "org.setuav.studio.electrical_propulsion.propulsor-parts"
-_PART_ICONS = {MOTOR_SELECTION_KIND: "fa6s.gear", PROPELLER_SELECTION_KIND: "fa6s.fan"}
+_PART_ICONS = {
+    MOTOR_SELECTION_KIND: "propulsion_motor",
+    PROPELLER_SELECTION_KIND: "propulsion_propeller",
+}
 
 
 class ElectricalPropulsionPlugin(StudioPlugin):
@@ -50,9 +56,9 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         self._creation_controller: PropulsionCreationController | None = None
         self._component_types: list[ComponentTypeContribution] = []
         self._tool_contribution: ToolContribution | None = None
-        self._analysis_tools: list[ToolContribution] = []
 
     def activate(self, api: StudioAPI) -> None:
+        register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
         self._api = api
 
         # Register Creation Toolbar Actions
@@ -65,7 +71,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             ComponentTypeContribution(
                 id=PROPULSOR_TYPE,
                 name="Propulsor",
-                icon="component",
+                icon="propulsion_propulsor",
                 model=PropulsorModel,
                 editor=lambda comp: PropulsorEditor(api, comp),
                 category="Propulsion",
@@ -73,7 +79,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             ComponentTypeContribution(
                 id="org.setuav.core:battery",
                 name="Battery",
-                icon="component",
+                icon="propulsion_battery",
                 model=BatteryModel,
                 editor=lambda comp: BatteryEditor(api, comp),
                 category="Electrical",
@@ -102,7 +108,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             group="Electrical Propulsion",
             title="Component Database…",
             callback=open_component_database,
-            icon="fa6s.database",
+            icon="propulsion_component_database",
         )
         api.register_tool(self._tool_contribution)
 
@@ -115,15 +121,18 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             OperatingPointSolver,
             ThrottleSweepSolver,
         )
-        from setuav_studio.api import (
-            ToolbarContribution,
-            ToolbarMenuItemContribution,
-        )
+        from setuav_studio.api import ToolbarContribution
         from setuav_studio.solver import SolverConfig
 
-        api.register_solver(SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver)
-        api.register_solver(SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver)
-        api.register_solver(SOLVER_ID_OPERATING_POINT, OperatingPointSolver)
+        api.register_solver(
+            SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver, icon="propulsion_throttle_sweep"
+        )
+        api.register_solver(
+            SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver, icon="propulsion_airspeed_sweep"
+        )
+        api.register_solver(
+            SOLVER_ID_OPERATING_POINT, OperatingPointSolver, icon="propulsion_operating_point"
+        )
 
         def add_throttle_sweep_analysis() -> None:
             if api.project is None:
@@ -161,59 +170,37 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             api.add_solver_config(config)
             api.show_status("Added Operating Point Analysis configuration.", "success", 3000)
 
-        api.register_toolbar_item(
-            ToolbarContribution(
-                id=_ANALYSIS_TOOLBAR_ID,
-                title="Add Propulsion Analysis",
-                icon="fa6s.chart-line",
-                menu_items=(
-                    ToolbarMenuItemContribution(
-                        title="Throttle Sweep Analysis",
-                        callback=add_throttle_sweep_analysis,
-                        icon="fa6s.gauge-high",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Airspeed Sweep Analysis",
-                        callback=add_airspeed_sweep_analysis,
-                        icon="fa6s.wind",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                    ToolbarMenuItemContribution(
-                        title="Operating Point Analysis",
-                        callback=add_operating_point_analysis,
-                        icon="fa6s.crosshairs",
-                        enabled_when=lambda: api.project is not None,
-                    ),
-                ),
-                enabled_when=lambda: api.project is not None,
-                group="propulsion-creation",
-                order=120,
-            )
+        analyses = (
+            (
+                "Add Throttle Sweep Analysis",
+                add_throttle_sweep_analysis,
+                "propulsion_throttle_sweep",
+            ),
+            (
+                "Add Airspeed Sweep Analysis",
+                add_airspeed_sweep_analysis,
+                "propulsion_airspeed_sweep",
+            ),
+            (
+                "Add Propulsion Operating Point Analysis",
+                add_operating_point_analysis,
+                "propulsion_operating_point",
+            ),
         )
-
-        self._analysis_tools = [
-            ToolContribution(
-                group="Electrical Propulsion",
-                title="Add Throttle Sweep Analysis",
-                callback=add_throttle_sweep_analysis,
-                icon="fa6s.gauge-high",
-            ),
-            ToolContribution(
-                group="Electrical Propulsion",
-                title="Add Airspeed Sweep Analysis",
-                callback=add_airspeed_sweep_analysis,
-                icon="fa6s.wind",
-            ),
-            ToolContribution(
-                group="Electrical Propulsion",
-                title="Add Operating Point Analysis",
-                callback=add_operating_point_analysis,
-                icon="fa6s.crosshairs",
-            ),
-        ]
-        for tool in self._analysis_tools:
-            api.register_tool(tool)
+        for index, (key, (title, callback, icon)) in enumerate(
+            zip(_ANALYSIS_KEYS, analyses, strict=True)
+        ):
+            api.register_toolbar_item(
+                ToolbarContribution(
+                    id=f"{_ANALYSIS_TOOLBAR_PREFIX}{key}",
+                    title=title,
+                    callback=callback,
+                    icon=icon,
+                    enabled_when=lambda: api.project is not None,
+                    group="analysis",
+                    order=210 + index,
+                )
+            )
 
         # Viewport 3D Propeller Scene Synchronization
         self._scene_controller = PropulsionSceneController(api)
@@ -236,9 +223,12 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         self._unsubscribers = []
 
         if self._creation_controller is not None:
-            api.unregister_toolbar_item(self._creation_controller.toolbar_id)
+            for toolbar_id in self._creation_controller.toolbar_ids:
+                api.unregister_toolbar_item(toolbar_id)
             self._creation_controller = None
-        api.unregister_toolbar_item(_ANALYSIS_TOOLBAR_ID)
+        for key in _ANALYSIS_KEYS:
+            api.unregister_toolbar_item(f"{_ANALYSIS_TOOLBAR_PREFIX}{key}")
+        unregister_plugin_icons(self.id)
 
         for ct in self._component_types:
             api.unregister_component_type(ct.id)
@@ -250,10 +240,6 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         if self._tool_contribution is not None:
             api.unregister_tool(self._tool_contribution)
             self._tool_contribution = None
-
-        for tool in self._analysis_tools:
-            api.unregister_tool(tool)
-        self._analysis_tools = []
 
         from plugins.electrical_propulsion.solver import (
             SOLVER_ID_AIRSPEED_SWEEP,

@@ -12,7 +12,7 @@ def _configure_toolbar(toolbar: QToolBar) -> None:
     toolbar.setMovable(True)
     toolbar.setFloatable(False)
     toolbar.setAllowedAreas(Qt.ToolBarArea.AllToolBarAreas)
-    toolbar.setIconSize(QSize(18, 18))
+    toolbar.setIconSize(QSize(28, 28))
     toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
 

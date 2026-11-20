@@ -12,7 +12,6 @@ from setuav_studio.solver.launch import run_analysis
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
-from setuav_studio.ui.viewport import MASS_LAYER
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -97,17 +96,6 @@ def _on_add_point_mass_triggered(api: StudioAPI) -> None:
     }
     api.edit_project(f"Add {name}", lambda: project.data["components"].append(component))
     api.set_selection(component)
-
-
-def _on_toggle_cg(api: StudioAPI) -> None:
-    """Show or hide the Center of Gravity layer of the viewport."""
-    viewport = api.viewport
-    if viewport is not None:
-        visible = not viewport.is_layer_visible(MASS_LAYER)
-        viewport.set_layer_visible(MASS_LAYER, visible)
-        api.show_status(f"Center of gravity {'shown' if visible else 'hidden'}.", "info", 2000)
-    else:
-        api.show_status("3D Viewport is not ready.", "info", 2000)
 
 
 def register_native_contributions(api: StudioAPI) -> None:
@@ -205,26 +193,11 @@ def register_native_contributions(api: StudioAPI) -> None:
             id="org.setuav.studio.toolbar.run_analysis",
             title="Run Analysis",
             callback=lambda: run_analysis(api),
-            icon="fa6s.play",
+            icon="run_analysis",
             group="analysis",
-            order=10,
+            order=290,
         )
     )
-    api.register_toolbar_item(
-        ToolbarContribution(
-            id="org.setuav.studio.toolbar.toggle_cg",
-            title="Show Center of Gravity",
-            callback=lambda: _on_toggle_cg(api),
-            icon="point_mass",
-            checkable=True,
-            checked_when=lambda: bool(
-                api.viewport is not None and api.viewport.is_layer_visible(MASS_LAYER)
-            ),
-            group="view",
-            order=50,
-        )
-    )
-
     # 3. Native Kind Editors
     register_native_kind_editors(api)
 
@@ -238,7 +211,7 @@ def register_native_component_types(api: StudioAPI) -> None:
         ComponentTypeContribution(
             id=POINT_MASS_TYPE,
             name="Point Mass",
-            icon="component",
+            icon="point_mass",
             editor=lambda component: BaseComponentEditor(api, component),
             category="Structure",
         )
