@@ -58,6 +58,8 @@ uv run --locked pyright
 uv run --locked pytest
 ```
 
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Build the documentation with `uv run --locked --group docs mkdocs build` and the
 desktop application with
 `uv run --locked --group desktop pyinstaller --noconfirm --clean packaging/setuav-studio.spec`.
