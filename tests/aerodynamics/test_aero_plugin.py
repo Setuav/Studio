@@ -402,6 +402,8 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(
             (condition.velocity, condition.altitude, condition.beta), (20.0, 100.0, 1.5)
         )
+        # Stability is evaluated at zero angle of attack, not at the first sweep point.
+        self.assertEqual(condition.alpha, 0.0)
         self.assertEqual(call["method"], AnalysisMethod.VLM)
         self.assertEqual(call["settings"]["spanwise_resolution"], 16)
         self.assertEqual(call["settings"]["chordwise_resolution"], 6)
@@ -451,6 +453,8 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual((condition.sweep_min, condition.sweep_max), (-10.0, 10.0))
         self.assertEqual(condition.sweep_steps, 3)
         self.assertEqual(condition.alpha, 3.0)
+        # Lateral-directional derivatives are evaluated at zero sideslip.
+        self.assertEqual(condition.beta, 0.0)
         self.assertEqual(call["method"], AnalysisMethod.AERO_BUILDUP)
 
         table = result.tables["beta_polar"]
@@ -460,6 +464,19 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(result.summary["cy_beta"].value, -0.01)
         self.assertEqual(result.summary["cl_beta"].value, -0.002)
         self.assertEqual(result.summary["cn_beta"].value, 0.003)
+
+    def test_a_step_larger_than_the_range_keeps_both_ends(self) -> None:
+        aero_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[_point(0.0), _point(2.0)],
+        )
+        _result, call = self._run_solver(
+            AlphaSweepSolver,
+            {"alpha_min": 0.0, "alpha_max": 2.0, "alpha_step": 5.0},
+            aero_result,
+        )
+        self.assertEqual(call["condition"].sweep_values(), [0.0, 2.0])
 
     def test_control_analysis_uses_dedicated_results(self) -> None:
         points = [

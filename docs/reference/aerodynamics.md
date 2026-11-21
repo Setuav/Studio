@@ -177,10 +177,11 @@ The sweep analyses evaluate evenly spaced points from the minimum to the
 maximum, both included. The number of points is
 
 \[
-n = \operatorname{round}\!\left(\frac{\text{max} - \text{min}}{\text{step}}\right) + 1
+n = \max\!\left(\operatorname{round}\!\left(\frac{\text{max} - \text{min}}{\text{step}}\right) + 1,\ 2\right)
 \]
 
-so the actual spacing can differ slightly from the step. The maximum must be
+so the actual spacing can differ slightly from the step, and a step larger
+than the range still evaluates both ends. The maximum must be
 greater than the minimum, and the step and the airspeed must be positive.
 
 ## Alpha Sweep
@@ -236,8 +237,8 @@ constant airspeed, altitude, and sideslip. Default name: **Alpha Sweep**.
 | Max Efficiency (L/D,max) | — | Largest L/D in the sweep. |
 | AoA at (L/D)max | ° | Angle of attack of that point. |
 | Oswald Efficiency (e) | — | AeroBuildup only. Mean over the sweep of the efficiency AeroSandbox reports for the first lifting surface. |
-| Neutral Point | m | See [Stability](#stability). Evaluated at **AoA Min**. |
-| Static Margin | % | See [Stability](#stability). Evaluated at **AoA Min**. |
+| Neutral Point | m | See [Stability](#stability). Evaluated at α = 0°. |
+| Static Margin | % | See [Stability](#stability). Evaluated at α = 0°. |
 
 CL,max is the largest value in the sweep, not a predicted stall point. Widen
 the range if it sits at **AoA Max**.
@@ -288,7 +289,7 @@ Sweep**.
 | Cl_beta (Dihedral Effect) | 1/° | \(C_{l_\beta}\). Negative is stable. |
 | Cn_beta (Directional Stability) | 1/° | \(C_{n_\beta}\). Positive is stable. |
 
-These derivatives are evaluated at **Angle of Attack** and **Sideslip Min**.
+These derivatives are evaluated at **Angle of Attack** and β = 0°.
 If the stability calculation fails, the summary shows **CY_beta
 (estimated)**, **Cl_beta (estimated)**, and **Cn_beta (estimated)** instead.
 They are the slopes between the first and last points of the sweep, for
@@ -427,8 +428,8 @@ Operating Point has no plots.
 The Alpha Sweep, Beta Sweep, and Operating Point summaries include stability
 results. They come from AeroSandbox's stability derivative run of the chosen
 solver method at a single condition: the **Angle of Attack** and **Sideslip
-(β)** of an Operating Point, **AoA Min** and **Sideslip (β)** of an Alpha
-Sweep, or **Angle of Attack** and **Sideslip Min** of a Beta Sweep.
+(β)** of an Operating Point, α = 0° and **Sideslip (β)** of an Alpha Sweep,
+or **Angle of Attack** and β = 0° of a Beta Sweep.
 AeroSandbox finds the derivatives by finite differences. This run uses the
 solver's own default panel counts, not **Spanwise Panels** and **Chordwise
 Panels**. If it fails, the stability rows are left out of the summary.

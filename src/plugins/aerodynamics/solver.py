@@ -78,7 +78,8 @@ class BaseAerodynamicsSolver(AbstractSolver):
             raise ValueError(f"The {name} step must be positive.")
         if high <= low:
             raise ValueError(f"The {name} maximum ({high:g}) must exceed its minimum ({low:g}).")
-        return low, high, round((high - low) / step) + 1
+        # A sweep always keeps both of its ends, however large the step.
+        return low, high, max(round((high - low) / step) + 1, 2)
 
     def _velocity(self) -> float:
         velocity = self._parameter("velocity")
@@ -233,7 +234,8 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
         alpha_min, alpha_max, num_steps = self._sweep("alpha")
         condition = FlightCondition(
             velocity=self._velocity(),
-            alpha=alpha_min,
+            # Stability derivatives are evaluated at zero angle of attack.
+            alpha=0.0,
             beta=self._parameter("beta"),
             altitude=self._parameter("altitude"),
             sweep_variable="alpha",
@@ -510,7 +512,8 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
         condition = FlightCondition(
             velocity=self._velocity(),
             alpha=self._parameter("alpha"),
-            beta=beta_min,
+            # Lateral-directional derivatives are evaluated at zero sideslip.
+            beta=0.0,
             altitude=self._parameter("altitude"),
             sweep_variable="beta",
             sweep_min=beta_min,
