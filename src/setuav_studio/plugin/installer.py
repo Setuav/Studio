@@ -180,7 +180,12 @@ def install_plugin_archive(
             plugin_source = staging_dir
             plugin_name = _archive_stem(archive_file.name)
 
-        final_dest = target_dir / plugin_name
+        if not plugin_name or plugin_name in {".", ".."} or Path(plugin_name).name != plugin_name:
+            raise ValueError(f"Invalid plugin name derived from archive: {plugin_name!r}")
+
+        final_dest = (target_dir / plugin_name).resolve()
+        if final_dest.parent != target_dir:
+            raise ValueError(f"Invalid plugin destination: {final_dest}")
         if final_dest.exists():
             if final_dest.is_dir():
                 shutil.rmtree(final_dest)
