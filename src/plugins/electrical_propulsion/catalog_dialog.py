@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt, QTimer
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -340,17 +340,6 @@ class ComponentCatalogDialog(QDialog):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(10)
-
-        # Search debounce timers
-        self._motor_debounce = QTimer(self)
-        self._motor_debounce.setSingleShot(True)
-        self._motor_debounce.setInterval(100)
-        self._motor_debounce.timeout.connect(self._do_filter_motors)
-
-        self._prop_debounce = QTimer(self)
-        self._prop_debounce.setSingleShot(True)
-        self._prop_debounce.setInterval(100)
-        self._prop_debounce.timeout.connect(self._do_filter_propellers)
 
         if component_type == "all":
             self.tabs = QTabWidget(self)
