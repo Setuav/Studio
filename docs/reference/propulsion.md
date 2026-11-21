@@ -48,7 +48,7 @@ the catalog".
 | Velocity Constant (KV) | RPM/V | — | Motor velocity constant in revolutions per minute per volt. |
 | Winding Resistance (Rm) | Ω | — | Phase-to-phase winding resistance. |
 | No-Load Current (I0) | A | — | No-load current at the catalog's test voltage. |
-| Max Current | A | — | Maximum continuous motor current. A point above it is not feasible. |
+| Max Current | A | — | Maximum continuous motor current. A point above it is not feasible. Some catalog motors have none (0 A); the analyses then stop with an error asking for another motor. |
 | Mass | g | — | Motor mass from the catalog. Editable after a motor is picked. |
 
 ### Propeller

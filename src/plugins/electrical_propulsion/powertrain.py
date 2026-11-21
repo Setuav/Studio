@@ -172,6 +172,12 @@ def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit
         raise PowertrainError(f"Propulsor '{label}' has no motor; pick one from the catalog.")
     if not has_propeller(parameters):
         raise PowertrainError(f"Propulsor '{label}' has no propeller; pick one from the catalog.")
+    if float(parameters["motor_max_current"]) <= 0.0:
+        # Some catalog motors have no rated current; every point would exceed 0 A.
+        raise PowertrainError(
+            f"Motor '{parameters['motor_model']}' of propulsor '{label}' has no maximum "
+            "current in the catalog, so its current limit is unknown; pick another motor."
+        )
     catalog_id = str(parameters["propeller_catalog_id"])
     entry = get_propeller_entry(catalog_id)
     if entry is None:

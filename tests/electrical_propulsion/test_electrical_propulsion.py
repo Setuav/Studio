@@ -857,6 +857,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         motorless = deepcopy(propulsor)
         motorless["parameters"]["motor_model"] = None
         cases.append(([motorless, battery], "has no motor"))
+        unrated = deepcopy(propulsor)
+        unrated["parameters"]["motor_max_current"] = 0.0
+        cases.append(([unrated, battery], "has no maximum current"))
         cases.append(([propulsor], "requires: Battery"))
         cases.append(([battery], "requires: Propulsor"))
         four_cell = deepcopy(battery)
