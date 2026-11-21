@@ -863,6 +863,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         four_cell["id"] = "battery-4s"
         four_cell["parameters"]["cell_count"] = 4
         cases.append(([propulsor, battery, four_cell], "cannot share one bus"))
+        overcharged = deepcopy(battery)
+        overcharged["parameters"]["charge_voltage"] = 5.0
+        cases.append(([propulsor, overcharged], r"^Battery 'LiPo Battery': .*4\.35 V\.$"))
         for members_components, message in cases:
             with self.subTest(message=message):
                 members = find_powertrain_members(members_components)

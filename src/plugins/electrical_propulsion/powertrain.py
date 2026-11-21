@@ -147,12 +147,18 @@ def build_powertrain(members: PowertrainMembers, *, state_of_charge: float) -> P
         raise PowertrainError(f"Propulsion analysis requires: {', '.join(missing)}.")
     from pythrust.battery import BatteryNetwork, NetworkState
 
+    rate_maps = []
+    for battery in members.batteries:
+        try:
+            rate_maps.append(battery_pack(battery["parameters"]).rate_map())
+        except ValueError as err:
+            name = battery.get("name") or battery["id"]
+            raise PowertrainError(f"Battery '{name}': {str(err).rstrip('.')}.") from err
     try:
-        network = BatteryNetwork.parallel(
-            *(battery_pack(battery["parameters"]).rate_map() for battery in members.batteries)
-        )
+        network = BatteryNetwork.parallel(*rate_maps)
     except ValueError as err:
-        raise PowertrainError(f"The battery packs cannot share one bus: {err}.") from err
+        message = str(err).rstrip(".")
+        raise PowertrainError(f"The battery packs cannot share one bus: {message}.") from err
     return Powertrain(
         network=network,
         network_state=NetworkState.uniform(len(network.packs), soc=state_of_charge),
