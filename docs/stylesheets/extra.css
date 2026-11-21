@@ -1,5 +1,5 @@
 /* Material grows its root size on wide screens; keep the 20 px root there too,
-   and set smaller text: body 15 px, navigation 13 px, tables 14 px. */
+   so the body text stays at 16 px, the navigation at 14 px. Tables are 15 px. */
 @media screen and (min-width: 100em) {
   html {
     font-size: 125%;
@@ -12,16 +12,8 @@
   }
 }
 
-.md-typeset {
-  font-size: 0.75rem;
-}
-
-.md-nav {
-  font-size: 0.65rem;
-}
-
 .md-typeset table:not([class]) {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .md-typeset h1 {
