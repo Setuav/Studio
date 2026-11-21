@@ -137,6 +137,10 @@ class _Pass:
         if isinstance(params, dict):
             self.visit_tree(params, component_id, "parameters")
 
+        # Mass properties entered on the Mass tab.
+        self.visit_node(comp.get("local_cg_mm"), component_id, "local_cg_mm")
+        self.visit_node(comp.get("inertia_kg_m2"), component_id, "inertia_kg_m2")
+
         extensions = comp.get("extensions")
         if isinstance(extensions, dict):
             for ext_name, ext_val in extensions.items():

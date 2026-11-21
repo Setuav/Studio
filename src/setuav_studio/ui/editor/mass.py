@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -19,9 +18,9 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.expression import set_expression
+from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio.units import get_unit_manager
 from setuav_studio.utilities.mass_balance import (
@@ -54,11 +53,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             else None
         )
         self._loading = False
-        self._pending_before: dict[str, Any] | None = None
-        self._commit_timer = QTimer(self)
-        self._commit_timer.setSingleShot(True)
-        self._commit_timer.timeout.connect(self._commit_pending)
-        self.destroyed.connect(self._commit_timer.stop)
         self._section_icons: list[tuple[QLabel, str]] = []
         # Subparts such as control surfaces carry their own mass; the fields
         # below edit this component alone and a read-only row shows the total.
@@ -153,7 +147,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             decimals=3,
             quantity="mass",
             suffix="g",
-            on_changed=self._on_field_changed,
+            on_changed=lambda raw: self._on_field_changed("mass", raw),
         )
         layout.addWidget(self.mass_table)
 
@@ -187,8 +181,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 decimals=3,
                 quantity="length",
                 suffix="mm",
-                on_changed=self._on_field_changed,
+                raw_callback=True,
+                on_changed=lambda raw, axis=axis: self._on_field_changed(f"cg.{axis}", raw),
                 api=self._api,
+                label=f"CG {axis.upper()}",
             )
             for column, axis in enumerate(("x", "y", "z"))
         }
@@ -224,8 +220,12 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                         decimals=8,
                         quantity="inertia",
                         suffix="kg·m²",
-                        on_changed=self._on_field_changed,
+                        raw_callback=True,
+                        on_changed=lambda raw, key=key: self._on_field_changed(
+                            f"inertia.{key}", raw
+                        ),
                         api=self._api,
+                        label=key.upper(),
                     )
                     for column, key in enumerate(keys)
                 }
@@ -278,8 +278,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     decimals=decimals,
                     quantity=quantity,
                     suffix=suffix,
+                    raw_callback=True,
                     on_changed=on_changed,
                     api=self._api,
+                    label=key.title(),
                 )
         raise KeyError(f"Unknown mass-properties field: {key}")
 
@@ -288,16 +290,18 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         try:
             source = self._source_component(component)
             mass = _number(component.get("mass", source.get("mass", 0.0)))
-            self.mass_g.setValue(mass)
+            _show(self.mass_g, mass, get_expression(component, "mass"))
 
-            cg_x, cg_y, cg_z = resolve_component_local_cg(component)
-            self.cg_spins["x"].setValue(cg_x)
-            self.cg_spins["y"].setValue(cg_y)
-            self.cg_spins["z"].setValue(cg_z)
+            cg = resolve_component_local_cg(component)
+            declared_cg = component.get("local_cg_mm")
+            for axis, value in zip(("x", "y", "z"), cg, strict=True):
+                _show(self.cg_spins[axis], value, get_expression(declared_cg, axis))
 
             inertia_tensor = resolve_component_local_inertia(component, mass / 1000.0)
+            declared_inertia = component.get("inertia_kg_m2")
             for key, spin in self.inertia_spins.items():
-                spin.setValue(float(getattr(inertia_tensor, key)))
+                value = float(getattr(inertia_tensor, key))
+                _show(spin, value, get_expression(declared_inertia, key))
 
             if self._has_subparts and self._api.project is not None:
                 total = resolve_component_aggregate_mass_properties(
@@ -314,46 +318,38 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         finally:
             self._loading = False
 
-    def _on_field_changed(self, _value: float) -> None:
+    def _on_field_changed(self, field: str, raw: str) -> None:
+        """Store the one edited value with its formula; the others stay as they are."""
         component = self._component
         if self._loading or component is None:
             return
-        if self._pending_before is None:
-            self._pending_before = deepcopy(component)
-        mass_g = self.mass_g.value()
-        cg = {axis: spin.value() for axis, spin in self.cg_spins.items()}
-        inertia = {key: spin.value() for key, spin in self.inertia_spins.items()}
+        cells = {
+            "mass": self.mass_g,
+            **{f"cg.{axis}": spin for axis, spin in self.cg_spins.items()},
+            **{f"inertia.{key}": spin for key, spin in self.inertia_spins.items()},
+        }
+        cell = cells[field]
+        parsed = evaluate_table_cell_input(raw, self._api, cell=cell, label=cell.get_label())
+        if parsed is None:
+            return
+        value, expression = parsed
+        group, _, key = field.partition(".")
 
         def change() -> None:
-            component["mass"] = mass_g
-            set_expression(component, "mass", None)
+            if group == "mass":
+                target, key_in_target = component, "mass"
+            else:
+                name = "local_cg_mm" if group == "cg" else "inertia_kg_m2"
+                target = component.setdefault(name, {})
+                key_in_target = key
+            target[key_in_target] = value
+            set_expression(target, key_in_target, expression)
 
-            # Write native Core fields directly on component
-            component["local_cg_mm"] = cg
-            component["inertia_kg_m2"] = inertia
-
-        change()
+        self._api.edit_component(component, "Edit component mass definition", change)
         viewport = self._api.viewport
         if viewport is not None:
             viewport.update_component_cg()
             viewport.update_aircraft_cg()
-        self._commit_timer.start(0)
-
-    def _commit_pending(self) -> None:
-        self._commit_timer.stop()
-        component = self._component
-        before = self._pending_before
-        if component is None or before is None:
-            return
-        after = deepcopy(component)
-        self._pending_before = None
-        component.clear()
-        component.update(before)
-        self._api.edit_component(
-            component,
-            "Edit component mass definition",
-            lambda: component.update(deepcopy(after)),
-        )
 
     def _source_component(self, component: dict[str, Any]) -> dict[str, Any]:
         if component.get("kind") != "instance" or self._api.project is None:
@@ -372,3 +368,11 @@ def _number(value: object) -> float:
         return float(str(value))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _show(cell: ExpressionPropertyCell, value: float, expression: str | None) -> None:
+    """Show a stored formula, or the value when the field has none."""
+    if expression is not None:
+        cell.set_expression(expression)
+    else:
+        cell.setValue(value)

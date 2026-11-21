@@ -56,17 +56,18 @@ Every component has a **Mass** tab in the Properties panel:
 
 The tab shows the values in use:
 
-- **Local Center of Gravity** — the stored local CG if the component has one,
-  otherwise the centroid of its envelope, otherwise its origin.
-- **Inertia Tensor** — the stored tensor if the component has one, otherwise
+- **Local Center of Gravity** — per axis, the stored value if there is one,
+  otherwise the centroid of the envelope, otherwise the origin.
+- **Inertia Tensor** — per entry, the stored value if there is one, otherwise
   the envelope's inertia per unit mass times the component mass, otherwise
   zero.
 
 The envelope of a fuselage, lifting surface, or control surface is computed
 from its geometry, so its CG and inertia follow the shape. When you edit a
-field on the **Mass** tab, Studio stores the mass, the local CG, and the
-inertia tensor on the component, and the stored values replace the ones from
-the envelope.
+field on the **Mass** tab, Studio stores that one value on the component; it
+replaces the envelope's value for that field only, and the other fields keep
+following the shape. Every field accepts a formula, which is kept and
+evaluated again when the constants it uses change.
 
 The mass of a propulsor or a battery is derived from its parameters, so its
 **Mass** field on this tab is read-only. Change the motor, propeller, or pack

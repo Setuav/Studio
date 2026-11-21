@@ -75,30 +75,19 @@ def _number(value: Any, default: float = 0.0) -> float:
 def resolve_component_local_cg(component: dict[str, Any]) -> tuple[float, float, float]:
     """Resolve component local CG offset in mm relative to its coordinate origin.
 
-    Derives automatically from physical envelope centroid unless an explicit override
-    or local_cg_mm is declared.
+    Each axis comes from ``local_cg_mm`` when that axis is declared there, otherwise
+    from the envelope centroid, otherwise 0.
     """
-    # 1. Direct explicit local CG declaration
-    declared_cg = component.get("local_cg_mm")
-    if isinstance(declared_cg, dict):
-        return (
-            _number(declared_cg.get("x")),
-            _number(declared_cg.get("y")),
-            _number(declared_cg.get("z")),
-        )
-
-    # 2. Envelope centroid fallback (geometric centroid)
+    declared = component.get("local_cg_mm")
+    declared = declared if isinstance(declared, dict) else {}
     envelope = component.get("envelope")
-    if isinstance(envelope, dict):
-        offset = envelope.get("offset_mm")
-        if isinstance(offset, dict):
-            return (
-                _number(offset.get("x")),
-                _number(offset.get("y")),
-                _number(offset.get("z")),
-            )
-
-    return (0.0, 0.0, 0.0)
+    offset = envelope.get("offset_mm") if isinstance(envelope, dict) else None
+    offset = offset if isinstance(offset, dict) else {}
+    x, y, z = (
+        _number(declared[axis]) if axis in declared else _number(offset.get(axis))
+        for axis in ("x", "y", "z")
+    )
+    return x, y, z
 
 
 def resolve_component_local_inertia(
@@ -107,28 +96,19 @@ def resolve_component_local_inertia(
 ) -> InertiaTensor:
     """Resolve local inertia tensor in kg·m².
 
-    Derives automatically from envelope unit_inertia * mass_kg unless explicitly declared.
+    Each entry comes from ``inertia_kg_m2`` when it is declared there, otherwise from
+    the envelope's unit inertia times ``mass_kg``, otherwise 0.
     """
-    # 1. Direct explicit inertia
     declared = component.get("inertia_kg_m2")
-    if isinstance(declared, dict):
-        return InertiaTensor.from_dict(declared)
-
-    # 2. Envelope unit inertia scaled by mass
+    declared = declared if isinstance(declared, dict) else {}
     envelope = component.get("envelope")
-    if isinstance(envelope, dict) and mass_kg > 0.0:
-        u_inertia = envelope.get("unit_inertia")
-        if isinstance(u_inertia, dict):
-            return InertiaTensor(
-                ixx=mass_kg * _number(u_inertia.get("ixx")),
-                iyy=mass_kg * _number(u_inertia.get("iyy")),
-                izz=mass_kg * _number(u_inertia.get("izz")),
-                ixy=mass_kg * _number(u_inertia.get("ixy")),
-                ixz=mass_kg * _number(u_inertia.get("ixz")),
-                iyz=mass_kg * _number(u_inertia.get("iyz")),
-            )
-
-    return InertiaTensor()
+    unit = envelope.get("unit_inertia") if isinstance(envelope, dict) else None
+    unit = unit if isinstance(unit, dict) else {}
+    values = {
+        key: _number(declared[key]) if key in declared else mass_kg * _number(unit.get(key))
+        for key in ("ixx", "iyy", "izz", "ixy", "ixz", "iyz")
+    }
+    return InertiaTensor(**values)
 
 
 def _mat_vec_mul(matrix: Matrix3 | Matrix3x3, vec: Vector3) -> Vector3:
