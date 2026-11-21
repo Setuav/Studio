@@ -361,27 +361,3 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         """Order airfoil coordinates as AeroSandbox expects: upper TE -> LE -> lower TE."""
         upper, lower = airfoil_surfaces([(float(x), float(z)) for x, z in coords])
         return np.array([*reversed(upper), *lower[1:]], dtype=float)
-
-        min_x_idx = int(np.argmin(coords[:, 0]))
-        x_min = float(coords[min_x_idx, 0])
-        x_max = float(np.max(coords[:, 0]))
-
-        # A loop whose first point lies in the leading-edge half runs
-        # LE -> upper TE -> lower LE; the leading-edge point itself need not be
-        # the first one when the camber line slopes at the nose.
-        if float(coords[0, 0]) - x_min < 0.5 * (x_max - x_min):
-            max_x_idx = int(np.argmax(coords[:, 0]))
-            upper_part = coords[: max_x_idx + 1][::-1]  # Reverse to TE -> LE
-            lower_part = coords[max_x_idx:]
-            if lower_part[-1, 0] < lower_part[0, 0]:  # TE to LE -> reverse to LE to TE
-                lower_part = lower_part[::-1]
-            return np.vstack([upper_part, lower_part[1:]])
-
-        # If starting at TE, check if upper surface comes first (y >= 0)
-        # If lower surface comes first, reverse entire loop so upper is first
-        if min_x_idx > 0 and min_x_idx < len(coords) - 1:
-            mid_upper_y = coords[min_x_idx // 2, 1]
-            if mid_upper_y < 0:  # lower surface was traversed first
-                coords = coords[::-1]
-
-        return coords
