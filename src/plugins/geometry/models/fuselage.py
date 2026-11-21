@@ -6,6 +6,8 @@ from typing import Any
 
 from setuav_studio.model import Component
 
+from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
+
 
 class FuselageSectionModel:
     """Domain model for a single Fuselage cross-section."""
@@ -36,25 +38,28 @@ class FuselageSectionModel:
 
     @property
     def width(self) -> float:
-        return float(self.profile.get("width", 0.0))
+        """Width of the profile outline in mm; raises ``ValueError`` for an invalid profile."""
+        return compute_section_metrics(sample_profile(self.profile))["width"]
 
     @property
     def height(self) -> float:
-        return float(self.profile.get("height", 0.0))
+        """Height of the profile outline in mm; raises ``ValueError`` for an invalid profile."""
+        return compute_section_metrics(sample_profile(self.profile))["height"]
 
     @property
     def shape(self) -> str:
         return str(self.profile.get("type", "circle"))
 
     def get_exposed_properties(self) -> dict[str, Any]:
-        return {
-            "x": self.x,
-            "y": self.y,
-            "z": self.z,
-            "width": self.width,
-            "height": self.height,
-            "shape": self.shape,
-        }
+        props: dict[str, Any] = {"x": self.x, "y": self.y, "z": self.z, "shape": self.shape}
+        # An invalid profile has no outline: formulas that use its size get an error.
+        try:
+            metrics = compute_section_metrics(sample_profile(self.profile))
+        except ValueError:
+            return props
+        props["width"] = metrics["width"]
+        props["height"] = metrics["height"]
+        return props
 
     def __getattr__(self, name: str) -> Any:
         if name in self._data:
@@ -122,18 +127,15 @@ class FuselageModel(Component):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update(
-            {
-                "length": self.length,
-                "width": self.width,
-                "height": self.height,
-                "max_width": self.max_width,
-                "max_height": self.max_height,
-            }
-        )
-        for i, sec in enumerate(self.sections):
-            for sp_k, sp_v in sec.get_exposed_properties().items():
+        props["length"] = self.length
+        section_props = [section.get_exposed_properties() for section in self.sections]
+        for i, section in enumerate(section_props):
+            for sp_k, sp_v in section.items():
                 props[f"section_{i}_{sp_k}"] = sp_v
+        # The overall size needs every section outline.
+        if section_props and all("width" in section for section in section_props):
+            props["width"] = props["max_width"] = max(s["width"] for s in section_props)
+            props["height"] = props["max_height"] = max(s["height"] for s in section_props)
         return props
 
     def __getattr__(self, name: str) -> Any:

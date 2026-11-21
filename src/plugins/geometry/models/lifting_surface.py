@@ -7,7 +7,7 @@ from typing import Any
 from setuav_studio.model import Component
 
 from ..engine.airfoil import airfoil_label
-from ..engine.lifting_surface_planform_engine import compute_planform_metrics
+from ..engine.lifting_surface_layout import layout_planform
 
 
 class LiftingSurfaceProfileModel:
@@ -166,16 +166,11 @@ class LiftingSurfaceModel(Component):
 
     @property
     def planform_metrics(self) -> dict[str, float]:
-        """Compute closed-loop planform metrics from station profile geometry."""
-        profiles = self.profiles
-        if not isinstance(profiles, list) or len(profiles) < 2:
+        """The planform values the editor's Planform table shows, area in dm²."""
+        geometry = self.geometry
+        if not isinstance(geometry.get("root"), dict) or not geometry.get("sections"):
             return {}
-        return compute_planform_metrics(
-            profiles,
-            sweep_loc=self.sweep_location,
-            symmetric=self.mirror,
-            y_offset=self.y,
-        )
+        return layout_planform(geometry, symmetric=self.mirror, y_offset=self.y)
 
     @property
     def planform_area(self) -> float:
@@ -219,10 +214,7 @@ class LiftingSurfaceModel(Component):
 
     @property
     def average_chord(self) -> float:
-        if "average_chord" in self.planform_metrics:
-            return float(self.planform_metrics["average_chord"])
-        span_val = max(self.wingspan, 1e-6)
-        return self.planform_area / span_val
+        return float(self.planform_metrics.get("ave_chord", 0.0))
 
     @property
     def mac(self) -> float:
@@ -238,7 +230,7 @@ class LiftingSurfaceModel(Component):
 
     @property
     def twist(self) -> float:
-        return float(self.planform_metrics.get("washout", 0.0))
+        return float(self.planform_metrics.get("twist", 0.0))
 
     @property
     def washout(self) -> float:

@@ -112,7 +112,9 @@ Every component exposes `mass`, its position `x`, `y`, `z`, its rotation
 `roll`, `pitch`, `yaw`, its local center of gravity `cg_x`, `cg_y`, `cg_z`, and
 its parameters. A lifting surface also exposes measured planform values such
 as `planform_area`, `span`, `aspect_ratio`, `taper_ratio`, `root_chord`,
-`tip_chord`, `average_chord`, and `mac`. The
+`tip_chord`, `average_chord`, and `mac`, with the same values as its
+**Planform** table. A fuselage exposes `length`, `width`, and `height` and the
+`width` and `height` of each section outline. The
 [Formula Assistant](#formula-assistant) lists every name with its current
 value.
 
@@ -138,8 +140,7 @@ independent of the display units chosen in **Edit → Settings**:
 A formula's result is stored in the field's base unit. For example, a
 **Span** formula must give millimetres, so `=sqrt(wing_area *
 wing_aspect_ratio) * 100` turns an area in dm² into a span in mm. Component
-properties are also read in stored units; check the **Value** column of the
-Formula Assistant when you are not sure. The display unit only changes how a
+properties are also read in base units, for example `planform_area` in dm². The display unit only changes how a
 value is shown and how a typed number is read.
 
 ### When formulas are evaluated
