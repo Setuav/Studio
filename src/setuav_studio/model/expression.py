@@ -150,7 +150,13 @@ class ExpressionEvaluator:
         # Clear interpreter error state and set context variables
         self._aeval.error = []
         user_vars = variables or {}
+        saved_vars: dict[str, Any] = {}
+        added_vars: list[str] = []
         for var_name, var_val in user_vars.items():
+            if var_name in self._aeval.symtable:
+                saved_vars[var_name] = self._aeval.symtable[var_name]
+            else:
+                added_vars.append(var_name)
             self._aeval.symtable[var_name] = var_val
 
         try:
@@ -164,9 +170,10 @@ class ExpressionEvaluator:
                 raise
             raise ExpressionEvaluationError(f"Failed to evaluate '{raw_expr}': {exc}") from exc
         finally:
-            # Clean up user variables from interpreter symbol table
-            for var_name in user_vars:
+            # Restore overwritten built-in symbols and remove temporary user variables
+            for var_name in added_vars:
                 self._aeval.symtable.pop(var_name, None)
+            self._aeval.symtable.update(saved_vars)
 
 
 def walk_expressions(  # noqa: C901

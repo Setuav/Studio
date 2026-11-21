@@ -92,6 +92,15 @@ def test_evaluation_error_on_unknown_variable() -> None:
         evaluator.evaluate("= unknown_variable * 2")
 
 
+def test_evaluate_preserves_standard_symbols_when_shadowed() -> None:
+    evaluator = ExpressionEvaluator()
+    # User variable 'e' (e.g. Oswald efficiency) or 'g' shadows a built-in constant.
+    assert math.isclose(evaluator.evaluate("= e * 2 + g", {"e": 0.85, "g": 2.0}), 3.7)
+    # Subsequent evaluations on the same evaluator must still see built-in e and g.
+    assert math.isclose(evaluator.evaluate("= e"), math.e)
+    assert math.isclose(evaluator.evaluate("= g"), 9.80665)
+
+
 # ==============================================================================
 # 2. ParameterResolver & Dependency Graph Tests
 # ==============================================================================
