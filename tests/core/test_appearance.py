@@ -29,6 +29,12 @@ class ComponentColorModelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             component_color({"id": "bad", "color": "red"}, components)
 
+        # Cyclic instance references must raise ValueError instead of RecursionError.
+        cyc_a = {"id": "a", "kind": "instance", "source": "b"}
+        cyc_b = {"id": "b", "kind": "instance", "source": "a"}
+        with self.assertRaises(ValueError):
+            component_color(cyc_a, {"a": cyc_a, "b": cyc_b})
+
 
 class SurfaceColorTests(unittest.TestCase):
     def test_component_color_paints_surfaces_unless_monochrome(self) -> None:
