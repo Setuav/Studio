@@ -214,6 +214,13 @@ class FlightPerformanceSolver(AbstractSolver):
         mass_kg = project.mass_properties.mass_kg + float(params["payload"]) / 1000.0
         if mass_kg <= 0.0:
             raise ValueError("Flight performance needs the aircraft mass; define component masses.")
+        state_of_charge = float(params["state_of_charge"])
+        reserve = float(params["reserve_soc"])
+        if find_powertrain_members(components) is not None and reserve >= state_of_charge:
+            raise ValueError(
+                f"Landing Reserve ({reserve:g}%) must be below Battery State of Charge "
+                f"({state_of_charge:g}%)."
+            )
         rho = Atmosphere.at_temperature(
             float(params["altitude"]), float(params["temperature"])
         ).density_kg_m3

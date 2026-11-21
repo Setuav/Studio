@@ -284,7 +284,8 @@ airspeeds that are not feasible are shaded.
 - Throttles below 5 % are not considered.
 - Endurance and range assume constant battery power for the whole flight, with
   no take-off, climb, or descent.
-- **Landing Reserve** must be below **Battery State of Charge**. Otherwise the
-  analysis stops with an error when it computes the endurance.
+- **Landing Reserve** must be below **Battery State of Charge** when the
+  aircraft has a powertrain. Otherwise the analysis stops at once with an error
+  naming both parameters.
 - The sweep must contain at least two airspeeds from the stall margin up to
   **Max Speed**; otherwise the analysis stops with an error.

@@ -271,6 +271,13 @@ class FlightPerformanceSolverTests(unittest.TestCase):
             float(result.summary["wing_area"].value), reference_area_m2 * 100.0, places=2
         )
 
+    def test_reserve_at_the_start_charge_is_rejected_by_name(self) -> None:
+        config = _config()
+        config.parameters.update(state_of_charge=20.0, reserve_soc=20.0)
+        solver = FlightPerformanceSolver(config, open_project(TEST_PROJECT_PATH))
+        with self.assertRaisesRegex(ValueError, "Landing Reserve.*Battery State of Charge"):
+            solver.run()
+
     def test_aircraft_without_propulsion_gets_an_aerodynamic_result(self) -> None:
         result = FlightPerformanceSolver(_config(), _project_without_propulsion()).run()
 
