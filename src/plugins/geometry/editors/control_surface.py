@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -60,6 +61,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._api = api
         self._component = component
         self._loading = False
+        self._suppress_content_reload = False
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
@@ -83,7 +85,26 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         get_unit_manager().units_changed.connect(self._on_units_changed)
 
+        self_ref = weakref.ref(self)
+
+        def _on_content_changed(_project: Any = None) -> None:
+            editor = self_ref()
+            if editor is not None:
+                editor._on_project_content_changed()
+
+        self._api.on_project_content_changed(_on_content_changed)
+        self.destroyed.connect(
+            lambda _obj=None, a=self._api, fn=_on_content_changed: (
+                a.remove_project_content_listener(fn)
+            )
+        )
+
         self.load_component(component)
+
+    def _on_project_content_changed(self) -> None:
+        if self._loading or self._suppress_content_reload or self._component is None:
+            return
+        self.load_component(self._component)
 
     def _on_units_changed(self) -> None:
         if self._component is not None:
@@ -305,16 +326,13 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 driver_keys,
             )
 
-            self._set_property_spinbox(
+            self._set_property_expression(
                 self.properties_table,
                 "hinge_sweep",
-                hinge_sweep,
-                min_val=-90.0,
-                max_val=90.0,
-                step=1.0,
+                get_expression(geom, "hinge_sweep") or hinge_sweep,
+                unit="°",
                 decimals=2,
                 quantity="angle",
-                suffix="°",
                 target_data=geom,
                 raw_callback=True,
                 on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
@@ -322,16 +340,13 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 label="Hinge sweep angle",
             )
 
-            self._set_property_spinbox(
+            self._set_property_expression(
                 self.properties_table,
                 "deflection",
-                deflection,
-                min_val=-90.0,
-                max_val=90.0,
-                step=1.0,
+                get_expression(geom, "deflection") or deflection,
+                unit="°",
                 decimals=2,
                 quantity="angle",
-                suffix="°",
                 target_data=geom,
                 raw_callback=True,
                 on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
@@ -441,10 +456,11 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 label_item.setForeground(QColor(tokens()["text_dim"]))
 
         if is_driver:
-            self._set_property_spinbox(
+            val_to_pass = raw_expr if raw_expr else current_val
+            self._set_property_expression(
                 self.properties_table,
                 key,
-                current_val,
+                val_to_pass,
                 unit=unit,
                 decimals=dec,
                 target_data=self._geometry(),
@@ -530,4 +546,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._edit_component("Change control surface lifting surface", change)
 
     def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:
-        self._api.edit_component(self._component, action_name, mutation)
+        self._suppress_content_reload = True
+        try:
+            self._api.edit_component(self._component, action_name, mutation)
+        finally:
+            self._suppress_content_reload = False

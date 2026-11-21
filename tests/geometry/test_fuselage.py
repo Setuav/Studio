@@ -656,6 +656,41 @@ class FuselageGeometryTests(unittest.TestCase):
             format_profile_size({"type": "ellipse", "width": 120.0, "height": 60.0}), "120.0 × 60.0"
         )
 
+    def test_fuselage_editor_refreshes_on_undo_and_dialog_keeps_vertex_formulas(self) -> None:
+        from plugins.geometry.editors.fuselage import FuselageEditor, FuselageSectionDialog
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.model.expression import set_expression
+
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+
+        comp = _build_fuselage_component()
+        poly_vertex = comp["parameters"]["geometry"]["segments"][1]["sections"][0]["profile"][
+            "vertices"
+        ][0]
+        set_expression(poly_vertex, "y", "=-25 * 2")
+        doc.data["components"].append(comp)
+
+        editor = FuselageEditor(api, comp)
+        self.addCleanup(editor.deleteLater)
+        cell_widget(editor.section_properties_table, 1, 1, ExpressionPropertyCell).setValue(110.0)
+        self.assertAlmostEqual(
+            comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]["diameter"],
+            110.0,
+        )
+
+        api.undo()
+        self.assertAlmostEqual(
+            cell_widget(editor.section_properties_table, 1, 1, ExpressionPropertyCell).value(),
+            80.0,
+        )
+
+        dlg = FuselageSectionDialog(api, comp, segment_index=1, section_index=0)
+        self.addCleanup(dlg.deleteLater)
+        v_y_cell = cell_widget(dlg.vertices_table, 0, 0, ExpressionPropertyCell)
+        self.assertEqual(v_y_cell._raw_expression, "=-25 * 2")
+
 
 if __name__ == "__main__":
     unittest.main()

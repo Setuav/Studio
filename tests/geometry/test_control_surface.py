@@ -631,6 +631,84 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(len(doc.data["components"]), 4)
         self.assertIsNone(doc.get_component(deleted_id))
 
+    def test_control_surface_editor_preserves_formulas_and_refreshes_on_undo(self) -> None:
+        from plugins.geometry.editors.control_surface import ControlSurfaceEditor
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.model.expression import get_expression, set_expression
+        from setuav_studio.ui.widget.table import ExpressionPropertyCell
+
+        wing_comp = {
+            "kind": "component",
+            "id": "main-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0},
+                        {"position": {"x": 0.0, "y": 1000.0, "z": 0.0}, "chord": 150.0},
+                    ]
+                }
+            },
+        }
+        cs_comp = {
+            "kind": "component",
+            "id": "aileron",
+            "name": "Aileron",
+            "type": "org.setuav.core:control-surface",
+            "attach_to": "main-wing",
+            "mass": 25.0,
+            "parameters": {
+                "geometry": {
+                    "type": "aileron",
+                    "sizing_mode": "ratio",
+                    "eta_start": 0.5,
+                    "eta_end": 0.9,
+                    "chord_fraction": 0.25,
+                    "deflection": 10.0,
+                    "hinge_sweep": 2.0,
+                }
+            },
+        }
+        geom = cs_comp["parameters"]["geometry"]
+        set_expression(geom, "eta_start", "=0.25 * 2")
+        set_expression(geom, "deflection", "=5 + 5")
+        set_expression(geom, "hinge_sweep", "=1 + 1")
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            Path("cs-formula-undo.json"),
+            "json",
+            {"components": [wing_comp, cs_comp]},
+        )
+        api._host.set_project(doc)
+
+        editor = ControlSurfaceEditor(api, cs_comp)
+        self.addCleanup(editor.deleteLater)
+
+        eta_cell = editor._property_cell(editor.properties_table, "eta_start")
+        def_cell = editor._property_cell(editor.properties_table, "deflection")
+        hs_cell = editor._property_cell(editor.properties_table, "hinge_sweep")
+        assert (
+            isinstance(eta_cell, ExpressionPropertyCell)
+            and isinstance(def_cell, ExpressionPropertyCell)
+            and isinstance(hs_cell, ExpressionPropertyCell)
+        )
+        self.assertEqual(eta_cell._raw_expression, "=0.25 * 2")
+        self.assertEqual(def_cell._raw_expression, "=5 + 5")
+        self.assertEqual(hs_cell._raw_expression, "=1 + 1")
+
+        editor._on_prop_spinbox_changed("deflection", "=15 + 5")
+        self.assertAlmostEqual(geom["deflection"], 20.0)
+        self.assertEqual(get_expression(geom, "deflection"), "=15 + 5")
+
+        api.undo()
+        self.assertAlmostEqual(geom["deflection"], 10.0)
+        self.assertEqual(get_expression(geom, "deflection"), "=5 + 5")
+        def_cell_after_undo = editor._property_cell(editor.properties_table, "deflection")
+        assert isinstance(def_cell_after_undo, ExpressionPropertyCell)
+        self.assertAlmostEqual(def_cell_after_undo.value(), 10.0)
+        self.assertEqual(def_cell_after_undo._raw_expression, "=5 + 5")
+
 
 if __name__ == "__main__":
     unittest.main()
