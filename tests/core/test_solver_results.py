@@ -266,6 +266,17 @@ def test_solver_config_property_editor(tmp_path: Path) -> None:
     editor = SolverConfigPropertyEditor(studio_api, selection)
     assert editor.general_table.rowCount() >= 2
 
+    # Edits and undo must refresh the SolverConfigPropertyEditor display.
+    editor._on_general_cell_changed(0, 1)  # no-op with same text
+    name_item = editor.general_table.item(0, 1)
+    assert name_item is not None
+    name_item.setText("Aero Run 2")
+    cfg = studio_api.get_solver_config(config.config_id)
+    assert cfg is not None and cfg.name == "Aero Run 2"
+    studio_api.undo()
+    assert name_item.text() == "Aero Run 1"
+    editor.deleteLater()
+
 
 def test_result_panel_and_child_views() -> None:
     studio_api = StudioAPI()
