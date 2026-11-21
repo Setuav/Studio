@@ -90,6 +90,7 @@ class LiftingSurfaceDriverSolverTests(unittest.TestCase):
                 (1200.0, 240.0, 120.0),
             ),
             ("area-tip", {"span", "area", "tip_chord"}, (1200.0, 240.0, 120.0)),
+            ("aspect-tip", {"span", "aspect_ratio", "tip_chord"}, (1200.0, 240.0, 120.0)),
             ("fallback-taper", {"span", "taper_ratio", "mac"}, (1200.0, 200.0, 100.0)),
             ("fallback-root", {"span", "root_chord", "mac"}, (1200.0, 240.0, 100.0)),
             ("fallback-tip", {"span", "tip_chord", "mac"}, (1200.0, 200.0, 120.0)),
@@ -118,7 +119,10 @@ class LiftingSurfaceDriverSolverTests(unittest.TestCase):
             ("area-aspect-current", {"area", "aspect_ratio", "mac"}, target_geometry),
             ("area-root-tip", {"area", "root_chord", "tip_chord"}, target_geometry),
             ("area-root-taper", {"area", "root_chord", "taper_ratio"}, target_geometry),
+            ("area-tip-taper", {"area", "tip_chord", "taper_ratio"}, target_geometry),
             ("aspect-root-tip", {"aspect_ratio", "root_chord", "tip_chord"}, target_geometry),
+            ("aspect-root-taper", {"aspect_ratio", "root_chord", "taper_ratio"}, target_geometry),
+            ("aspect-tip-taper", {"aspect_ratio", "tip_chord", "taper_ratio"}, target_geometry),
             (
                 "fallback-root-tip",
                 {"root_chord", "tip_chord", "taper_ratio"},
@@ -174,19 +178,24 @@ class LiftingSurfaceDriverSolverTests(unittest.TestCase):
             120.0,
             y_offset=100.0,
         )
-        offset = solve_8_parameter_driver(
+        for drivers in (
             {"area", "root_chord", "tip_chord"},
-            offset_target,
-            {},
-            y_offset=100.0,
-        )
-        self.assert_planform_matches(
-            offset,
-            span=1200.0,
-            root_chord=240.0,
-            tip_chord=120.0,
-            y_offset=100.0,
-        )
+            {"aspect_ratio", "root_chord", "tip_chord"},
+        ):
+            with self.subTest(offset_drivers=drivers):
+                offset = solve_8_parameter_driver(
+                    drivers,
+                    {key: offset_target[key] for key in drivers},
+                    {},
+                    y_offset=100.0,
+                )
+                self.assert_planform_matches(
+                    offset,
+                    span=1200.0,
+                    root_chord=240.0,
+                    tip_chord=120.0,
+                    y_offset=100.0,
+                )
 
     def test_solver_uses_defaults_and_clamps_driver_inputs(self) -> None:
         defaults = solve_8_parameter_driver(set(), {}, {})

@@ -165,9 +165,9 @@ def _solve_with_span_driver(
         center = 2.0 * y_offset * root if is_symmetric else 0.0
         panel_area = (area - center) / (2.0 if is_symmetric else 1.0)
         tip = max(2.0 * max(panel_area / panel_span, 1e-4) - root, 1e-4)
-    elif {"area", "tip_chord"} <= drivers:
+    elif "tip_chord" in drivers and ({"area", "aspect_ratio"} & drivers):
         tip = values["tip_chord"]
-        area = values["area"] * 10000.0
+        area = _target_area(span, values, "area" in drivers)
         root = max((area - panel_factor * tip) / max(root_factor, 1e-6), 1e-4)
     elif "taper_ratio" in drivers:
         tip = values["taper_ratio"] * root
@@ -203,8 +203,17 @@ def _solve_without_span_driver(
     if {"area", "root_chord", "taper_ratio"} <= drivers:
         tip = values["taper_ratio"] * root
         return _span_for_area(values["area"] * 10000.0, root, tip, is_symmetric, y_offset)
+    if {"area", "tip_chord", "taper_ratio"} <= drivers:
+        root = tip / max(values["taper_ratio"], 1e-4)
+        return _span_for_area(values["area"] * 10000.0, root, tip, is_symmetric, y_offset)
     if {"aspect_ratio", "root_chord", "tip_chord"} <= drivers:
-        return values["aspect_ratio"] * 0.5 * (root + tip), root, tip
+        return _span_for_aspect_ratio(values["aspect_ratio"], root, tip, is_symmetric, y_offset)
+    if {"aspect_ratio", "root_chord", "taper_ratio"} <= drivers:
+        tip = values["taper_ratio"] * root
+        return _span_for_aspect_ratio(values["aspect_ratio"], root, tip, is_symmetric, y_offset)
+    if {"aspect_ratio", "tip_chord", "taper_ratio"} <= drivers:
+        root = tip / max(values["taper_ratio"], 1e-4)
+        return _span_for_aspect_ratio(values["aspect_ratio"], root, tip, is_symmetric, y_offset)
     return span, root, tip
 
 
@@ -247,3 +256,16 @@ def _span_for_area(
     panel_span = panel_area / max(0.5 * (root + tip), 1e-6)
     span = 2.0 * (panel_span + y_offset) if is_symmetric else panel_span
     return span, root, tip
+
+
+def _span_for_aspect_ratio(
+    aspect_ratio: float, root: float, tip: float, is_symmetric: bool, y_offset: float
+) -> tuple[float, float, float]:
+    b_linear = aspect_ratio * 0.5 * (root + tip)
+    if not is_symmetric or y_offset <= 0.0:
+        return max(b_linear, 1e-4), root, tip
+    discriminant = b_linear * b_linear + 4.0 * aspect_ratio * y_offset * (root - tip)
+    if discriminant < 0.0:
+        return max(2.0 * y_offset + 1e-4, b_linear), root, tip
+    span = 0.5 * (b_linear + math.sqrt(discriminant))
+    return max(span, 2.0 * y_offset + 1e-4), root, tip
