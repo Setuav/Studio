@@ -67,6 +67,36 @@ class AirframeFormulaScopeTests(unittest.TestCase):
         self.assertAlmostEqual(model.area_ratio, metrics["area_ratio"])
         self.assertAlmostEqual(model.area, metrics["area_dm2"])
 
+    def test_constraint_status_reads_measured_geometry(self) -> None:
+        from setuav_studio.ui.editor.constraint import ConstraintPropertyEditor
+
+        constraint = {
+            "id": "c_span",
+            "name": "Span",
+            "expression": "main_wing.span > 0",
+            "severity": "warning",
+            "enabled": True,
+        }
+        self.project.data["constraints"] = [constraint]
+        editor = ConstraintPropertyEditor(self.api, constraint)
+        self.addCleanup(editor.deleteLater)
+        self.assertEqual(editor._property_value(editor.general_table, "status"), "✔ Passed")
+
+    def test_formulas_on_measured_geometry_evaluate_when_the_project_opens(self) -> None:
+        from setuav_studio.project.evaluator import recompute_project_expressions
+
+        point_mass = self.project.get_component("avionics-point-mass")
+        assert point_mass is not None
+        position = point_mass.setdefault("transform", {}).setdefault("position", {})
+        position.setdefault("_expressions", {})["x"] = "=main_wing.span / 10"
+        # Opening a project evaluates its formulas before any plugin model exists.
+        recompute_project_expressions(self.project)
+        self.assertNotEqual(self.project.expression_diagnostics, [])
+
+        self.api._host.set_project(self.project)
+        self.assertEqual(self.api.expression_diagnostics, [])
+        self.assertAlmostEqual(position["x"], self.scope["main_wing"].span / 10, places=6)
+
 
 class ControlSurfaceSizingTests(unittest.TestCase):
     """Control surface area follows the hinge line the 3D model cuts."""

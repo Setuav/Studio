@@ -320,7 +320,7 @@ class StatusBarManager:
 
         if proj is not None:
             # 1. Evaluate project design rules & constraints
-            results = self._checker.check_all(proj.data)
+            results = self._checker.check_all(proj.data, api=self._api)
             for r in results:
                 if not r.passed and r.enabled:
                     sev = "error" if r.severity == "error" else "warning"

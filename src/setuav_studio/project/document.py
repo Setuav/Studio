@@ -248,7 +248,10 @@ def _json_default(obj: Any) -> Any:
 def save_project(
     project: ProjectDocument,
     path: str | Path | None = None,
+    *,
+    api: Any | None = None,
 ) -> None:
+    """Write the project; ``api`` gives formulas the plugins' component models."""
     if project.read_only:
         raise ProjectSaveError(
             f"Cannot save project: opened read-only due to validation issues ({project.path})"
@@ -259,7 +262,7 @@ def save_project(
     # 1. Recompute parametric expressions to ensure latest evaluated numbers
     from setuav_studio.project.evaluator import recompute_project_expressions
 
-    recompute_project_expressions(project)
+    recompute_project_expressions(project, api=api)
 
     save_data = project.data
 

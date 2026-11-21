@@ -243,7 +243,7 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
             )
 
             # Evaluate status
-            res = self._checker.check_constraint(c, data)
+            res = self._checker.check_constraint(c, data, api=self._api)
             if not c.get("enabled", True):
                 status_text = "⚪ Disabled"
             elif res.error:

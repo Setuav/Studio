@@ -83,11 +83,13 @@ class _StudioHost:
     def set_project(self, project: ProjectDocument) -> None:
         api = self._api
         api._project = project
+        # Opening evaluated the formulas without the plugins' component models;
+        # evaluate them again with the models, then derive the components.
+        api.recompute_project_expressions()
         api.derive_components()
         api._undo_stack.clear()
         api._undo_stack.setClean()
         project.modified = False
-        api._show_expression_diagnostics()
         api.set_selection(None)
         api.set_section_selection(None)
         from setuav_studio.utilities.listeners import dispatch_listeners

@@ -162,7 +162,7 @@ class ProjectController:
         if self.project.untitled:
             return self.save_project_as()
         try:
-            save_project(self.project)
+            save_project(self.project, api=self._api)
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Save Project", str(exc))
             return False
@@ -185,7 +185,7 @@ class ProjectController:
         if not path:
             return False
         try:
-            save_project(self.project, path)
+            save_project(self.project, path, api=self._api)
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Save Project", str(exc))
             return False
