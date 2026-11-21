@@ -796,6 +796,8 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             method=self._method(),
             settings=self._settings(12, 8),
             progress_callback=self._create_progress_callback(),
+            # The control analysis shows no stability results.
+            include_stability=False,
         )
 
         return self._build_result(aero_result, channel)

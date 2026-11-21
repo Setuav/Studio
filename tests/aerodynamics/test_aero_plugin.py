@@ -512,6 +512,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             components=[WING, _control_surface("left-elevon", "elevon")],
         )
 
+        self.assertFalse(call["include_stability"])
         condition: FlightCondition = call["condition"]
         self.assertEqual(condition.sweep_variable, "elevator")
         self.assertEqual(condition.control_deflections, {"elevator": 0.0})
