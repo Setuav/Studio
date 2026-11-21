@@ -335,6 +335,17 @@ class StatusBarManager:
                         )
                     )
 
+            if proj.format_warning:
+                problems.append(
+                    Problem(
+                        id="project_format",
+                        title="Newer Project Format",
+                        message=proj.format_warning,
+                        severity="warning",
+                        source="Project",
+                    )
+                )
+
             # 2. Check plugin issues / degraded mode
             if proj.plugin_issues:
                 for idx, issue in enumerate(proj.plugin_issues, start=1):

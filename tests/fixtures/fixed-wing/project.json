@@ -1,5 +1,7 @@
 {
   "$schema": "https://schemas.setuav.org/core/project.schema.json",
+  "format_version": "1.0",
+  "studio_version": "0.1.0",
   "plugins": [],
   "parameters": {
     "design_speed": {

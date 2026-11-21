@@ -530,6 +530,7 @@ def test_invalid_global_parameter_is_reported_not_raised(tmp_path: Path) -> None
     project_file.write_text(
         json.dumps(
             {
+                "format_version": "1.0",
                 "name": "Bad Global",
                 "parameters": {"bad": "= missing_global_var + 1", "k": 0.5},
                 "components": [

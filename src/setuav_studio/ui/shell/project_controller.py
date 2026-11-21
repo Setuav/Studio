@@ -142,7 +142,9 @@ class ProjectController:
                 8000,
             )
         self._window.status_manager.evaluate_problems(project)
-        if self._api.expression_diagnostics:
+        if project.format_warning:
+            self._api.show_status(project.format_warning, "warning", 0)
+        elif self._api.expression_diagnostics:
             self._api._show_expression_diagnostics()
         elif project.degraded:
             self._api.show_status(

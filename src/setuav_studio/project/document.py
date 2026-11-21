@@ -41,6 +41,8 @@ class ProjectDocument:
     read_only: bool = field(default=False, compare=False)
     untitled: bool = field(default=False, compare=False)
     expression_diagnostics: list[dict[str, str]] = field(default_factory=list, compare=False)
+    # Set when the file comes from a newer minor project format.
+    format_warning: str | None = field(default=None, compare=False)
     # Deserialized solver results by id, kept in step with data["solver_results"].
     _solver_results_cache: dict[str, SolverResult] = field(
         default_factory=dict, init=False, compare=False, repr=False
@@ -178,6 +180,53 @@ class ProjectDocument:
         return build_universal_scope(self.data, api=api, config_id=config_id)
 
 
+#: Version of the project file layout as (major, minor). Raise the minor when fields
+#: are only added, so older Studios still open the file; raise the major when the
+#: layout changes otherwise. Studio opens files of its own major only.
+PROJECT_FORMAT_VERSION = (1, 0)
+
+
+def _format_text(version: tuple[int, int]) -> str:
+    return f"{version[0]}.{version[1]}"
+
+
+def _studio_version() -> str:
+    from importlib.metadata import version
+
+    return version("setuav-studio")
+
+
+def _check_format_version(data: dict[str, Any], path: Path) -> str | None:
+    """Raise for a file this Studio cannot read; return a warning for a newer minor."""
+    found = data.get("format_version")
+    written_by = data.get("studio_version")
+    by = f" by Setuav Studio {written_by}" if written_by else ""
+    current = _format_text(PROJECT_FORMAT_VERSION)
+    parts = found.split(".") if isinstance(found, str) else []
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        raise ProjectOpenError(
+            f"{path.name} has no valid project format version ({found!r}){by}; "
+            f"this Studio reads format {current}."
+        )
+    major, minor = int(parts[0]), int(parts[1])
+    if major > PROJECT_FORMAT_VERSION[0]:
+        raise ProjectOpenError(
+            f"{path.name} was saved{by} in project format {found}; this Studio "
+            f"({_studio_version()}) reads format {current}. Update Setuav Studio."
+        )
+    if major < PROJECT_FORMAT_VERSION[0]:
+        raise ProjectOpenError(
+            f"{path.name} was saved{by} in project format {found}, which this Studio "
+            f"({_studio_version()}, format {current}) no longer reads."
+        )
+    if minor > PROJECT_FORMAT_VERSION[1]:
+        return (
+            f"{path.name} was saved{by} in project format {found}, newer than this "
+            f"Studio's {current}. Data this Studio does not know may be lost when you save."
+        )
+    return None
+
+
 def create_project(path: str | Path) -> ProjectDocument:
     """Create a new, empty project document at ``path``.
 
@@ -196,6 +245,8 @@ def create_project(path: str | Path) -> ProjectDocument:
         path=selected_path,
         kind=kind,
         data={
+            "format_version": _format_text(PROJECT_FORMAT_VERSION),
+            "studio_version": _studio_version(),
             "plugins": [],
             "components": [],
             "parameters": {},
@@ -221,6 +272,7 @@ def open_project(path: str | Path) -> ProjectDocument:
         doc = ProjectDocument(selected_path, "archive", _read_suav(selected_path))
     else:
         raise ProjectOpenError("Expected a project folder, project.json, or .suav file")
+    doc.format_warning = _check_format_version(doc.data, selected_path)
 
     # Evaluate all parametric expressions to hydrate runtime numeric caches
     from setuav_studio.project.evaluator import recompute_project_expressions
@@ -264,6 +316,9 @@ def save_project(
 
     recompute_project_expressions(project, api=api)
 
+    # The file records its layout version and the Studio that wrote it.
+    project.data["format_version"] = _format_text(PROJECT_FORMAT_VERSION)
+    project.data["studio_version"] = _studio_version()
     save_data = project.data
 
     # 2. Pre-save validation: prevent writing corrupted project documents to disk
