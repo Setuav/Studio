@@ -108,6 +108,18 @@ class MassFormulaTests(unittest.TestCase):
         self._set_k(2.0)
         self.assertAlmostEqual(float(self.point_mass["inertia_kg_m2"]["ixx"]), 0.002)
 
+    def test_mass_editor_follows_undo_and_clamps_negative_mass(self) -> None:
+        original_mass = float(self.point_mass["mass"])
+        self.editor._on_field_changed("mass", "123.0")
+        self.assertAlmostEqual(float(self.point_mass["mass"]), 123.0)
+        self.api.undo()
+        self.assertAlmostEqual(float(self.point_mass["mass"]), original_mass)
+        self.assertEqual(self.editor.mass_g.value(), original_mass)
+
+        self.editor._on_field_changed("mass", "-50")
+        self.assertAlmostEqual(float(self.point_mass["mass"]), 0.0)
+        self.assertEqual(self.editor.mass_g.value(), 0.0)
+
 
 class DerivedMassTests(unittest.TestCase):
     @classmethod
