@@ -529,6 +529,69 @@ class TestComponentEditor(unittest.TestCase):
         editor._on_remove_table_row("sections")
         self.assertEqual(len(comp["parameters"]["sections"]), 2)
 
+    def test_expression_cell_focus_without_edit_does_not_drift_or_push_undo(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test-focus.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "wing-1",
+                        "type": "test:wing",
+                        "name": "Wing",
+                        "parameters": {"span": 100.0},
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        units = get_unit_manager()
+        units.set_display_unit("length", "in")
+        fields = [ParameterField(key="span", label="Span", unit="mm", decimals=2, default=100.0)]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        cell = _cell(editor.parameters_table, "span")
+        self.assertEqual(cell.line_edit.text(), "3.94")
+        cell._on_focus_in()
+        cell._on_focus_out()
+        self.assertEqual(comp["parameters"]["span"], 100.0)
+        self.assertFalse(api.can_undo)
+
+    def test_optional_parametric_field_can_be_cleared(self) -> None:
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test-optional.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "wing-1",
+                        "type": "test:wing",
+                        "name": "Wing",
+                        "parameters": {"limit": 25.0},
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        fields = [
+            ParameterField(key="limit", label="Limit", unit="mm", optional=True, default=None)
+        ]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        cell = _cell(editor.parameters_table, "limit")
+        cell._on_focus_in()
+        cell.line_edit.setText("")
+        cell._on_return_pressed()
+        self.assertIsNone(comp["parameters"]["limit"])
+
 
 if __name__ == "__main__":
     unittest.main()

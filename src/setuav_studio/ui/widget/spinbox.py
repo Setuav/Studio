@@ -189,6 +189,7 @@ def set_table_spinbox(
     on_changed: Callable[[Any], None] | None = None,
     on_open_assistant: Callable[[str], None] | None = None,
     raw_callback: bool = False,
+    allow_empty: bool = False,
     api: Any | None,
     label: str = "",
 ) -> ExpressionPropertyCell:
@@ -258,6 +259,7 @@ def set_table_spinbox(
         decimals=decimals,
         quantity=quantity,
         unit=unit or suffix.strip(),
+        allow_empty=allow_empty,
     )
     table.setCellWidget(row, column, cell)
     return cell
