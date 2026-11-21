@@ -81,20 +81,6 @@ class ConstraintChecker:
 
         return build_evaluation_context(project_data, api=api, config_id=config_id)
 
-    def _flatten_params(self, params: Any, prefix: str, out: dict[str, Any]) -> None:
-        """Helper to expose nested component parameters as flat variable names."""
-        if isinstance(params, dict):
-            for k, v in params.items():
-                sanitized_k = str(k).replace("-", "_")
-                new_prefix = f"{prefix}_{sanitized_k}"
-                if isinstance(v, (int, float)):
-                    out[new_prefix] = v
-                elif isinstance(v, dict):
-                    self._flatten_params(v, new_prefix, out)
-                elif isinstance(v, list) and v and isinstance(v[0], dict):
-                    for idx, item in enumerate(v):
-                        self._flatten_params(item, f"{new_prefix}_{idx}", out)
-
     def check_constraint(
         self,
         constraint: dict[str, Any],
