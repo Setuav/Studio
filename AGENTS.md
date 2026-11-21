@@ -36,9 +36,9 @@ Operating instructions for coding agents working on Setuav Studio. Keep this fil
 
 ## Project Context
 
-- **Stack:** Python 3.12+, `uv`, PySide6 (Qt6 desktop + OpenGL), NumPy/SciPy, `asteval`, `setuav-pythrust`, optional `aerosandbox`; `pytest`/`pytest-qt`, `ruff`, `pyright`.
+- **Stack:** Python 3.12+, `uv`, PySide6 (Qt6 desktop + OpenGL), NumPy/SciPy, `asteval`, `setuav-pythrust`, `aerosandbox`; `pytest`/`pytest-qt`, `ruff`, `pyright`.
 - **Commands:**
-  - Install: `uv sync --locked --all-extras --group dev`
+  - Install: `uv sync --locked --group dev`
   - Run app: `uv run python -m setuav_studio`
   - Test (single): `uv run pytest tests/core/test_workbench.py` — during active iteration, run only affected test files, NOT the full suite.
   - Test (all): `uv run pytest` — pre-push / pre-PR verification only.

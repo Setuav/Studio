@@ -9,7 +9,7 @@ import numpy as onp
 
 from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
-from .aerosandbox_module import HAS_AEROSANDBOX, asb, np
+from .aerosandbox_module import asb, np
 from .aerosandbox_results import AeroSandboxResultMixin
 from .base import (
     AeroResult,
@@ -75,12 +75,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         *,
         include_stability: bool = True,
     ) -> AeroResult:
-        if not HAS_AEROSANDBOX:
-            raise RuntimeError(
-                "AeroSandbox is not installed. Install the aerodynamics extra "
-                "(uv sync --locked --extra aerodynamics)."
-            )
-
         method = method if isinstance(method, AnalysisMethod) else AnalysisMethod.from_value(method)
         solver_settings = self._solver_settings(
             method, DEFAULT_SOLVER_SETTINGS if settings is None else settings

@@ -51,7 +51,7 @@ jobs:
           cache-dependency-glob: uv.lock
           enable-cache: true
       - name: Install locked dependencies
-        run: uv sync --locked --all-extras --group dev
+        run: uv sync --locked --group dev
       - name: Lint
         run: uv run --locked ruff check .
       - name: Check formatting
@@ -114,9 +114,9 @@ jobs:
           cache-dependency-glob: uv.lock
           enable-cache: true
       - name: Install desktop dependencies
-        run: uv sync --locked --all-extras --group desktop
+        run: uv sync --locked --group desktop
       - name: Build one-folder application
-        run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean packaging/setuav-studio.spec
+        run: uv run --locked --group desktop pyinstaller --noconfirm --clean packaging/setuav-studio.spec
       - name: Verify bundled resources
         run: python scripts/verify_desktop_resources.py dist/setuav-studio
       - name: Verify desktop startup

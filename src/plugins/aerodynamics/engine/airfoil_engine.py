@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from .aerosandbox_module import HAS_AEROSANDBOX, asb
+from .aerosandbox_module import asb
 from .airfoil_cache import AirfoilPolarCache, global_airfoil_cache
 from .airfoil_models import AirfoilPolar, AirfoilPolarPoint
 
@@ -43,9 +43,6 @@ class AirfoilAnalysisEngine:
         Returns:
             AirfoilPolar instance with full section aerodynamic metrics.
         """
-        if not HAS_AEROSANDBOX:
-            raise RuntimeError("AeroSandbox is required for 2D airfoil analysis.")
-
         asb_airfoil, ident = self._resolve_airfoil(airfoil)
 
         alphas_list = [float(a) for a in alphas]

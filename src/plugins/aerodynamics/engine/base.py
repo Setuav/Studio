@@ -874,11 +874,6 @@ class AeroEngine(ABC):
         ...
 
     @abstractmethod
-    def is_available(self) -> bool:
-        """Check if engine runtime dependencies are installed and available."""
-        ...
-
-    @abstractmethod
     def capabilities(self) -> EngineCapabilities:
         """Report features and solver methods supported by this engine."""
         ...

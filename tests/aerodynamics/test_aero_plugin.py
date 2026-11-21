@@ -15,7 +15,6 @@ from plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
 )
 from plugins.aerodynamics.engine.aerosandbox_engine import (
-    HAS_AEROSANDBOX,
     AeroSandboxEngine,
 )
 from plugins.aerodynamics.engine.base import (
@@ -295,8 +294,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                     QTest.qWait(10)
             self.assertTrue(tool.run_button.isEnabled())
 
-        if not HAS_AEROSANDBOX:
-            self.skipTest("AeroSandbox not installed")
         run(
             {
                 "engine": "NeuralFoil (large)",
@@ -560,7 +557,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(result.summary["q_inf"].value, 245.0)
         self.assertEqual(result.summary["reynolds"].value, "3.20e+05")
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_analysis_rejects_channel_missing_on_aircraft(self) -> None:
         aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
         with self.assertRaisesRegex(AeroAnalysisError, "no 'aileron' control channel"):

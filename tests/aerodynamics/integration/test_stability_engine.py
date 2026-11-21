@@ -12,7 +12,6 @@ from plugins.aerodynamics.engine.base import (
     FlightCondition,
 )
 from plugins.aerodynamics.engine.stability_engine import (
-    HAS_AEROSANDBOX,
     StabilityAnalysisEngine,
 )
 from plugins.aerodynamics.engine.stability_models import (
@@ -141,7 +140,6 @@ class TestStabilityModels(unittest.TestCase):
         self.assertEqual(reasons, ("required elevator deflection exceeds ±45°",))
 
 
-@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class TestStabilityAnalysisEngine(unittest.TestCase):
     """Test full 6-DoF stability and trim analysis engine."""
 

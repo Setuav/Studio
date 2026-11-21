@@ -60,16 +60,14 @@ architecture so design and analysis capabilities can evolve independently.
 ## Quick start
 
 Requires Python 3.12 or newer, [`uv`](https://docs.astral.sh/uv/) for locked
-dependency management, and a desktop environment supported by PySide6. The
-aerodynamics extra installs AeroSandbox; these dependencies are
-included by `--all-extras` in the commands below.
+dependency management, and a desktop environment supported by PySide6.
 
 Clone the repository and install the locked runtime environment:
 
 ```bash
 git clone https://github.com/Setuav/Studio.git
 cd Studio
-uv sync --locked --all-extras
+uv sync --locked
 ```
 
 Start the application:
@@ -95,7 +93,7 @@ uv run --locked setuav-studio path/to/project.suav
 Install the development dependencies:
 
 ```bash
-uv sync --locked --all-extras --group dev
+uv sync --locked --group dev
 ```
 
 Run the code checks and test suite:
@@ -120,8 +118,8 @@ uv run --locked pytest tests/aerodynamics/
 Create a local PyInstaller build:
 
 ```bash
-uv sync --locked --all-extras --group desktop
-uv run --locked --all-extras --group desktop \
+uv sync --locked --group desktop
+uv run --locked --group desktop \
   pyinstaller --noconfirm --clean packaging/setuav-studio.spec
 ```
 

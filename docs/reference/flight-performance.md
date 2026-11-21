@@ -24,8 +24,8 @@ The analysis reads three things from the project:
   with an error when the mass is zero.
 - **Aerodynamics**: an AeroBuildup alpha sweep of the aircraft, run with the
   engine of the [Aerodynamics](aerodynamics.md) plugin at **Polar Airspeed**
-  and **Altitude**, from **Polar AoA Min** to **Polar AoA Max**. This needs the
-  optional AeroSandbox package. The aircraft needs at least one lifting
+  and **Altitude**, from **Polar AoA Min** to **Polar AoA Max**. The aircraft
+  needs at least one lifting
   surface; see [Geometry](geometry.md).
 - **Powertrain**: every propulsor and battery of the project, combined as in
   the [Propulsion](propulsion.md) analyses. All propulsors run at the same

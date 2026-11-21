@@ -11,7 +11,6 @@ from unittest.mock import patch
 import numpy as np
 
 from plugins.aerodynamics.engine.aerosandbox_engine import (
-    HAS_AEROSANDBOX,
     AeroSandboxEngine,
 )
 from plugins.aerodynamics.engine.base import (
@@ -109,7 +108,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertIn(AnalysisType.CONTROL_CHANNEL, caps.analysis_types)
         self.assertTrue(caps.supports_fuselage)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_all_operating_point_failures_raise_analysis_error(self) -> None:
         engine = AeroSandboxEngine()
         condition = FlightCondition(alpha=2.0, sweep_steps=1)
@@ -130,7 +128,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 method=AnalysisMethod.AERO_BUILDUP,
             )
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_stability_failure_is_explicit_on_usable_result(self) -> None:
         engine = AeroSandboxEngine()
         condition = FlightCondition(alpha=2.0, sweep_steps=1)
@@ -151,7 +148,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(result.raw["stability_status"], "failed")
         self.assertEqual(result.raw["stability_error"], "stability exploded")
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_stability_uses_the_analysis_panel_settings(self) -> None:
         captured: dict[str, Any] = {}
 
@@ -180,7 +176,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(solver.spanwise_resolution, 7)
         self.assertEqual(solver.chordwise_resolution, 3)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_geometry_conversion_to_airplane(self) -> None:
         engine = AeroSandboxEngine()
         components = _sample_components()
@@ -212,7 +207,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertGreater(airplane.b_ref, 1.4)  # symmetric 750mm half-span -> ~1.5m total
         self.assertGreater(airplane.s_ref, 0.2)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_aerobuildup_sweep_with_6dof_and_forces(self) -> None:
         engine = AeroSandboxEngine()
         components = _sample_components()
@@ -274,7 +268,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         assert original_forces is not None
         self.assertEqual(restored_forces, original_forces)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_vlm_single_point_with_6dof(self) -> None:
         engine = AeroSandboxEngine()
         components = _sample_components()
@@ -299,7 +292,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertNotEqual(pt.forces_moments.lift, 0.0)
         self.assertNotEqual(pt.cz, 0.0)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_matches_regression_snapshot(self) -> None:
         """Detect aerodynamic regressions against the pinned fixed-wing baseline."""
         fixture_dir = TEST_PROJECT_PATH
@@ -402,7 +394,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                             ),
                         )
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_matches_independent_native_model(self) -> None:
         """Compare Setuav results with a direct AeroSandbox model of the aircraft."""
         import aerosandbox as asb
@@ -565,7 +556,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         ),
                     )
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_geometry_contract(self) -> None:
         """Keep the project-to-AeroSandbox geometry contract explicit."""
         fixture_path = TEST_PROJECT_PATH / "project.json"
@@ -621,7 +611,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 self.assertAlmostEqual(height, expected[1])
                 self.assertAlmostEqual(shape, expected[2])
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_aileron_roll_moment(self) -> None:
         """Verify that aileron deflection generates aerodynamic roll moment in VLM."""
         engine = AeroSandboxEngine()
@@ -697,7 +686,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
             cl_roll, -0.01
         )  # Right down (+10) -> left up (-10) -> roll to left (negative Cl)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_child_component_and_elevator_pitch(self) -> None:
         """Verify child control-surface components and elevator pitch moment effects."""
         engine = AeroSandboxEngine()
@@ -786,7 +774,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         cm_up = res_up.polar_points[0].cm
         self.assertLess(cm_down, cm_up)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_overlap_preserves_exact_span_intervals(self) -> None:
         """Flap/aileron overlap must remain two controls without spanwise bleeding."""
 
@@ -875,7 +862,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
             ],
         )
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_right_left_symmetry_modes(self) -> None:
         """Auto, explicit symmetric/antisymmetric and one-sided modes are deterministic."""
 
@@ -940,7 +926,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
             with self.subTest(surface_type=surface_type, symmetry_mode=symmetry_mode):
                 self.assertEqual(converted_deflections(surface_type, symmetry_mode), expected)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_composite_elevon_and_ruddervator_channel_mixing(self) -> None:
         """Composite controls mix symmetric pitch with differential lateral channels."""
 
@@ -1008,7 +993,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(_mirrored_deflections(airplane.wings[1]), (6.0, 2.0))
         self.assertGreater(float(airplane.wings[1].xsecs[-1].xyz_le[2]), 0.0)
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_aero_buildup_primary_solver(self) -> None:
         """Verify native AeroBuildup primary solver executes cleanly and computes 3D aerodynamics."""
         engine = AeroSandboxEngine()
@@ -1077,7 +1061,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertIsNone(cg)
         self.assertEqual(source, "aerodynamic_reference")
 
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_lifting_line_direct_method(self) -> None:
         """Verify direct LiftingLine analysis execution."""
         engine = AeroSandboxEngine()
@@ -1119,7 +1102,6 @@ def _aileron_sweep(method: AnalysisMethod) -> AeroResult:
     )
 
 
-@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class AeroReferenceTests(unittest.TestCase):
     """Coefficients, drag breakdown and stability share one reference surface."""
 
@@ -1198,7 +1180,6 @@ class AeroReferenceTests(unittest.TestCase):
         )
 
 
-@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class MirroredSurfaceTests(unittest.TestCase):
     """A mirrored surface stays one AeroSandbox wing whenever AeroSandbox can mirror it."""
 
@@ -1229,15 +1210,6 @@ class MirroredSurfaceTests(unittest.TestCase):
             components, condition, method=AnalysisMethod.LIFTING_LINE, include_stability=False
         )
         self.assertEqual(lifting_line.notes, [])
-
-
-class MissingAeroSandboxTests(unittest.TestCase):
-    def test_error_names_the_install_command(self) -> None:
-        with (
-            patch("plugins.aerodynamics.engine.aerosandbox_analysis.HAS_AEROSANDBOX", False),
-            self.assertRaisesRegex(RuntimeError, r"uv sync --locked --extra aerodynamics"),
-        ):
-            AeroSandboxEngine().analyze(_sample_components(), FlightCondition())
 
 
 class AirfoilResolutionTests(unittest.TestCase):

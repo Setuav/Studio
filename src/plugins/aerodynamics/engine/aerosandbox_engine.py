@@ -15,7 +15,7 @@ from setuav_studio.utilities.transform import euler_to_matrix, resolve_world_tra
 
 from .aerosandbox_analysis import AeroSandboxAnalysisMixin
 from .aerosandbox_geometry import AeroSandboxGeometryMixin, metric_frame
-from .aerosandbox_module import HAS_AEROSANDBOX, asb, np
+from .aerosandbox_module import asb, np
 from .base import (
     AeroEngine,
     AnalysisMethod,
@@ -31,9 +31,6 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
     @property
     def name(self) -> str:
         return "AeroSandbox"
-
-    def is_available(self) -> bool:
-        return HAS_AEROSANDBOX
 
     def capabilities(self) -> EngineCapabilities:
         return EngineCapabilities(

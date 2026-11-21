@@ -5,7 +5,7 @@
 Install the locked runtime environment with `uv`:
 
 ```bash
-uv sync --locked --all-extras
+uv sync --locked
 ```
 
 Start Setuav Studio:

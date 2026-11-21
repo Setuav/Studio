@@ -5,7 +5,6 @@ from __future__ import annotations
 import unittest
 
 from plugins.aerodynamics.engine.aerosandbox_engine import (
-    HAS_AEROSANDBOX,
     AeroSandboxEngine,
 )
 from plugins.aerodynamics.engine.base import (
@@ -83,7 +82,6 @@ class TestSweepConfiguration(unittest.TestCase):
         )
 
 
-@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class TestParametricSweeps(unittest.TestCase):
     """Test parametric sweep execution across flight mechanics states."""
 

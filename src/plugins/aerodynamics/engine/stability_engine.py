@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from .aerosandbox_module import HAS_AEROSANDBOX, asb
+from .aerosandbox_module import asb
 from .base import (
     AeroAnalysisError,
     AnalysisMethod,
@@ -56,7 +56,6 @@ class StabilityAnalysisEngine:
         Returns:
             StabilityDerivatives object with all aerodynamic derivatives and trim solution.
         """
-        self._require_aerosandbox()
 
         vel = max(float(condition.velocity), 0.1)
         alt = max(float(condition.altitude), 0.0)
@@ -234,11 +233,6 @@ class StabilityAnalysisEngine:
             solver_method=method.value,
             rate_derivative_convention="normalized_body_rates",
         )
-
-    @staticmethod
-    def _require_aerosandbox() -> None:
-        if not HAS_AEROSANDBOX:
-            raise RuntimeError("AeroSandbox is required for stability analysis.")
 
     @staticmethod
     def _native_scalar(result: dict[str, Any], key: str, method: AnalysisMethod) -> float:

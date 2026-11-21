@@ -7,10 +7,7 @@ seconds; the plugin only needs it once an analysis runs.
 from __future__ import annotations
 
 import importlib
-import importlib.util
 from typing import Any
-
-HAS_AEROSANDBOX = importlib.util.find_spec("aerosandbox") is not None
 
 
 class _ImportedOnFirstUse:

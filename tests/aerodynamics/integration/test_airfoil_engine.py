@@ -12,7 +12,6 @@ from plugins.aerodynamics.engine.airfoil_cache import (
     _compute_cache_key,
 )
 from plugins.aerodynamics.engine.airfoil_engine import (
-    HAS_AEROSANDBOX,
     AirfoilAnalysisEngine,
 )
 from plugins.aerodynamics.engine.airfoil_models import (
@@ -114,7 +113,6 @@ class TestAirfoilCache(unittest.TestCase):
         self.assertNotEqual(base, different_model)
 
 
-@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class TestAirfoilEngine(unittest.TestCase):
     """Test 2D airfoil aerodynamic analysis with NeuralFoil and 3D solver integration."""
 

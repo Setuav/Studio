@@ -529,25 +529,3 @@ The **Data** tab lists every point:
 The status line shows the airfoil, the model, and the number of points.
 Results are kept in memory for the session. Running the same airfoil and
 inputs again reuses them, and the status line then ends with "cached".
-
-## Without AeroSandbox
-
-AeroSandbox is in the optional `aerodynamics` extra. Install it with:
-
-```bash
-uv sync --locked --all-extras
-```
-
-or `uv sync --locked --extra aerodynamics`. A `uv sync` without the extra
-removes AeroSandbox again.
-
-Without AeroSandbox the plugin still loads, and the analyses still appear on
-the toolbar:
-
-- Running an analysis fails, and the status bar reports that AeroSandbox is
-  not installed, with the command that installs the extra.
-- **Airfoil Analysis** shows an **AeroSandbox Missing** message: "Install the
-  aerodynamics extra before running airfoil analysis."
-
-[Flight Performance](flight-performance.md) computes its drag polar with the
-same AeroBuildup model, so it also needs the extra.

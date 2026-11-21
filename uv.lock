@@ -1805,6 +1805,7 @@ name = "setuav-studio"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aerosandbox" },
     { name = "asteval" },
     { name = "numpy" },
     { name = "packaging" },
@@ -1814,11 +1815,6 @@ dependencies = [
     { name = "scipy" },
     { name = "setuav-pythrust" },
     { name = "shiboken6" },
-]
-
-[package.optional-dependencies]
-aerodynamics = [
-    { name = "aerosandbox" },
 ]
 
 [package.dev-dependencies]
@@ -1846,7 +1842,7 @@ security = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aerosandbox", marker = "extra == 'aerodynamics'", specifier = ">=4.2.10,<5" },
+    { name = "aerosandbox", specifier = ">=4.2.10,<5" },
     { name = "asteval", specifier = ">=1.0.5,<2" },
     { name = "numpy", specifier = ">=1.26,<3" },
     { name = "packaging", specifier = ">=23,<27" },
@@ -1857,7 +1853,6 @@ requires-dist = [
     { name = "setuav-pythrust", specifier = ">=0.4.1,<0.5" },
     { name = "shiboken6", specifier = ">=6.8,<7" },
 ]
-provides-extras = ["aerodynamics"]
 
 [package.metadata.requires-dev]
 desktop = [{ name = "pyinstaller", specifier = ">=6.22,<7" }]

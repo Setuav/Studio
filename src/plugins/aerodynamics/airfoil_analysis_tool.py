@@ -46,7 +46,7 @@ from setuav_studio.ui.widget import StudioChartWidget
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
 
-from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
+from .engine.aerosandbox_engine import AeroSandboxEngine
 from .engine.airfoil_engine import AirfoilAnalysisEngine
 
 
@@ -133,9 +133,6 @@ class AirfoilAnalysisRequest:
 
 def analyze_airfoil_request(request: AirfoilAnalysisRequest) -> dict[str, Any]:
     """The polar rows of ``request``; runs in a Studio background task."""
-    if not HAS_AEROSANDBOX:
-        raise RuntimeError("AeroSandbox is not installed. Install the aerodynamics extra first.")
-
     import numpy as native_np
 
     alphas = native_np.linspace(
@@ -370,13 +367,6 @@ class AirfoilAnalysisToolWindow(QDialog):
 
     def _run_analysis(self) -> None:
         if self._running:
-            return
-        if not HAS_AEROSANDBOX:
-            QMessageBox.warning(
-                self,
-                "AeroSandbox Missing",
-                "Install the aerodynamics extra before running airfoil analysis.",
-            )
             return
         alpha_min = float(self.alpha_min_spin.value())
         alpha_max = float(self.alpha_max_spin.value())
