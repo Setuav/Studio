@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import gc
 import tempfile
 import unittest
+import weakref
 from pathlib import Path
 
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 from plugins.debug import DebugPlugin
@@ -59,10 +62,12 @@ class TestDebugPanel(unittest.TestCase):
         comp_data = {
             "id": "box_test_1",
             "name": "Test Box",
-            "type": "debug:box",
+            "type": "org.setuav.debug:box",
             "attach_to": "fuselage_root",
-            "position": [1.5, 0.0, 0.5],
-            "rotation": [0.0, 15.0, 0.0],
+            "transform": {
+                "position": {"x": 150.0, "y": -25.0, "z": 50.0},
+                "rotation": {"roll": 5.0, "pitch": 15.0, "yaw": -30.0},
+            },
             "parameters": {"width": 2.0, "height": 1.0, "depth": 0.5},
         }
 
@@ -77,7 +82,12 @@ class TestDebugPanel(unittest.TestCase):
         self.assertEqual(panel._property_value(panel.component_table, "name"), "Test Box")
         self.assertEqual(panel._property_value(panel.component_table, "id"), "box_test_1")
         self.assertEqual(panel._property_value(panel.component_table, "attach_to"), "fuselage_root")
-        self.assertIn("1.500", panel._property_value(panel.component_table, "position"))
+        self.assertEqual(
+            panel._property_value(panel.component_table, "position"), "[150.000, -25.000, 50.000]"
+        )
+        self.assertEqual(
+            panel._property_value(panel.component_table, "rotation"), "[5.00°, 15.00°, -30.00°]"
+        )
 
         # Check parameters table
         self.assertEqual(panel.params_table.rowCount(), 3)
@@ -117,3 +127,14 @@ class TestDebugPanel(unittest.TestCase):
         panel._clear_events()
         self.assertEqual(panel.events_table.rowCount(), 0)
         self.assertEqual(len(panel._events_history), 0)
+
+    def test_destroyed_debug_panel_unregisters_all_listeners(self) -> None:
+        panel = DebugPanel(self.api)
+        panel_ref = weakref.ref(panel)
+        panel.deleteLater()
+        del panel
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        gc.collect()
+
+        self.assertIsNone(panel_ref())
+        self.api.set_selection(None)
