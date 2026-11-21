@@ -375,10 +375,17 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         if plot is not None and 0 <= index < len(plot.series):
             series = plot.series[index]
             if series.y_column != str(key):
+                old_y_col = series.y_column
+                old_col_def = table.get_column_def(old_y_col) if table is not None else None
                 series.y_column = str(key)
                 if table is not None:
                     col_def = table.get_column_def(str(key))
-                    if col_def and (not series.label or series.label == series.y_column):
+                    is_default_label = (
+                        not series.label
+                        or series.label == old_y_col
+                        or (old_col_def is not None and series.label == old_col_def.label)
+                    )
+                    if col_def and is_default_label:
                         series.label = col_def.label
                 self._build_series_ui()
                 self._notify_plot_changed()
