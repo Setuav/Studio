@@ -40,20 +40,20 @@ class ProjectExplorerContextMenu:
             return
 
         can_edit = self._ops.can_edit_project()
+        element = self._tree._element_map.get(item)
 
         if item is self._tree._parameters_group_item or (
-            item and item.text(0) in ("Constants", "Equations")
+            element is None and item.text(0) in ("Constants", "Equations")
         ):
             self.open_parameters_group_menu(item, position, can_edit)
             return
 
         if item is self._tree._constraints_group_item or (
-            item is not None and item.text(0) == "Constraints"
+            element is None and item.text(0) == "Constraints"
         ):
             self.open_constraints_group_menu(position, can_edit)
             return
 
-        element = self._tree._element_map.get(item)
         if element and element.get("kind") == "parameter":
             self.open_parameter_element_menu(item, element, position, can_edit)
             return
@@ -62,15 +62,11 @@ class ProjectExplorerContextMenu:
             self.open_constraint_element_menu(item, element, position, can_edit)
             return
 
-        if (element and element.get("kind") == "analysis_plots_group") or (
-            item is not None and item.text(0) == "Plots"
-        ):
+        if element and element.get("kind") == "analysis_plots_group":
             self.open_analysis_plots_group_menu(item, element, position)
             return
 
-        if (element and element.get("kind") == "analysis_tables_group") or (
-            item is not None and item.text(0) == "Tables"
-        ):
+        if element and element.get("kind") == "analysis_tables_group":
             self.open_analysis_tables_group_menu(item, element, position)
             return
 

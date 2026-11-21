@@ -153,6 +153,43 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
         self.assertIsNotNone(project.get_component("main-wing"))
         self.assertIsNotNone(project.get_component("aileron"))
 
+    def test_component_named_like_folder_opens_component_context_menu(self) -> None:
+        # Components named "Plots" or "Constraints" must still open the component menu,
+        # not the folder menu.
+        from PySide6.QtCore import QPoint
+
+        for folder_name in ("Plots", "Constraints"):
+            project = self.api.project
+            assert project is not None
+            wing = project.get_component("main-wing")
+            assert wing is not None
+            wing["name"] = folder_name
+            self.explorer.refresh_project(project)
+
+            item = self.explorer._item_map["main-wing"]
+            rect = self.explorer.visualItemRect(item)
+            called: list[str] = []
+            cm = self.explorer._context_menu
+            orig_default = cm.open_default_context_menu
+            orig_plots = cm.open_analysis_plots_group_menu
+            orig_constraints = cm.open_constraints_group_menu
+            cm.open_default_context_menu = (  # type: ignore[method-assign]
+                lambda *_a, _c=called, _n=folder_name, **_kw: _c.append(f"component:{_n}")
+            )
+            cm.open_analysis_plots_group_menu = (  # type: ignore[method-assign]
+                lambda *_a, _c=called, **_kw: _c.append("folder:plots")
+            )
+            cm.open_constraints_group_menu = (  # type: ignore[method-assign]
+                lambda *_a, _c=called, **_kw: _c.append("folder:constraints")
+            )
+            try:
+                cm.open_context_menu(QPoint(rect.center()))
+            finally:
+                cm.open_default_context_menu = orig_default  # type: ignore[method-assign]
+                cm.open_analysis_plots_group_menu = orig_plots  # type: ignore[method-assign]
+                cm.open_constraints_group_menu = orig_constraints  # type: ignore[method-assign]
+            self.assertEqual(called, [f"component:{folder_name}"])
+
 
 if __name__ == "__main__":
     unittest.main()
