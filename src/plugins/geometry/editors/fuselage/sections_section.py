@@ -630,6 +630,9 @@ class SectionsSectionMixin(FuselageEditorHost):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
+                target_data=vertex,
+                property_key="y",
+                raw_callback=True,
                 on_changed=vertex_callback(row, 0),
                 api=self._api,
             )
@@ -641,6 +644,9 @@ class SectionsSectionMixin(FuselageEditorHost):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
+                target_data=vertex,
+                property_key="z",
+                raw_callback=True,
                 on_changed=vertex_callback(row, 1),
                 api=self._api,
             )
@@ -653,12 +659,15 @@ class SectionsSectionMixin(FuselageEditorHost):
                 step=0.5,
                 decimals=2,
                 suffix="mm",
+                target_data=vertex,
+                property_key="radius",
+                raw_callback=True,
                 on_changed=vertex_callback(row, 2),
                 api=self._api,
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 
-    def _on_vertex_spin_changed(self, row: int, column: int, value: float) -> None:
+    def _on_vertex_spin_changed(self, row: int, column: int, text: object) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -669,11 +678,27 @@ class SectionsSectionMixin(FuselageEditorHost):
         if not isinstance(vertices, list) or not 0 <= row < len(vertices):
             return
         key = ("y", "z", "radius")[column]
-        if isinstance(vertices[row], dict):
-            self._edit_component(
-                "Edit polygon vertex",
-                lambda: vertices[row].__setitem__(key, float(value)),
-            )
+        vertex = vertices[row]
+        if not isinstance(vertex, dict):
+            return
+        cell = self.vertices_table.cellWidget(row, column)
+        parsed = evaluate_table_cell_input(
+            text,
+            self._api,
+            cell=cell if isinstance(cell, ExpressionPropertyCell) else None,
+            label=f"Vertex {row + 1} {key}",
+            min_val=0.0 if key == "radius" else -1e6,
+            max_val=1e6,
+        )
+        if parsed is None:
+            return
+        value, expression = parsed
+
+        def change() -> None:
+            vertex[key] = value
+            set_expression(vertex, key, expression)
+
+        self._edit_component("Edit polygon vertex", change)
 
     def _refresh_section_row(self) -> None:
         section = self._current_section()

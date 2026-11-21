@@ -632,8 +632,11 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
-                    row_idx, "y", val
+                target_data=v,
+                property_key="y",
+                raw_callback=True,
+                on_changed=lambda text, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "y", text
                 ),
                 api=self._api,
             )
@@ -646,8 +649,11 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
-                    row_idx, "z", val
+                target_data=v,
+                property_key="z",
+                raw_callback=True,
+                on_changed=lambda text, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "z", text
                 ),
                 api=self._api,
             )
@@ -661,8 +667,11 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
-                    row_idx, "radius", val
+                target_data=v,
+                property_key="radius",
+                raw_callback=True,
+                on_changed=lambda text, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "radius", text
                 ),
                 api=self._api,
             )
@@ -674,7 +683,7 @@ class FuselageSectionDialog(QDialog):
         ):
             self.vertices_table.selectRow(self.canvas.selected_vertex_index)
 
-    def _on_vertex_cell_spin_changed(self, row: int, key: str, value: float) -> None:
+    def _on_vertex_cell_spin_changed(self, row: int, key: str, text: str) -> None:
         if self._loading:
             return
         sec = self._current_section()
@@ -686,10 +695,20 @@ class FuselageSectionDialog(QDialog):
         verts = prof.get("vertices")
         if not isinstance(verts, list) or not (0 <= row < len(verts)):
             return
-        old_val = float(verts[row].get(key, 0.0))
-        if abs(value - old_val) < 1e-4:
+        cell = self.vertices_table.cellWidget(row, ("y", "z", "radius").index(key))
+        parsed = evaluate_table_cell_input(
+            text,
+            self._api,
+            cell=cell if isinstance(cell, ExpressionPropertyCell) else None,
+            label=f"Vertex {row + 1} {key}",
+            min_val=0.0 if key == "radius" else -1e6,
+            max_val=1e6,
+        )
+        if parsed is None:
             return
-        verts[row][key] = float(value)
+        value, expression = parsed
+        verts[row][key] = value
+        set_expression(verts[row], key, expression)
         self._refresh_canvas_and_metrics()
 
     def _populate_transform_table(self, section: dict[str, Any]) -> None:

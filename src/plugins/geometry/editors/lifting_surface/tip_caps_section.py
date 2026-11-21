@@ -9,6 +9,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTableWidgetItem
 from shiboken6 import isValid
 
+from setuav_studio.model.expression import set_expression
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+
 from ...engine.lifting_surface_tips import (
     WingletParameters,
     compute_winglet_projected_dimensions,
@@ -62,6 +65,9 @@ _TIP_TYPE_OPTIONS = [
     ("sharp", "Sharp (Bevel)"),
     ("winglet", "Winglet"),
 ]
+
+
+_SPIN_FIELDS = {field.key: field for field in (*_TIP_CAP_FIELDS, *_WINGLET_FIELDS)}
 
 
 class TipCapsSectionMixin(LiftingSurfaceEditorHost):
@@ -143,8 +149,11 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
                     step=field.step,
                     decimals=field.decimals,
                     suffix=field.suffix,
-                    on_changed=lambda val, key=field.key: self._on_tip_cap_spinbox_changed(
-                        key, val
+                    target_data=geom.get("tip_treatment"),
+                    raw_callback=True,
+                    api=self._api,
+                    on_changed=lambda text, key=field.key: self._on_tip_cap_spinbox_changed(
+                        key, text
                     ),
                 )
 
@@ -243,14 +252,27 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         self._edit_component("Toggle winglet match wing tangent", change)
         self._load_tip_caps()
 
-    def _on_tip_cap_spinbox_changed(self, key: str, value: float) -> None:
+    def _on_tip_cap_spinbox_changed(self, key: str, text: object) -> None:
         if self._loading:
             return
+        field = _SPIN_FIELDS[key]
+        parsed = evaluate_table_cell_input(
+            text,
+            self._api,
+            cell=self._property_cell(self.tip_caps_table, key),
+            label=field.label,
+            min_val=field.min_val,
+            max_val=field.max_val,
+        )
+        if parsed is None:
+            return
+        value, expression = parsed
         geom = self._geometry()
         tip_treatment = geom["tip_treatment"]
 
         def change() -> None:
             tip_treatment[key] = value
+            set_expression(tip_treatment, key, expression)
 
         self._edit_component(f"Change tip cap {key}", change)
         if tip_treatment_type(geom) == "winglet":

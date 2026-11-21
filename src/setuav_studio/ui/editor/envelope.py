@@ -247,7 +247,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         column: int,
         _axis: str,
     ) -> ExpressionPropertyCell:
-        return set_table_spinbox(
+        cell = set_table_spinbox(
             table,
             0,
             column,
@@ -257,9 +257,21 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             step=1.0,
             decimals=3,
             suffix="mm",
-            on_changed=lambda _value: self._update_envelope(),
+            raw_callback=True,
+            on_changed=lambda raw: self._on_vector_changed(cell, raw),
             api=self._api,
         )
+        return cell
+
+    def _on_vector_changed(self, cell: ExpressionPropertyCell, raw: str) -> None:
+        if self._loading:
+            return
+        # The envelope's volume and inertia are derived when it is set, so its sizes
+        # take numbers only; a formula would not update them.
+        if raw.startswith("="):
+            cell.set_error("Envelope sizes take numbers, not formulas.")
+            return
+        self._update_envelope()
 
     def _load_component(self, component: dict[str, Any]) -> None:
         self._loading = True

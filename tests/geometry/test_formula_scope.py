@@ -98,6 +98,75 @@ class AirframeFormulaScopeTests(unittest.TestCase):
         self.assertAlmostEqual(position["x"], self.scope["main_wing"].span / 10, places=6)
 
 
+class EditorFormulaTests(unittest.TestCase):
+    """Numeric cells that accept a formula store it, and the recompute follows it."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = get_qapp()
+
+    def setUp(self) -> None:
+        self.api = StudioAPI()
+        plugin = AirframeDesignPlugin()
+        plugin.activate(self.api)
+        self.addCleanup(plugin.deactivate, self.api)
+        self.project = open_project(TEST_PROJECT_PATH)
+        self.project.data["parameters"]["k"] = {"value": 2.0, "unit": "1"}
+        self.api._host.set_project(self.project)
+
+    def _component(self, component_id: str) -> dict:
+        component = self.project.get_component(component_id)
+        assert component is not None
+        return component
+
+    def _set_k(self, value: float) -> None:
+        parameters = self.project.data["parameters"]
+        self.api.edit_project("Set k", lambda: parameters["k"].update(value=value))
+
+    def test_airfoil_shaping_keeps_its_formula(self) -> None:
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+
+        wing = self._component("main-wing")
+        editor = LiftingSurfaceEditor(self.api, wing)
+        self.addCleanup(editor.deleteLater)
+        editor._on_airfoil_shaping_spinbox_changed("thickness_scale", "=k/2")
+        self._set_k(3.0)
+        self.assertAlmostEqual(
+            wing["parameters"]["geometry"]["airfoil_shaping"]["thickness_scale"], 1.5
+        )
+
+    def test_polygon_vertex_keeps_its_formula(self) -> None:
+        from plugins.geometry.editors.fuselage.editor import FuselageEditor
+
+        fuselage = self._component("fuselage")
+        section = fuselage["parameters"]["geometry"]["segments"][0]["sections"][0]
+        section["profile"] = {
+            "type": "polygon",
+            "vertices": [
+                {"y": 10.0, "z": 0.0, "radius": 0.0},
+                {"y": 0.0, "z": 10.0, "radius": 0.0},
+                {"y": -10.0, "z": 0.0, "radius": 0.0},
+            ],
+        }
+        editor = FuselageEditor(self.api, fuselage)
+        self.addCleanup(editor.deleteLater)
+        editor._load_section(0)
+        editor._on_vertex_spin_changed(0, 0, "=k*10")
+        self._set_k(4.0)
+        self.assertAlmostEqual(section["profile"]["vertices"][0]["y"], 40.0)
+
+    def test_envelope_rejects_a_formula(self) -> None:
+        from setuav_studio.ui.editor.envelope import EnvelopeEditor
+
+        point_mass = self._component("avionics-point-mass")
+        editor = EnvelopeEditor(self.api, point_mass)
+        self.addCleanup(editor.deleteLater)
+        before = dict(point_mass.get("envelope") or {})
+        cell = editor.dimension_spins["x"]
+        editor._on_vector_changed(cell, "=k*10")
+        self.assertEqual(dict(point_mass.get("envelope") or {}), before)
+
+
 class ControlSurfaceSizingTests(unittest.TestCase):
     """Control surface area follows the hinge line the 3D model cuts."""
 

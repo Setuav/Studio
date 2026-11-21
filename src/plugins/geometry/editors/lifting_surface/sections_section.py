@@ -42,6 +42,14 @@ _SECTION_COLUMNS = (
 _CHORD_ROWS = {"root_chord": "Root Chord", "tip_chord": "Tip Chord"}
 
 
+# Value range of each airfoil shaping field, as its cell shows it.
+_SHAPING_RANGES = {
+    "te_thickness": (0.0, 0.05),
+    "thickness_scale": (0.1, 3.0),
+    "camber_scale": (0.0, 3.0),
+}
+
+
 class SectionsSectionMixin(LiftingSurfaceEditorHost):
     """The wing's sections and the root and tip profile of the selected section."""
 
@@ -321,7 +329,10 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             step=0.002,
             decimals=4,
             suffix=" t/c",
-            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("te_thickness", val),
+            target_data=shaping,
+            raw_callback=True,
+            api=self._api,
+            on_changed=lambda text: self._on_airfoil_shaping_spinbox_changed("te_thickness", text),
         )
         self._set_property_spinbox(
             self.airfoil_shaping_table,
@@ -332,7 +343,12 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             step=0.05,
             decimals=3,
             suffix="x",
-            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("thickness_scale", val),
+            target_data=shaping,
+            raw_callback=True,
+            api=self._api,
+            on_changed=lambda text: self._on_airfoil_shaping_spinbox_changed(
+                "thickness_scale", text
+            ),
         )
         self._set_property_spinbox(
             self.airfoil_shaping_table,
@@ -343,7 +359,10 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             step=0.05,
             decimals=3,
             suffix="x",
-            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("camber_scale", val),
+            target_data=shaping,
+            raw_callback=True,
+            api=self._api,
+            on_changed=lambda text: self._on_airfoil_shaping_spinbox_changed("camber_scale", text),
         )
 
     # -------------------------------------------------------------------------
@@ -460,13 +479,26 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
 
         self._edit_component("Change section alignment", change)
 
-    def _on_airfoil_shaping_spinbox_changed(self, key: str, value: float) -> None:
+    def _on_airfoil_shaping_spinbox_changed(self, key: str, text: str) -> None:
         if self._loading:
             return
+        min_val, max_val = _SHAPING_RANGES[key]
+        parsed = evaluate_table_cell_input(
+            text,
+            self._api,
+            cell=self._property_cell(self.airfoil_shaping_table, key),
+            label=key,
+            min_val=min_val,
+            max_val=max_val,
+        )
+        if parsed is None:
+            return
+        value, expression = parsed
         geom = self._geometry()
         shaping = geom.setdefault("airfoil_shaping", {})
 
         def change() -> None:
             shaping[key] = value
+            set_expression(shaping, key, expression)
 
         self._edit_component(f"Change {key}", change)
