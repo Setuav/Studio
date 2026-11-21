@@ -228,3 +228,18 @@ def test_install_tar_gz_archive_root_files(tmp_path: Path) -> None:
     installed = install_plugin_archive(archive_path, dest_dir)
     assert installed.is_dir()
     assert (installed / "plugin.py").is_file()
+
+
+def test_install_archive_rejects_dot_plugin_name(tmp_path: Path) -> None:
+    archive_path = tmp_path / "..zip"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("plugin.py", "id = 'org.test.dot'\n")
+
+    dest_dir = tmp_path / "installed_plugins"
+    dest_dir.mkdir()
+    sentinel = dest_dir / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Invalid plugin name"):
+        install_plugin_archive(archive_path, dest_dir)
+    assert sentinel.exists()
