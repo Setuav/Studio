@@ -33,11 +33,18 @@ class SummaryItem:
 
     def display_value_and_unit(self) -> tuple[float | int | str | bool, str]:
         """Return the value and unit converted according to user's display settings."""
-        if self.quantity_id and isinstance(self.value, (int, float)):
-            from setuav_studio.units import get_unit_manager
+        if (
+            self.quantity_id
+            and isinstance(self.value, (int, float))
+            and not isinstance(self.value, bool)
+        ):
+            from setuav_studio.units import QUANTITIES, convert_value, get_unit_manager
 
             um = get_unit_manager()
-            disp_val = um.to_display(float(self.value), self.quantity_id)
+            target_unit = um.get_display_unit(self.quantity_id)
+            qty = QUANTITIES.get(self.quantity_id)
+            from_unit = self.unit or (qty.base_unit_id if qty is not None else target_unit)
+            disp_val = convert_value(float(self.value), self.quantity_id, from_unit, target_unit)
             disp_unit = um.get_unit_symbol(self.quantity_id)
             return (disp_val, disp_unit)
         return (self.value, self.unit)
@@ -146,14 +153,15 @@ class TableDefinition:
         col = self.get_column_def(key)
         values = self.get_column(key)
         if col and col.quantity_id:
-            from setuav_studio.units import convert_value, get_unit_manager
+            from setuav_studio.units import QUANTITIES, convert_value, get_unit_manager
 
             um = get_unit_manager()
             target_unit = um.get_display_unit(col.quantity_id)
-            from_unit = col.unit or target_unit
+            qty = QUANTITIES.get(col.quantity_id)
+            from_unit = col.unit or (qty.base_unit_id if qty is not None else target_unit)
             return [
                 convert_value(float(v), col.quantity_id, from_unit, target_unit)
-                if isinstance(v, (int, float))
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
                 else v
                 for v in values
             ]

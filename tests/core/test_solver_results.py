@@ -437,3 +437,47 @@ def test_solver_config_edits_are_undoable() -> None:
     assert project.get_solver_config(config.config_id) is None
     api.undo()
     assert project.get_solver_config(config.config_id) is not None
+
+
+def test_summary_and_table_display_unit_conversion() -> None:
+    import math
+
+    from setuav_studio.units import get_unit_manager
+
+    um = get_unit_manager()
+    um.set_active_preset("si")
+
+    # Neutral point stored in meters must convert to SI display unit (mm): 0.25 m -> 250 mm
+    np_item = SummaryItem(key="x_np", value=0.25, label="Neutral Point", unit="m")
+    disp_val, disp_unit = np_item.display_value_and_unit()
+    assert disp_unit == "mm"
+    assert isinstance(disp_val, float)
+    assert math.isclose(disp_val, 250.0, rel_tol=1e-12)
+
+    # Boolean summary item must never be coerced to float even if quantity_id is set
+    flag_item = SummaryItem(key="ok", value=True, quantity_id="length")
+    assert flag_item.display_value_and_unit() == (True, "")
+
+    # Table columns with display symbols ("°", "RPM") or empty unit must convert properly
+    um.set_display_unit("angle", "rad")
+    um.set_display_unit("frequency", "hz")
+    um.set_display_unit("velocity", "km/h")
+    table = TableDefinition(
+        id="sweep",
+        columns=[
+            TableColumn(key="alpha", label="AoA", unit="°", quantity_id="angle"),
+            TableColumn(key="rpm", label="RPM", unit="RPM", quantity_id="frequency"),
+            TableColumn(key="v", label="Speed", unit="", quantity_id="velocity"),
+            TableColumn(key="ok", label="OK", unit="", quantity_id="velocity"),
+        ],
+        data={
+            "alpha": [180.0],
+            "rpm": [6000.0],
+            "v": [10.0],
+            "ok": [True],
+        },
+    )
+    assert math.isclose(table.get_column_display_values("alpha")[0], math.pi, rel_tol=1e-12)
+    assert math.isclose(table.get_column_display_values("rpm")[0], 100.0, rel_tol=1e-12)
+    assert math.isclose(table.get_column_display_values("v")[0], 36.0, rel_tol=1e-12)
+    assert table.get_column_display_values("ok") == [True]
