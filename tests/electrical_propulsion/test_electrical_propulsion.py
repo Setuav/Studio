@@ -248,6 +248,36 @@ class TestElectricalPropulsion(unittest.TestCase):
         api.undo()
         self.assertEqual(propulsor["mass"], 136.0)
 
+    def test_battery_counts_outside_the_model_range_are_reported(self) -> None:
+        from plugins.electrical_propulsion.models.battery import battery_pack
+
+        api, _doc = _api_with_fixture()
+        assert api.project is not None
+        battery = next(
+            c for c in api.project.data["components"] if c["type"] == "org.setuav.core:battery"
+        )
+        parameters = dict(battery["parameters"])
+        for key, value in (("parallel_count", 0), ("parallel_count", 2.7), ("cell_count", 40)):
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                battery_pack({**parameters, key: value})
+        self.assertEqual(battery_pack({**parameters, "parallel_count": 64}).parallel, 64)
+
+    def test_battery_editor_survives_a_formula_count_of_zero(self) -> None:
+        api, _doc = _api_with_fixture()
+        assert api.project is not None
+        battery = next(
+            c for c in api.project.data["components"] if c["type"] == "org.setuav.core:battery"
+        )
+        battery["parameters"]["parallel_count"] = 0
+        statuses: list[str] = []
+        with patch.object(
+            api, "show_status", side_effect=lambda message, *a: statuses.append(message)
+        ):
+            editor = self._page(BatteryEditor(api, battery))
+        self.assertTrue(any("Parallel Count (P)" in message for message in statuses))
+        cell = editor._property_cell(editor.config_table, "parallel_count")
+        self.assertIsNotNone(cell)
+
     def test_component_mass_follows_a_formula_in_the_propeller_mass(self) -> None:
         from setuav_studio.model.expression import set_expression
 

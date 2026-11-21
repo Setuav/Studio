@@ -96,8 +96,22 @@ class BatteryPack:
 
 
 def battery_pack(parameters: Mapping[str, Any]) -> BatteryPack:
-    """Return the pack described by a battery component's parameters."""
+    """Return the pack described by a battery component's parameters.
+
+    Raises ``ValueError`` when a count or the capacity lies outside its field's range,
+    for example after a formula changed it.
+    """
     profile = chemistry_profile(str(parameters["chemistry"]))
+    for field in (BatteryModel.cell_count, BatteryModel.parallel_count, BatteryModel.cell_capacity):
+        number = float(parameters[field.key])
+        low, high = field.min_value, field.max_value
+        assert low is not None and high is not None
+        whole = field.field_type is not int or number == round(number)
+        if not (whole and low <= number <= high):
+            kind = "a whole number" if field.field_type is int else "a value"
+            raise ValueError(
+                f"{field.label} must be {kind} from {low:g} to {high:g}, got {number:g}."
+            )
     series = int(parameters["cell_count"])
     parallel = int(parameters["parallel_count"])
     capacity_ah = float(parameters["cell_capacity"]) / 1000.0
@@ -154,7 +168,7 @@ class BatteryModel(Component):
         field_type=int,
         default=1,
         min_value=1,
-        max_value=16,
+        max_value=64,
         tooltip="Number of cells connected in parallel determining capacity.",
     )
     cell_capacity = ParameterField(

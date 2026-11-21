@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from plugins.electrical_propulsion.chemistry import CHEMISTRIES
 from plugins.electrical_propulsion.models.battery import (
     BATTERY_OVERRIDES,
+    BatteryModel,
     BatteryPack,
     battery_pack,
 )
@@ -172,9 +173,14 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             params = self._component["parameters"]
-            pack = battery_pack(params)
             self._load_general()
-            self._load_configuration(params, pack)
+            self._load_configuration(params)
+            try:
+                pack = battery_pack(params)
+            except ValueError as exc:
+                # Keep the configuration editable so the value can be corrected.
+                self._api.show_status(f"{self._component.get('name')}: {exc}", "error", 8000)
+                return
             self._load_cell_properties(params, pack)
             self._load_pack_values(pack)
         finally:
@@ -192,32 +198,34 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         for key in ("manufacturer", "model"):
             self._set_property_value(self.general_table, key, str(component.get(key) or ""))
 
-    def _load_configuration(self, params: dict[str, Any], pack: BatteryPack) -> None:
+    def _load_configuration(self, params: dict[str, Any]) -> None:
         self._set_property_combo(
             self.config_table,
             "chemistry",
-            pack.profile.chemistry,
+            str(params["chemistry"]),
             list(CHEMISTRIES),
             self._on_chemistry_changed,
         )
-        for key in ("cell_count", "parallel_count"):
+        # The model's fields set the ranges, so typed values and formulas agree.
+        for field in (BatteryModel.cell_count, BatteryModel.parallel_count):
             self._set_property_spinbox(
                 self.config_table,
-                key,
-                int(params[key]),
-                min_val=1,
-                max_val=100,
+                field.key,
+                params[field.key],
+                min_val=float(field.min_value or 0),
+                max_val=float(field.max_value or 0),
                 step=1,
                 decimals=0,
                 target_data=params,
-                on_changed=lambda v, k=key: self._on_param_changed(self.config_table, k, v),
+                on_changed=lambda v, k=field.key: self._on_param_changed(self.config_table, k, v),
             )
+        capacity = BatteryModel.cell_capacity
         self._set_property_spinbox(
             self.config_table,
             "cell_capacity",
             float(params["cell_capacity"]),
-            min_val=100.0,
-            max_val=200000.0,
+            min_val=float(capacity.min_value or 0),
+            max_val=float(capacity.max_value or 0),
             step=100.0,
             decimals=0,
             quantity="capacity",
@@ -309,7 +317,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         def apply_edit() -> None:
             params = self._component["parameters"]
             set_expression(params, key, expr_to_store)
-            params[key] = max(1, int(number)) if key in {"cell_count", "parallel_count"} else number
+            params[key] = round(number) if key in {"cell_count", "parallel_count"} else number
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
         self._load_battery()

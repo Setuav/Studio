@@ -74,8 +74,11 @@ again to edit the formula.
 
 To go back to a fixed value, type a plain number. The formula is removed.
 
-A formula in a numeric field must give a finite number. A result outside the
-field's allowed range is clipped to the range.
+A formula in a numeric field must give a finite number. When you type it, a
+result outside the field's allowed range is clipped to the range. When a
+constant later changes the result, the new value is stored as it is, and a
+value the component cannot use, such as a battery Parallel Count of 0, is
+reported as an error naming the field.
 
 ### Formula syntax
 

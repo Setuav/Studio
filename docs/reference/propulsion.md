@@ -94,8 +94,8 @@ override each derived value. The component mass always equals **Pack Mass**.
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
 | Chemistry | — | LiPo | Cell chemistry: **LiPo** or **Li-Ion**. It selects the discharge curves and the scaling rules. Changing it clears all overrides in **Cell Properties**. |
-| Series Count (S) | S | 6 | Cells in series. Sets the pack voltage. Whole number, at least 1. |
-| Parallel Count (P) | P | 1 | Cells in parallel. Sets the pack capacity. Whole number, at least 1. |
+| Series Count (S) | S | 6 | Cells in series. Sets the pack voltage. Whole number, 1 to 32. |
+| Parallel Count (P) | P | 1 | Cells in parallel. Sets the pack capacity. Whole number, 1 to 64. |
 | Cell Capacity | mAh | 5000 | Rated capacity of one cell. Range 100 to 200000. |
 
 ### Cell Properties
