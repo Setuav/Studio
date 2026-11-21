@@ -2,58 +2,26 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from PySide6.QtCore import QSettings
 
 if TYPE_CHECKING:
     from pythrust.motors.database import MotorDatabase
     from pythrust.propellers.database import PropellerDatabase, PropellerEntry
 
-logger = logging.getLogger(__name__)
 
-_PYTHRUST_SETTINGS_KEY = "propulsion/pythrust_data_dir"
-
-
-def _bundled_dataset_dir() -> Path | None:
-    """Dataset shipped inside the pythrust package (>= 0.3.0), if present."""
-    try:
-        from pythrust import dataset_dir
-
-        return dataset_dir()
-    except ImportError:
-        return None
-
-
-def _resolve_pythrust_data_dir() -> Path | None:
+def _resolve_pythrust_data_dir() -> Path:
+    """The PyThrust dataset folder: ``PYTHRUST_DATA_DIR`` if set, else the bundled one."""
     env_dir = os.environ.get("PYTHRUST_DATA_DIR")
-    if env_dir and Path(env_dir).exists():
-        return Path(env_dir)
+    if env_dir:
+        path = Path(env_dir)
+        if not path.is_dir():
+            raise FileNotFoundError(f"PYTHRUST_DATA_DIR is not a folder: {path}")
+        return path
+    from pythrust import dataset_dir
 
-    settings_dir = str(QSettings().value(_PYTHRUST_SETTINGS_KEY, "", type=str) or "")
-    if settings_dir and Path(settings_dir).exists():
-        return Path(settings_dir)
-
-    bundled_dir = _bundled_dataset_dir()
-    if bundled_dir is not None and bundled_dir.exists():
-        return bundled_dir
-
-    # Fallback: sibling checkout of the PyThrust repo in a source tree.
-    for candidate in (
-        Path(__file__).resolve().parents[5] / "PyThrust" / "pythrust" / "data",
-        Path.cwd().parent / "PyThrust" / "pythrust" / "data",
-    ):
-        if candidate.exists():
-            return candidate
-
-    logger.warning(
-        "PyThrust dataset directory not found. Set PYTHRUST_DATA_DIR or "
-        "configure the 'PyThrust data directory' in Settings."
-    )
-    return None
+    return dataset_dir()
 
 
 _MOTOR_DB: MotorDatabase | None = None
@@ -68,28 +36,21 @@ def get_motor_database() -> MotorDatabase:
         from pythrust.motors.database import MotorDatabase
 
         _MOTOR_DB = MotorDatabase()
-        data_dir = _resolve_pythrust_data_dir()
-        if data_dir is not None:
-            motor_dir = data_dir / "motors"
-            if motor_dir.exists():
-                _MOTOR_DB.load(motor_dir)
-            else:
-                logger.warning("PyThrust motors subdirectory not found at %s", motor_dir)
+        motor_dir = _resolve_pythrust_data_dir() / "motors"
+        if not motor_dir.is_dir():
+            raise FileNotFoundError(f"The PyThrust dataset has no motors folder: {motor_dir}")
+        _MOTOR_DB.load(motor_dir)
     return _MOTOR_DB
 
 
-def _propeller_dir() -> Path | None:
-    data_dir = _resolve_pythrust_data_dir()
-    if data_dir is None:
-        return None
-    prop_dir = data_dir / "propellers"
+def _propeller_dir() -> Path:
+    prop_dir = _resolve_pythrust_data_dir() / "propellers"
     apc_dir = prop_dir / "apc_202602"
-    if apc_dir.exists():
+    if apc_dir.is_dir():
         return apc_dir
-    if prop_dir.exists():
+    if prop_dir.is_dir():
         return prop_dir
-    logger.warning("PyThrust propellers subdirectory not found at %s", prop_dir)
-    return None
+    raise FileNotFoundError(f"The PyThrust dataset has no propellers folder: {prop_dir}")
 
 
 def get_propeller_database() -> PropellerDatabase:
@@ -98,9 +59,7 @@ def get_propeller_database() -> PropellerDatabase:
         from pythrust.propellers.database import PropellerDatabase
 
         _PROP_DB = PropellerDatabase()
-        prop_dir = _propeller_dir()
-        if prop_dir is not None:
-            _PROP_DB.load(prop_dir)
+        _PROP_DB.load(_propeller_dir())
     return _PROP_DB
 
 
@@ -114,8 +73,8 @@ def get_propeller_entry(prop_id: str) -> PropellerEntry | None:
         return _PROP_DB.get(prop_id)
     if prop_id not in _PROP_ENTRIES:
         prop_dir = _propeller_dir()
-        json_path = prop_dir / f"{prop_id}.json" if prop_dir is not None else None
-        if json_path is None or not json_path.exists():
+        json_path = prop_dir / f"{prop_id}.json"
+        if not json_path.exists():
             return None
         from pythrust.propellers.database import PropellerDatabase
 

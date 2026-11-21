@@ -169,7 +169,9 @@ thrust and power coefficients against RPM and advance ratio. There is no
 battery catalog; batteries are defined by their chemistry.
 
 To use another dataset, set the `PYTHRUST_DATA_DIR` environment variable to a
-folder with `motors` and `propellers` subfolders in the PyThrust format.
+folder with `motors` and `propellers` subfolders in the PyThrust format. If
+the variable names a folder that does not exist, or the dataset lacks one of
+these subfolders, opening the catalog reports an error naming the path.
 
 ## Powertrain model
 

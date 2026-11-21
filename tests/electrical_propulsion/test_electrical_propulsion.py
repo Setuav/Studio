@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import itertools
+import os
 import unittest
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -698,38 +700,22 @@ class TestElectricalPropulsion(unittest.TestCase):
             self.assertIsNone(database.get_propeller_entry("APC_does_not_exist"))
 
     def test_pythrust_data_dir_resolution(self) -> None:
-        """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""
-        import os
+        """The env var picks the dataset folder; otherwise PyThrust's own dataset is used."""
         import tempfile
-        from pathlib import Path
 
-        from PySide6.QtCore import QSettings
+        from pythrust import dataset_dir
 
         from plugins.electrical_propulsion import database as db_module
 
-        # 1. Hardcoded user-home absolute path is gone.
-        source = Path(db_module.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("/home/huseyin", source)
-        self.assertIn("PYTHRUST_DATA_DIR", source)
-        self.assertIn("pythrust_data_dir", source)
-
-        get_qapp()
-        env = os.environ.pop("PYTHRUST_DATA_DIR", None)
-        try:
-            # 2. When env is unset and QSettings points at a real tempdir, resolution follows it.
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PYTHRUST_DATA_DIR", None)
+            self.assertEqual(db_module._resolve_pythrust_data_dir(), dataset_dir())
             with tempfile.TemporaryDirectory() as tmp:
-                QSettings().setValue("propulsion/pythrust_data_dir", tmp)
-                resolved = db_module._resolve_pythrust_data_dir()
-                self.assertIsNotNone(resolved)
-                self.assertEqual(resolved, Path(tmp))
-            # 3. When env + setting are both unset/invalid, resolution may still find a sibling
-            #    PyThrust checkout in this dev environment, but never raises.
-            QSettings().remove("propulsion/pythrust_data_dir")
-            resolved = db_module._resolve_pythrust_data_dir()
-            self.assertTrue(resolved is None or isinstance(resolved, Path))
-        finally:
-            if env is not None:
-                os.environ["PYTHRUST_DATA_DIR"] = env
+                os.environ["PYTHRUST_DATA_DIR"] = tmp
+                self.assertEqual(db_module._resolve_pythrust_data_dir(), Path(tmp))
+            os.environ["PYTHRUST_DATA_DIR"] = "/nonexistent/pythrust-data"
+            with self.assertRaisesRegex(FileNotFoundError, "PYTHRUST_DATA_DIR"):
+                db_module._resolve_pythrust_data_dir()
 
     @staticmethod
     def _fixture_components() -> list[dict[str, Any]]:
