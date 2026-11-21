@@ -16,6 +16,7 @@ from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
     _naca5_mean_line,
     airfoil_label,
+    apply_airfoil_shaping,
     biconvex,
     compute_airfoil_metrics,
     naca4,
@@ -156,6 +157,28 @@ class AirfoilTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reflexed mean lines expect 2-5"):
             naca5("21112")
 
+    def test_generated_airfoils_keep_their_open_trailing_edge(self) -> None:
+        """NACA loops run upper TE -> LE -> lower TE like every other airfoil source."""
+        for code in ("0012", "2412", "23012"):
+            with self.subTest(code=code):
+                points = sample_airfoil_points(code)
+                self.assertAlmostEqual(points[0][0], points[-1][0], delta=0.01)
+                self.assertGreater(points[0][1], points[-1][1])
+                expected_gap = 0.021 * int(code[-2:]) / 100.0
+                self.assertAlmostEqual(
+                    compute_airfoil_metrics(points).te_gap, expected_gap, delta=0.0005
+                )
+
+    def test_trailing_edge_thickness_adds_to_the_airfoil_own_gap(self) -> None:
+        shaped = apply_airfoil_shaping(sample_airfoil_points("0012"), te_thickness=0.01)
+        self.assertAlmostEqual(compute_airfoil_metrics(shaped).te_gap, 0.01252, delta=0.0003)
+
+    def test_split_surfaces_end_at_their_own_trailing_edge(self) -> None:
+        from plugins.geometry.engine.lifting_surface_math import split_airfoil_upper_lower
+
+        upper, lower = split_airfoil_upper_lower(sample_airfoil_points("0012"))
+        self.assertAlmostEqual(upper[-1][1] - lower[-1][1], 0.00252, delta=0.0001)
+
     def test_canonical_airfoil_specs_sample_and_label(self) -> None:
         self.assertEqual(sample_airfoil_points("2412"), naca4("2412"))
         self.assertEqual(sample_airfoil_points("23012"), naca5("23012"))
@@ -271,7 +294,7 @@ class AirfoilTests(unittest.TestCase):
         # naca-type preset selected -> spec is the code string
         self.assertEqual(dialog._selected_airfoil_data, "2412")
         self.assertIn("12.0%", dialog.max_thick_label.text())
-        self.assertEqual(len(dialog.canvas._points), 128)  # 65 upper + 63 lower
+        self.assertEqual(len(dialog.canvas._points), 129)  # 65 upper + 64 lower
 
         # coordinates-type preset (file-backed) -> dict spec with points
         clark_row = next(
@@ -307,7 +330,7 @@ class AirfoilTests(unittest.TestCase):
 
         dialog.naca_code_input.setText("4415")
         self.assertEqual(dialog._selected_airfoil_data, "4415")
-        self.assertEqual(len(dialog.canvas._points), 128)
+        self.assertEqual(len(dialog.canvas._points), 129)
         self.assertIn("15.0%", dialog.max_thick_label.text())
         self.assertIn("4% camber at 40% chord", dialog.naca_desc_label.text())
 

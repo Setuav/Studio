@@ -33,7 +33,7 @@ Properties**:
 |---|---|---|
 | Max Thickness | % chord | Largest distance between the upper and lower surface, and where along the chord it occurs. |
 | Max Camber | % chord | Largest distance of the mean line from the chord line, and where it occurs. Shown without a position for a symmetric airfoil. |
-| Trailing Edge Gap | % chord | Distance between the first and the last coordinate point. |
+| Trailing Edge Gap | % chord | Distance between the upper and the lower trailing edge point. |
 | Points | — | Number of coordinate points. |
 
 Thickness and camber are measured at 49 stations, every 2 % of the chord.
@@ -114,11 +114,11 @@ points are closer together at the leading and trailing edges:
 x_i = \tfrac{1}{2}\left(1 - \cos\frac{\pi i}{64}\right), \qquad i = 0, 1, \dots, 64
 \]
 
-The upper surface uses all 65 stations and the lower surface the 63 stations
-between the ends, so a NACA airfoil has 128 points. The loop starts at the
-leading edge, runs along the upper surface to the trailing edge, and comes back
-along the lower surface. Coordinates are fractions of the chord, with the
-leading edge at \(x = 0\) and the trailing edge at \(x = 1\).
+The upper surface uses all 65 stations and the lower surface the 64 stations
+after the leading edge, so a NACA airfoil has 129 points. Like every other
+airfoil, the loop starts at the upper trailing edge, runs over the leading
+edge, and ends at the lower trailing edge. Coordinates are fractions of the
+chord, with the leading edge at \(x = 0\) and the trailing edge at \(x = 1\).
 
 ### Thickness
 

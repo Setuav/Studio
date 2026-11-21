@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from .airfoil import airfoil_surfaces
 from .data import Point3D, Section
 
 
@@ -16,21 +17,8 @@ def mapping(value: object) -> dict[str, Any]:
 def split_airfoil_upper_lower(
     coords: tuple[tuple[float, float], ...],
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-    """Robustly split any closed airfoil coordinate loop into upper and lower curves (LE -> TE)."""
-    le_idx = min(range(len(coords)), key=lambda i: coords[i][0])
-    n = len(coords)
-    ordered = [coords[(le_idx + i) % n] for i in range(n)]
-    te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
-
-    path1 = ordered[: te_idx + 1]
-    path2 = [ordered[0], *reversed(ordered[te_idx:])]
-
-    avg_z1 = sum(p[1] for p in path1) / max(len(path1), 1)
-    avg_z2 = sum(p[1] for p in path2) / max(len(path2), 1)
-
-    if avg_z1 >= avg_z2:
-        return path1, path2
-    return path2, path1
+    """Split an airfoil coordinate loop into upper and lower curves (LE -> TE)."""
+    return airfoil_surfaces(coords)
 
 
 def interp_branch_z(branch: list[tuple[float, float]], x_t: float) -> float:

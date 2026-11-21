@@ -81,9 +81,10 @@ def _naca_airfoil(
         yc, slope = mean_line(x)
         angle = math.atan(slope)
         upper.append((x - yt * math.sin(angle), yc + yt * math.cos(angle)))
-        if 0 < index < samples:
+        if index > 0:
             lower.append((x + yt * math.sin(angle), yc - yt * math.cos(angle)))
-    return tuple(upper + list(reversed(lower)))
+    # Selig order: upper trailing edge -> leading edge -> lower trailing edge.
+    return (*reversed(upper), *lower)
 
 
 def _naca4_mean_line(code: str) -> _MeanLine:
@@ -178,9 +179,10 @@ def biconvex(
         x = 0.5 * (1.0 - math.cos(math.pi * i / samples))
         yt = 2.0 * thickness * x * (1.0 - x)
         upper.append((x, yt))
-        if 0 < i < samples:
+        if i > 0:
             lower.append((x, -yt))
-    return tuple(upper + list(reversed(lower)))
+    # Selig order: upper trailing edge -> leading edge -> lower trailing edge.
+    return (*reversed(upper), *lower)
 
 
 def parse_airfoil_dat(content: str) -> tuple[str, tuple[tuple[float, float], ...]]:
@@ -275,6 +277,23 @@ class AirfoilMetrics:
     te_gap: float
 
 
+def airfoil_surfaces(
+    points: tuple[tuple[float, float], ...] | list[tuple[float, float]],
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Split a Selig-ordered loop into its upper and lower surfaces, each LE -> TE.
+
+    Every airfoil source gives the loop from the upper trailing edge over the
+    leading edge, the point with the smallest x, to the lower trailing edge.
+    """
+    leading_edge = min(range(len(points)), key=lambda index: points[index][0])
+    first = list(reversed(points[: leading_edge + 1]))
+    second = list(points[leading_edge:])
+    # A loop traversed the other way round starts on the lower surface.
+    if sum(z for _x, z in first) / len(first) < sum(z for _x, z in second) / len(second):
+        first, second = second, first
+    return first, second
+
+
 def compute_airfoil_metrics(
     points: tuple[tuple[float, float], ...] | list[tuple[float, float]],
 ) -> AirfoilMetrics:
@@ -285,22 +304,7 @@ def compute_airfoil_metrics(
             f"got {len(points)}"
         )
 
-    min_x_idx = min(range(len(points)), key=lambda i: points[i][0])
-    max_x_idx = max(range(len(points)), key=lambda i: points[i][0])
-
-    if min_x_idx < max_x_idx:
-        seg1 = points[min_x_idx : max_x_idx + 1]
-        seg2 = list(points[max_x_idx:]) + list(points[: min_x_idx + 1])
-    else:
-        seg1 = points[max_x_idx : min_x_idx + 1]
-        seg2 = list(points[min_x_idx:]) + list(points[: max_x_idx + 1])
-
-    avg_z1 = sum(p[1] for p in seg1) / max(len(seg1), 1)
-    avg_z2 = sum(p[1] for p in seg2) / max(len(seg2), 1)
-    if avg_z1 >= avg_z2:
-        upper, lower = seg1, seg2
-    else:
-        upper, lower = seg2, seg1
+    upper, lower = airfoil_surfaces(points)
 
     stations = [s / 50.0 for s in range(1, 50)]
     thickness: list[float] = []
@@ -348,19 +352,7 @@ def apply_airfoil_shaping(
     ):
         return coords
 
-    # Split into upper / lower branches from LE to TE
-    le_idx = min(range(len(coords)), key=lambda i: coords[i][0])
-    n = len(coords)
-    # Build upper (LE->TE going up) and lower (LE->TE going down)
-    ordered = [coords[(le_idx + i) % n] for i in range(n)]
-    te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
-    upper = ordered[: te_idx + 1]  # LE -> TE (upper side)
-    lower = [ordered[0], *reversed(ordered[te_idx:])]  # LE -> TE (lower side)
-
-    avg_u = sum(p[1] for p in upper) / max(len(upper), 1)
-    avg_l = sum(p[1] for p in lower) / max(len(lower), 1)
-    if avg_u < avg_l:
-        upper, lower = lower, upper
+    upper, lower = airfoil_surfaces(coords)
 
     # Sample camberline and half-thickness on a common x-grid
     x_grid = sorted({p[0] for p in upper} | {p[0] for p in lower})

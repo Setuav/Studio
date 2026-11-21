@@ -7,6 +7,7 @@ from typing import Any
 
 from plugins.geometry.engine.airfoil import (
     airfoil_label,
+    airfoil_surfaces,
     apply_airfoil_shaping,
     sample_airfoil_points,
 )
@@ -360,9 +361,9 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
 
     @staticmethod
     def _to_selig_format(coords: Any) -> Any:
-        """Ensure airfoil coordinates are in standard Selig format: Upper TE -> LE -> Lower TE."""
-        if len(coords) < 3:
-            return coords
+        """Order airfoil coordinates as AeroSandbox expects: upper TE -> LE -> lower TE."""
+        upper, lower = airfoil_surfaces([(float(x), float(z)) for x, z in coords])
+        return np.array([*reversed(upper), *lower[1:]], dtype=float)
 
         min_x_idx = int(np.argmin(coords[:, 0]))
         x_min = float(coords[min_x_idx, 0])
