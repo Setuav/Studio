@@ -106,6 +106,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 components,
                 condition,
                 method,
+                solver_settings,
                 setup,
                 len(eval_states),
                 progress_callback,
@@ -457,8 +458,18 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         operating_point: Any,
         settings: dict[str, Any],
     ) -> dict[str, Any]:
+        return AeroSandboxAnalysisMixin._solver(method, airplane, operating_point, settings).run()
+
+    @staticmethod
+    def _solver(
+        method: AnalysisMethod,
+        airplane: Any,
+        operating_point: Any,
+        settings: dict[str, Any],
+    ) -> Any:
+        """Build the AeroSandbox solver of ``method`` with the analysis' settings."""
         if method == AnalysisMethod.VLM:
-            solver = asb.VortexLatticeMethod(
+            return asb.VortexLatticeMethod(
                 airplane=airplane,
                 op_point=operating_point,
                 spanwise_resolution=settings["span_res"],
@@ -466,26 +477,25 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 spanwise_spacing_function=settings["span_spacing"],
                 chordwise_spacing_function=settings["chord_spacing"],
             )
-        elif method == AnalysisMethod.LIFTING_LINE:
-            solver = asb.LiftingLine(
+        if method == AnalysisMethod.LIFTING_LINE:
+            return asb.LiftingLine(
                 airplane=airplane,
                 op_point=operating_point,
                 spanwise_resolution=settings["span_res"],
                 spanwise_spacing_function=settings["span_spacing"],
             )
-        else:
-            solver = asb.AeroBuildup(
-                airplane=airplane,
-                op_point=operating_point,
-                include_wave_drag=settings["include_wave"],
-            )
-        return solver.run()
+        return asb.AeroBuildup(
+            airplane=airplane,
+            op_point=operating_point,
+            include_wave_drag=settings["include_wave"],
+        )
 
     def _compute_stability(
         self,
         components: list[dict[str, Any]],
         condition: FlightCondition,
         method: AnalysisMethod,
+        solver_settings: dict[str, Any],
         setup: dict[str, Any],
         point_count: int,
         progress_callback: Any | None,
@@ -507,6 +517,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 ),
                 method=method,
                 cg_source=setup["mass_cg_source"],
+                solver_factory=lambda airplane, op_point: self._solver(
+                    method, airplane, op_point, solver_settings
+                ),
             )
             error = None
         except Exception as err:

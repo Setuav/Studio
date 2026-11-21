@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -38,6 +39,8 @@ class StabilityAnalysisEngine:
         builder_fn: Any | None = None,
         method: AnalysisMethod = AnalysisMethod.VLM,
         cg_source: str = "unknown",
+        *,
+        solver_factory: Callable[[Any, Any], Any],
     ) -> StabilityDerivatives:
         """Compute full 6-DoF linear stability derivatives and trim equilibrium.
 
@@ -47,6 +50,8 @@ class StabilityAnalysisEngine:
             ref: ReferenceValues for aerodynamic normalization (s_ref, b_ref, c_ref, x_cg).
             components: Optional raw component tree for control surface perturbation.
             builder_fn: Optional callable `fn(components, condition)` to rebuild modified airplane.
+            solver_factory: Callable `fn(airplane, op_point)` that builds the solver of
+                ``method`` with the analysis' own settings.
 
         Returns:
             StabilityDerivatives object with all aerodynamic derivatives and trim solution.
@@ -70,12 +75,7 @@ class StabilityAnalysisEngine:
         )
 
         # Native AeroSandbox stability derivatives run
-        solver_cls = {
-            AnalysisMethod.VLM: asb.VortexLatticeMethod,
-            AnalysisMethod.LIFTING_LINE: asb.LiftingLine,
-            AnalysisMethod.AERO_BUILDUP: asb.AeroBuildup,
-        }.get(method, asb.AeroBuildup)
-        analysis = solver_cls(airplane=airplane, op_point=op_base)
+        analysis = solver_factory(airplane, op_base)
         try:
             res = analysis.run_with_stability_derivatives()
         except Exception as err:
@@ -145,8 +145,8 @@ class StabilityAnalysisEngine:
 
                 plane_p = builder_fn(components, cond_p)
                 plane_m = builder_fn(components, cond_m)
-                res_c_p = solver_cls(airplane=plane_p, op_point=op_base).run()
-                res_c_m = solver_cls(airplane=plane_m, op_point=op_base).run()
+                res_c_p = solver_factory(plane_p, op_base).run()
+                res_c_m = solver_factory(plane_m, op_base).run()
 
                 def delta(
                     key: str,

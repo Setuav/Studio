@@ -152,6 +152,35 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(result.raw["stability_error"], "stability exploded")
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_stability_uses_the_analysis_panel_settings(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def capture(*_args: Any, **kwargs: Any) -> None:
+            captured.update(kwargs)
+            raise RuntimeError("captured")
+
+        settings = {
+            "spanwise_resolution": 7,
+            "chordwise_resolution": 3,
+            "spanwise_spacing": "uniform",
+            "chordwise_spacing": "cosine",
+            "include_wave_drag": True,
+        }
+        with patch.object(StabilityAnalysisEngine, "compute_stability", side_effect=capture):
+            result = AeroSandboxEngine().analyze(
+                _sample_components(),
+                FlightCondition(alpha=2.0, sweep_steps=1),
+                method=AnalysisMethod.VLM,
+                settings=settings,
+            )
+        self.assertEqual(result.raw["stability_error"], "captured")
+
+        airplane = AeroSandboxEngine()._build_airplane(_sample_components())
+        solver = captured["solver_factory"](airplane, asb_operating_point())
+        self.assertEqual(solver.spanwise_resolution, 7)
+        self.assertEqual(solver.chordwise_resolution, 3)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_geometry_conversion_to_airplane(self) -> None:
         engine = AeroSandboxEngine()
         components = _sample_components()
@@ -1061,6 +1090,12 @@ class AeroSandboxEngineTests(unittest.TestCase):
         pt = result.polar_points[0]
         self.assertGreater(pt.cl, 0.0)
         self.assertGreater(pt.cd, 0.0)
+
+
+def asb_operating_point() -> Any:
+    import aerosandbox as asb
+
+    return asb.OperatingPoint(velocity=20.0, alpha=2.0)
 
 
 def _fixture_components() -> list[dict]:

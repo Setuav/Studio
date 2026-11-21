@@ -440,8 +440,8 @@ solver method at a single condition: the **Angle of Attack** and **Sideslip
 (β)** of an Operating Point, α = 0° and **Sideslip (β)** of an Alpha Sweep,
 or **Angle of Attack** and β = 0° of a Beta Sweep.
 AeroSandbox finds the derivatives by finite differences. This run uses the
-solver's own default panel counts, not **Spanwise Panels** and **Chordwise
-Panels**. If it fails, the stability rows are left out of the summary.
+analysis' own **Spanwise Panels**, **Chordwise Panels**, and spacing. If it
+fails, the stability rows are left out of the summary.
 
 AeroSandbox returns the angle derivatives per radian. Studio shows them per
 degree:
