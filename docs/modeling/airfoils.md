@@ -5,7 +5,7 @@ a NACA 4- or 5-digit code, which Studio generates from the digits, or a named
 set of coordinates from the bundled library or from a `.dat` file you import.
 This page covers the library, the NACA generator, importing your own
 coordinates, and how an airfoil is assigned to a station. The lifting surface
-itself is described in [Geometry](geometry.md).
+itself is described in [Lifting Surface](lifting-surface.md).
 
 ## Choosing an airfoil
 
@@ -254,12 +254,12 @@ The stored airfoils do not change.
 | Camber Scale | × | Multiplier on the mean line, from 0 to 3.0. 0 makes the airfoils symmetric. |
 
 **Section Alignment** in the same section is described in
-[Geometry](geometry.md#airfoil-shaping).
+[Lifting Surface](lifting-surface.md#airfoil-shaping).
 
 ## Airfoil Analysis tool
 
 **Tools → Aerodynamics → Airfoil Analysis…** analyzes one airfoil on its own
 with NeuralFoil. Its **Profile** list holds the preset library, and **Import
 .dat** adds a coordinate file in the formats above. It does not change the
-project. See [Aerodynamics](aerodynamics.md) for the analysis settings and
+project. See [Aerodynamics](../analyses/aerodynamics.md) for the analysis settings and
 results.

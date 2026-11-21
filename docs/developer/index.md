@@ -1,152 +1,35 @@
-# Setuav Studio Developer Documentation
+# Developer Guide
 
-Build Python packages that extend Setuav Studio with panels, toolbar items,
-tools, settings pages, component types, editors, solvers, and project-tree
-nodes.
+Plugins are Python packages that extend Setuav Studio. A plugin can add
+panels, toolbar items, menu commands, settings pages, component types and
+their editors, analyses, and nodes in the Project Explorer. The bundled
+plugins in `src/plugins/` use the same interface;
+`src/plugins/flight_performance/` is the smallest of them.
 
-Plugins use three modules:
+- [Writing a Plugin](writing-a-plugin.md) builds a complete plugin that adds
+  an analysis.
+- [API Reference](api.md) lists what `StudioAPI` offers.
 
-- `setuav_studio.api` — `StudioAPI`, the contribution descriptors, and
-  `StudioPlugin`.
-- `setuav_studio.solver` — `AbstractSolver`, `SolverConfig`, and
-  `SolverResult` for analyses.
-- `setuav_studio.ui.style.icons` — `register_plugin_icons` and
-  `unregister_plugin_icons`.
+## Plugin lifecycle
 
-Other application modules are implementation details and may change at any
-time. The bundled plugins in `src/plugins/` are complete reference
-implementations; `src/plugins/flight_performance/` is the smallest.
+A plugin is an object with an `id`, an `activate(api)` and a
+`deactivate(api)` method. Studio activates it at startup; it registers its
+contributions through the `StudioAPI` it receives, and undoes each of them
+when it is deactivated.
 
-## Start here
-
-1. Implement the `StudioPlugin` lifecycle contract: `id`, `activate`, and
-   `deactivate`.
-2. Register contributions through the `StudioAPI` received by `activate`.
-3. Undo every registration in `deactivate`.
-4. Publish the plugin through the `setuav_studio.plugins` entry-point group.
-
-```python
-from PySide6.QtWidgets import QLabel
-
-from setuav_studio.api import PanelContribution, StudioAPI, ToolbarContribution
-
-PANEL_ID = "com.example.demo.panel"
-TOOLBAR_ID = "com.example.demo.hello"
-
-
-class ExamplePlugin:
-    id = "com.example.demo"
-    priority = 100
-
-    def activate(self, api: StudioAPI) -> None:
-        api.register_panel(
-            PanelContribution(
-                id=PANEL_ID,
-                title="Demo",
-                factory=lambda: QLabel("Hello from a plugin"),
-            )
-        )
-        api.register_toolbar_item(
-            ToolbarContribution(
-                id=TOOLBAR_ID,
-                title="Say Hello",
-                icon="fa6s.hand",
-                callback=lambda: api.show_status("Hello", "success"),
-                group="example",
-                order=500,
-            )
-        )
-
-    def deactivate(self, api: StudioAPI) -> None:
-        api.unregister_toolbar_item(TOOLBAR_ID)
-        api.unregister_panel(PANEL_ID)
+```mermaid
+sequenceDiagram
+    participant Studio
+    participant Plugin
+    Studio->>Studio: discover bundled plugins, entry points and user plugins
+    Studio->>Plugin: activate(api)
+    Plugin->>Studio: register panels, toolbar items, solvers, ...
+    Note over Studio,Plugin: the plugin's contributions are in use
+    Studio->>Plugin: deactivate(api) when disabled or on exit
+    Plugin->>Studio: unregister everything it registered
 ```
 
-## API overview
-
-Every `register_*` method has a matching `unregister_*` method.
-
-| Area | `StudioAPI` members | Descriptor |
-|---|---|---|
-| Panels | `register_panel`, `show_panel` | `PanelContribution` |
-| Toolbar | `register_toolbar_item`, `refresh_toolbar_states` | `ToolbarContribution`, `ToolbarMenuItemContribution` |
-| Menus | `register_tool` (Tools menu), `register_action` (any menu path) | `ToolContribution`, `ActionContribution` |
-| Settings | `register_settings_page` | `SettingsPageContribution` |
-| Components | `register_component_type`, `register_component_editor`, `register_component_model`, `register_component_deriver` | `ComponentTypeContribution`, `ComponentDeriver` |
-| Project tree | `register_project_tree_provider`, `register_component_tree_provider`, `register_component_menu_provider` | `ProjectTreeNodeContribution`, `ComponentTreeNodeContribution`, `ComponentMenuItemContribution` |
-| Analyses | `register_solver`, `add_solver_config`, `run_solver`, `get_solver_results` | `AbstractSolver`, `SolverConfig` |
-| Project data | `project`, `edit_component`, `edit_project`, `transaction`, `undo`, `redo` | — |
-| Appearance | `component_color`, `set_component_color` | — |
-| Events | `subscribe`, `publish`, `on_project_changed`, `on_selection_changed`, `set_selection` | `StudioEvents` |
-| Feedback | `show_status`, `report_progress`, `tasks.submit` | — |
-
-Numeric editor fields are described with `ParameterField` and
-`TableParameterField`; a field can hold a number or a formula that uses the
-project constants.
-
-Run long work through `api.tasks.submit` so the Qt UI thread never blocks.
-
-## Analyses
-
-An analysis is a solver class plus a toolbar item that adds a configuration to
-the project. The solver declares its editable parameters in
-`PARAMETER_FIELDS` and returns a `SolverResult` with summary values, tables,
-and plots:
-
-```python
-from typing import ClassVar
-
-from setuav_studio.api import ParameterField
-from setuav_studio.solver import AbstractSolver, SolverResult
-
-
-class HoverSolver(AbstractSolver):
-    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
-        ParameterField(key="altitude", label="Altitude", unit="m", quantity="length"),
-    ]
-
-    def run(self) -> SolverResult:
-        return SolverResult(solver_id="com.example.hover", config=self.config, name="Hover")
-```
-
-Register it in `activate` with
-`api.register_solver("com.example.hover", HoverSolver, icon="...")`. The icon
-is shown next to the solver's analyses in the Project Explorer. Add a toolbar
-item in the `"analysis"` group whose callback calls `api.add_solver_config`
-with a `SolverConfig` for the solver.
-
-## Component colors
-
-Each component's color is part of the project (`"color": "#RRGGBB"`, gray when
-absent), and the 3D Viewer paints the surfaces of every scene object drawing a
-component in that color. A plugin therefore builds its scene objects with the
-right `component_id` and does not choose colors for component geometry. Rings,
-lines and overlays keep their own colors, for markers and other visual aids.
-
-## Icons
-
-An `icon` field accepts an icon name, a file path, or a `QIcon`. Names resolve
-in this order: icons registered by plugins, the core icons in
-`src/setuav_studio/assets/icons/`, then QtAwesome specifiers such as
-`fa6s.chart-line`.
-
-To ship icons, put one SVG per icon, named after the icon, in a folder of the
-plugin and register the folder:
-
-```python
-from pathlib import Path
-
-from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
-
-register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
-...
-unregister_plugin_icons(self.id)  # in deactivate
-```
-
-`assets/icons/hover.svg` then becomes the icon `hover`. The isometric style of
-the bundled icons is generated by `src/setuav_studio/assets/icons/tools/iso.py`.
-
-## Plugin discovery and loading
+## Discovery and loading
 
 ### Installed packages
 
@@ -211,6 +94,7 @@ types, editors, solvers, icons, providers, and listeners.
 
 ## Security
 
-Plugins run inside the Setuav Studio process with the application's file,
-network, and operating-system permissions. Plugins are not sandboxed; install
-them only from publishers you trust.
+!!! danger "Plugins are not sandboxed"
+    Plugins run inside the Setuav Studio process with the application's file,
+    network, and operating-system permissions. Install them only from
+    publishers you trust.

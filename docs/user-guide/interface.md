@@ -62,30 +62,10 @@ copy. The monochrome button of the 3D Viewer draws every part in one color.
 
 ## Analyses
 
-1. Add an analysis from the toolbar. It appears under **Analyses**.
-2. Select it and set its parameters in the Properties panel.
-3. Click **Run Analysis**. The Task Manager (**Ctrl+T**) shows running work.
-4. Open its tables and plots in the Result area.
-
-Plots of one analysis are arranged side by side:
-
-![Alpha Sweep plots](images/analysis-plots.png)
-
-Tables list every computed point with its unit, and **Export CSV** saves them:
-
-![Flight Performance envelope table](images/analysis-table.png)
-
-Available analyses:
-
-| Group | Analyses |
-|---|---|
-| Aerodynamics | Alpha Sweep, Beta Sweep, Control Deflection, Operating Point |
-| Propulsion | Throttle Sweep, Airspeed Sweep, Operating Point |
-| Performance | Flight Performance |
-
-**Tools → Aerodynamics → Airfoil Analysis** analyzes a single airfoil, and
-**Tools → Electrical Propulsion → Component Database** browses the motor and
-propeller catalog.
+The **Analysis** group of the toolbar adds analyses, which appear under
+**Analyses** in the Project Explorer; **Run Analysis** runs the current one.
+Their tables and plots open in the Result area. See
+[Analyses](../analyses/index.md).
 
 ## Settings and shortcuts
 

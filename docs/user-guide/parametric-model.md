@@ -142,11 +142,15 @@ independent of the display units chosen in **Edit → Settings**:
 | Energy | Wh |
 | Moment of inertia | kg·m² |
 
-A formula's result is stored in the field's base unit. For example, a
-**Span** formula must give millimetres, so `=sqrt(wing_area *
-wing_aspect_ratio) * 100` turns an area in dm² into a span in mm. Component
-properties are also read in base units, for example `planform_area` in dm². The display unit only changes how a
-value is shown and how a typed number is read.
+!!! warning "Formulas use base units"
+    A formula's result is stored in the field's base unit, whatever display
+    unit you chose. A **Span** formula must give millimetres, so
+    `=sqrt(wing_area * wing_aspect_ratio) * 100` turns an area in dm² into a
+    span in mm. Component properties are also read in base units, for example
+    `planform_area` in dm².
+
+The display unit only changes how a value is shown and how a typed number is
+read.
 
 ### When formulas are evaluated
 
@@ -159,6 +163,13 @@ Studio evaluates every formula in the project:
 Formulas that depend on other formulas are evaluated again until the values
 settle. A wing's planform formulas then reshape its sections, so the 3D Viewer
 and the analyses use the new geometry.
+
+```mermaid
+flowchart LR
+    edit["Change a value<br/>or a constant"] --> formulas["Evaluate every formula"]
+    formulas --> derive["Derive geometry<br/>and masses"]
+    derive --> view["3D Viewer, Properties<br/>and constraints update"]
+```
 
 ### Errors and cycles
 
@@ -294,5 +305,5 @@ To check a limit, click **Add Constraint**, set **Expression** to
 **Error**. While both conditions hold, **Status** shows **Passed**.
 
 Clearing a driver removes its formula. For more about the planform drivers,
-see [Geometry](../reference/geometry.md). For the toolbar and panels, see
+see [Lifting Surface](../modeling/lifting-surface.md#planform). For the toolbar and panels, see
 [Interface](interface.md).

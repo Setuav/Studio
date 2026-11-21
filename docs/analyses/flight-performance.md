@@ -20,15 +20,15 @@ See [Interface](../user-guide/interface.md) for the panels and the result area.
 The analysis reads three things from the project:
 
 - **Mass**: the total mass of the vehicle components, as shown in
-  [Mass and Balance](mass-balance.md), plus **Payload**. The analysis stops
+  [Mass and Balance](../modeling/mass-balance.md), plus **Payload**. The analysis stops
   with an error when the mass is zero.
 - **Aerodynamics**: an AeroBuildup alpha sweep of the aircraft, run with the
   engine of the [Aerodynamics](aerodynamics.md) plugin at **Polar Airspeed**
   and **Altitude**, from **Polar AoA Min** to **Polar AoA Max**. The aircraft
-  needs at least one lifting
-  surface; see [Geometry](geometry.md).
+  needs at least one
+  [lifting surface](../modeling/lifting-surface.md).
 - **Powertrain**: every propulsor and battery of the project, combined as in
-  the [Propulsion](propulsion.md) analyses. All propulsors run at the same
+  the [Propulsion Analyses](propulsion.md). All propulsors run at the same
   throttle from battery packs in parallel on one bus. When the project has no
   propulsor and no battery, the analysis gives an aerodynamic result only.
   When it has one but not the other, the analysis stops with an error.
@@ -140,7 +140,7 @@ P_\text{req} = D\,V
 ### Powertrain
 
 At each airspeed the analysis solves the powertrain with PyThrust; see
-[Propulsion](propulsion.md#powertrain-model).
+[Powertrain model](propulsion.md#powertrain-model).
 
 1. **Usable throttle range.** The powertrain is solved at 20 throttles evenly
    spaced from 5 % to 100 %. The range runs from the lowest to the highest

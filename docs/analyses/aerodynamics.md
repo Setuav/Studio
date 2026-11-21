@@ -51,7 +51,8 @@ lifting surfaces, their control surfaces, and fuselages are converted.
 Propulsors, batteries, and point masses enter only through the center of
 gravity. Positions are converted from millimeters to meters and placed with
 the attachment transforms of the components. See
-[Geometry](geometry.md) for the component parameters.
+[Placement and Attachment](../modeling/placement.md) for the frames and the
+Modeling pages for the component parameters.
 
 **Lifting surfaces.** Each lifting surface with at least two sections becomes
 an AeroSandbox wing. Each section keeps its leading-edge position, chord, and
@@ -79,14 +80,14 @@ of half the aspect ratio and underestimates its lift, so the result adds a
 AeroSandbox's own analytic NACA section. Every other airfoil uses the same
 coordinates the geometry is built from. **TE Thickness**, **Thickness Scale**,
 and **Camber Scale** are applied to those coordinates. See
-[Airfoils](airfoils.md).
+[Airfoils](../modeling/airfoils.md).
 
 **Control surfaces.** Control surfaces attached to a lifting surface are cut
 into its sections. The wing is split at the span start and end of each control
 surface. Each section gets the hinge position of the 3D model's hinge line at
 its middle, as a fraction of the local chord limited to 0.05–0.95, so the
 aerodynamic model follows **Control Chord** and **Hinge Sweep** as drawn. See
-[Geometry](geometry.md#control-surface).
+[Control Surface](../modeling/control-surface.md).
 
 The **Deflection Angle** set on a control surface is always included. Each
 analysis channel adds to it:
@@ -156,7 +157,7 @@ The induced, profile, and wave drag coefficients use the same \(S\), so
 
 Moments are taken about the aircraft center of gravity from the mass model,
 the same CG shown when you select **Vehicle**. See
-[Mass and Balance](mass-balance.md). When the aircraft has no mass, the
+[Mass and Balance](../modeling/mass-balance.md). When the aircraft has no mass, the
 reference point is the quarter chord of the main wing's first section, at
 \(y = 0\).
 
@@ -474,9 +475,11 @@ in pitch. When AeroSandbox returns no neutral point, Studio uses
 \(SM = -C_{m_\alpha} / C_{L_\alpha} \times 100\) and
 \(x_{np} = x_{cg} + (SM/100)\,\bar c\).
 
-When the aircraft has no mass, \(x_{cg}\) is the aerodynamic reference point
-(see [Moment reference point](#moment-reference-point)). Add the component
-masses first to get a meaningful static margin.
+!!! warning "Define the masses first"
+    When the aircraft has no mass, \(x_{cg}\) is the aerodynamic reference point
+    (see [Moment reference point](#moment-reference-point)), and the static
+    margin says nothing about the real aircraft. Enter the component masses
+    before you read it.
 
 ## Airfoil Analysis
 
@@ -494,7 +497,7 @@ installed with AeroSandbox.
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
-| Profile | — | NACA 2412 | A built-in airfoil or an imported one. See [Airfoils](airfoils.md). |
+| Profile | — | NACA 2412 | A built-in airfoil or an imported one. See [Airfoils](../modeling/airfoils.md). |
 | Model | — | large | NeuralFoil model size: small, medium, large, or xlarge. |
 | α minimum | ° | −8 | First angle of attack. Range −30 to 30. |
 | α maximum | ° | 18 | Last angle of attack. Must be greater than α minimum. Range −30 to 30. |

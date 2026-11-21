@@ -172,5 +172,5 @@ shows or hides the **Center of Gravity** layer.
   mass is zero, they use the quarter chord of the root of the largest lifting
   surface instead.
 
-See [Flight Performance](flight-performance.md),
-[Aerodynamics](aerodynamics.md), and [Geometry](geometry.md).
+See [Flight Performance](../analyses/flight-performance.md),
+[Aerodynamics](../analyses/aerodynamics.md), and [Placement and Attachment](placement.md).

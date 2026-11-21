@@ -42,7 +42,11 @@ extra_css:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -60,21 +64,36 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js
 
+validation:
+  links:
+    anchors: warn
+
 nav:
   - User Guide:
       - Home: index.md
-      - Getting Started: user-guide/getting-started.md
+      - Getting Started:
+          - Installation: getting-started/installation.md
+          - First Design: getting-started/first-design.md
+          - Project Files: getting-started/project-files.md
       - Interface: user-guide/interface.md
       - Parametric Model: user-guide/parametric-model.md
       - Plugin Manager: user-guide/plugins.md
-      - Reference:
-          - Geometry: reference/geometry.md
-          - Airfoils: reference/airfoils.md
-          - Aerodynamics: reference/aerodynamics.md
-          - Propulsion: reference/propulsion.md
-          - Flight Performance: reference/flight-performance.md
-          - Mass and Balance: reference/mass-balance.md
+  - Modeling:
+      - Placement and Attachment: modeling/placement.md
+      - Fuselage: modeling/fuselage.md
+      - Lifting Surface: modeling/lifting-surface.md
+      - Control Surface: modeling/control-surface.md
+      - Airfoils: modeling/airfoils.md
+      - Propulsion Components: modeling/propulsion-components.md
+      - Mass and Balance: modeling/mass-balance.md
+  - Analyses:
+      - Overview: analyses/index.md
+      - Aerodynamics: analyses/aerodynamics.md
+      - Propulsion: analyses/propulsion.md
+      - Flight Performance: analyses/flight-performance.md
   - Developer Guide:
       - Overview: developer/index.md
+      - Writing a Plugin: developer/writing-a-plugin.md
+      - API Reference: developer/api.md
 
 site_dir: build/docs/site
