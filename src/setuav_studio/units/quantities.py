@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from setuav_studio.units.dimension import (
@@ -40,13 +41,35 @@ class QuantityDefinition:
     default_decimals: int = 2
     dimension: Dimension = DIMENSIONLESS
 
+    def resolve_unit(self, unit_str: str) -> UnitDefinition | None:
+        """Resolve a unit ID or display symbol (exact first, then case-insensitive)."""
+        direct = self.units.get(unit_str)
+        if direct is not None:
+            return direct
+        clean = unit_str.strip()
+        if not clean:
+            return None
+        direct = self.units.get(clean)
+        if direct is not None:
+            return direct
+        for u_def in self.units.values():
+            if u_def.symbol == clean:
+                return u_def
+        lowered = clean.lower()
+        for u_id, u_def in self.units.items():
+            if u_id.lower() == lowered or u_def.symbol.lower() == lowered:
+                return u_def
+        return None
+
     def convert(self, value: float, from_unit_id: str, to_unit_id: str) -> float:
         """Convert a value between two units of this physical quantity."""
         if from_unit_id == to_unit_id:
             return float(value)
-        u_from = self.units.get(from_unit_id)
-        u_to = self.units.get(to_unit_id)
+        u_from = self.resolve_unit(from_unit_id)
+        u_to = self.resolve_unit(to_unit_id)
         if u_from is None or u_to is None:
+            return float(value)
+        if u_from.id == u_to.id:
             return float(value)
         base = u_from.to_base_value(value)
         return u_to.from_base_value(base)
@@ -428,8 +451,18 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=0,
         dimension=CURRENT * TIME,
         units={
-            "mAh": UnitDefinition("mAh", "mAh", "Milliampere-hour (mAh)", 1.0, 1.0, decimals=0),
-            "Ah": UnitDefinition("Ah", "Ah", "Ampere-hour (Ah)", 1000.0, 0.001, decimals=2),
+            "mAh": UnitDefinition(
+                "mAh",
+                "mAh",
+                "Milliampere-hour (mAh)",
+                1.0,
+                1.0,
+                decimals=0,
+                dimension=CURRENT * TIME,
+            ),
+            "Ah": UnitDefinition(
+                "Ah", "Ah", "Ampere-hour (Ah)", 1000.0, 0.001, decimals=2, dimension=CURRENT * TIME
+            ),
         },
     ),
     "energy": QuantityDefinition(
@@ -514,9 +547,21 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=4,
         dimension=VOLTAGE / CURRENT,
         units={
-            "ohm": UnitDefinition("ohm", "Ω", "Ohm (Ω)", 1.0, 1.0, decimals=4),
-            "mohm": UnitDefinition("mohm", "mΩ", "Milliohm (mΩ)", 0.001, 1000.0, decimals=2),
-            "kohm": UnitDefinition("kohm", "kΩ", "Kiloohm (kΩ)", 1000.0, 0.001, decimals=4),
+            "ohm": UnitDefinition(
+                "ohm", "Ω", "Ohm (Ω)", 1.0, 1.0, decimals=4, dimension=VOLTAGE / CURRENT
+            ),
+            "mohm": UnitDefinition(
+                "mohm",
+                "mΩ",
+                "Milliohm (mΩ)",
+                0.001,
+                1000.0,
+                decimals=2,
+                dimension=VOLTAGE / CURRENT,
+            ),
+            "kohm": UnitDefinition(
+                "kohm", "kΩ", "Kiloohm (kΩ)", 1000.0, 0.001, decimals=4, dimension=VOLTAGE / CURRENT
+            ),
         },
     ),
     "inertia": QuantityDefinition(
@@ -527,10 +572,22 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         dimension=MASS * AREA,
         units={
             "kg*m2": UnitDefinition(
-                "kg*m2", "kg·m²", "Kilogram square meter (kg·m²)", 1.0, 1.0, decimals=6
+                "kg*m2",
+                "kg·m²",
+                "Kilogram square meter (kg·m²)",
+                1.0,
+                1.0,
+                decimals=6,
+                dimension=MASS * AREA,
             ),
             "g*mm2": UnitDefinition(
-                "g*mm2", "g·mm²", "Gram square millimeter (g·mm²)", 1e-9, 1e9, decimals=1
+                "g*mm2",
+                "g·mm²",
+                "Gram square millimeter (g·mm²)",
+                1e-9,
+                1e9,
+                decimals=1,
+                dimension=MASS * AREA,
             ),
             "lb*in2": UnitDefinition(
                 "lb*in2",
@@ -539,6 +596,7 @@ QUANTITIES: dict[str, QuantityDefinition] = {
                 0.0002926396534292,
                 1.0 / 0.0002926396534292,
                 decimals=4,
+                dimension=MASS * AREA,
             ),
             "slug*ft2": UnitDefinition(
                 "slug*ft2",
@@ -547,6 +605,7 @@ QUANTITIES: dict[str, QuantityDefinition] = {
                 1.3558179483314,
                 1.0 / 1.3558179483314,
                 decimals=6,
+                dimension=MASS * AREA,
             ),
         },
     ),
@@ -558,16 +617,40 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         dimension=WING_LOADING,
         units={
             "g/dm2": UnitDefinition(
-                "g/dm2", "g/dm²", "Gram per sq. decimeter (g/dm²)", 1.0, 1.0, decimals=2
+                "g/dm2",
+                "g/dm²",
+                "Gram per sq. decimeter (g/dm²)",
+                1.0,
+                1.0,
+                decimals=2,
+                dimension=WING_LOADING,
             ),
             "kg/m2": UnitDefinition(
-                "kg/m2", "kg/m²", "Kilogram per sq. meter (kg/m²)", 10.0, 0.1, decimals=2
+                "kg/m2",
+                "kg/m²",
+                "Kilogram per sq. meter (kg/m²)",
+                10.0,
+                0.1,
+                decimals=2,
+                dimension=WING_LOADING,
             ),
             "oz/ft2": UnitDefinition(
-                "oz/ft2", "oz/ft²", "Ounce per sq. foot (oz/ft²)", 3.0515, 1.0 / 3.0515, decimals=2
+                "oz/ft2",
+                "oz/ft²",
+                "Ounce per sq. foot (oz/ft²)",
+                28.349523125 / 9.290304,
+                9.290304 / 28.349523125,
+                decimals=2,
+                dimension=WING_LOADING,
             ),
             "lb/ft2": UnitDefinition(
-                "lb/ft2", "lb/ft²", "Pound per sq. foot (lb/ft²)", 48.824, 1.0 / 48.824, decimals=2
+                "lb/ft2",
+                "lb/ft²",
+                "Pound per sq. foot (lb/ft²)",
+                453.59237 / 9.290304,
+                9.290304 / 453.59237,
+                decimals=2,
+                dimension=WING_LOADING,
             ),
         },
     ),
@@ -579,16 +662,25 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         dimension=FREQUENCY,
         units={
             "rpm": UnitDefinition(
-                "rpm", "RPM", "Revolutions per minute (RPM)", 1.0, 1.0, decimals=0
+                "rpm",
+                "RPM",
+                "Revolutions per minute (RPM)",
+                1.0,
+                1.0,
+                decimals=0,
+                dimension=FREQUENCY,
             ),
-            "hz": UnitDefinition("hz", "Hz", "Hertz (Hz)", 60.0, 1.0 / 60.0, decimals=1),
+            "hz": UnitDefinition(
+                "hz", "Hz", "Hertz (Hz)", 60.0, 1.0 / 60.0, decimals=1, dimension=FREQUENCY
+            ),
             "rad/s": UnitDefinition(
                 "rad/s",
                 "rad/s",
                 "Radians per second (rad/s)",
-                60.0 / 6.2831853,
-                6.2831853 / 60.0,
+                60.0 / (2.0 * math.pi),
+                (2.0 * math.pi) / 60.0,
                 decimals=2,
+                dimension=FREQUENCY,
             ),
         },
     ),
@@ -600,18 +692,31 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         dimension=DENSITY,
         units={
             "kg/m3": UnitDefinition(
-                "kg/m3", "kg/m³", "Kilogram per cubic meter (kg/m³)", 1.0, 1.0, decimals=3
+                "kg/m3",
+                "kg/m³",
+                "Kilogram per cubic meter (kg/m³)",
+                1.0,
+                1.0,
+                decimals=3,
+                dimension=DENSITY,
             ),
             "g/cm3": UnitDefinition(
-                "g/cm3", "g/cm³", "Gram per cubic centimeter (g/cm³)", 1000.0, 0.001, decimals=3
+                "g/cm3",
+                "g/cm³",
+                "Gram per cubic centimeter (g/cm³)",
+                1000.0,
+                0.001,
+                decimals=3,
+                dimension=DENSITY,
             ),
             "lb/ft3": UnitDefinition(
                 "lb/ft3",
                 "lb/ft³",
                 "Pound per cubic foot (lb/ft³)",
-                16.018463,
-                1.0 / 16.018463,
+                0.45359237 / (0.3048**3),
+                (0.3048**3) / 0.45359237,
                 decimals=3,
+                dimension=DENSITY,
             ),
         },
     ),
@@ -701,6 +806,8 @@ SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "mohm": "resistance",
     "kohm": "resistance",
     "ω": "resistance",
+    "mω": "resistance",
+    "kω": "resistance",
     "kg*m2": "inertia",
     "kg·m²": "inertia",
     "g*mm2": "inertia",
@@ -713,11 +820,19 @@ SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "g/dm²": "wing_loading",
     "kg/m2": "wing_loading",
     "kg/m²": "wing_loading",
+    "oz/ft2": "wing_loading",
+    "oz/ft²": "wing_loading",
+    "lb/ft2": "wing_loading",
+    "lb/ft²": "wing_loading",
     "rpm": "frequency",
     "hz": "frequency",
     "rad/s": "frequency",
     "kg/m3": "density",
     "kg/m³": "density",
+    "g/cm3": "density",
+    "g/cm³": "density",
+    "lb/ft3": "density",
+    "lb/ft³": "density",
 }
 
 

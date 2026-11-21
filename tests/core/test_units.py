@@ -11,6 +11,8 @@ from setuav_studio.units import (
     FORCE,
     LENGTH,
     MASS,
+    PRESETS,
+    QUANTITIES,
     TIME,
     VELOCITY,
     convert_value,
@@ -116,9 +118,85 @@ def test_unit_manager_loads_case_sensitive_units() -> None:
 
 def test_unit_manager_save_load_roundtrip() -> None:
     values: dict[str, object] = {}
+    emitted: list[bool] = []
     with patch("setuav_studio.units.manager.QSettings", lambda: _FakeSettings(values)):
         manager = UnitManager()
+        manager.units_changed.connect(lambda: emitted.append(True))
         manager.set_display_unit("force", "kgf")
         manager.save_to_settings()
         reloaded = UnitManager()
     assert reloaded.get_display_unit("force") == "kgf"
+    assert emitted == [True]
+
+
+def test_convert_accepts_unit_symbols_and_case_variants() -> None:
+    assert math.isclose(convert_value(180.0, "angle", "°", "rad"), math.pi, rel_tol=1e-12)
+    assert math.isclose(convert_value(6000.0, "frequency", "RPM", "hz"), 100.0, rel_tol=1e-12)
+    assert math.isclose(convert_value(2.5, "area", "m²", "dm2"), 250.0, rel_tol=1e-12)
+    assert math.isclose(convert_value(1.0, "resistance", "Ω", "mohm"), 1000.0, rel_tol=1e-12)
+    assert math.isclose(
+        convert_value(16.018463373960142, "density", "kg/m³", "lb/ft3"), 1.0, rel_tol=1e-9
+    )
+
+
+def test_quantities_registry_consistency_and_precision() -> None:
+    for q_id, qty in QUANTITIES.items():
+        assert qty.base_unit_id in qty.units, f"{q_id} missing base unit"
+        for u_id, u_def in qty.units.items():
+            assert u_def.dimension == qty.dimension, f"{q_id}.{u_id} dimension mismatch"
+            # Roundtrip every unit through base unit
+            back = u_def.from_base_value(u_def.to_base_value(12.345))
+            assert math.isclose(back, 12.345, rel_tol=1e-12), f"{q_id}.{u_id} roundtrip failed"
+            assert get_quantity_for_unit(u_id) == q_id, f"missing lookup for id {u_id}"
+            assert get_quantity_for_unit(u_def.symbol) == q_id, (
+                f"missing lookup for symbol {u_def.symbol}"
+            )
+
+    # Hand-verified exact conversion factors
+    # 1 oz/ft² = 28.349523125 g / (3.048 dm)² = 3.051517273148435 g/dm²
+    assert math.isclose(
+        convert_value(1.0, "wing_loading", "oz/ft2", "g/dm2"),
+        28.349523125 / (3.048**2),
+        rel_tol=1e-12,
+    )
+    # 1 lb/ft² = 453.59237 g / (3.048 dm)² = 48.82427637037496 g/dm²
+    assert math.isclose(
+        convert_value(1.0, "wing_loading", "lb/ft2", "g/dm2"),
+        453.59237 / (3.048**2),
+        rel_tol=1e-12,
+    )
+    # 2*pi rad/s = 60 RPM
+    assert math.isclose(
+        convert_value(2.0 * math.pi, "frequency", "rad/s", "rpm"),
+        60.0,
+        rel_tol=1e-12,
+    )
+    # 1 lb/ft³ = 0.45359237 kg / (0.3048 m)³
+    assert math.isclose(
+        convert_value(1.0, "density", "lb/ft3", "kg/m3"),
+        0.45359237 / (0.3048**3),
+        rel_tol=1e-12,
+    )
+
+
+def test_presets_cover_all_quantities_with_valid_units() -> None:
+    for preset_id, preset_map in PRESETS.items():
+        for q_id, qty in QUANTITIES.items():
+            assert q_id in preset_map, f"preset {preset_id} missing {q_id}"
+            assert preset_map[q_id] in qty.units, (
+                f"preset {preset_id} invalid unit {preset_map[q_id]} for {q_id}"
+            )
+
+
+def test_unit_manager_loads_case_insensitive_uppercase_unit_ids() -> None:
+    values: dict[str, object] = {
+        "units/active_preset": "imperial",
+        "units/force": "n",
+        "units/pressure": "kpa",
+        "units/capacity": "mah",
+    }
+    with patch("setuav_studio.units.manager.QSettings", lambda: _FakeSettings(values)):
+        manager = UnitManager()
+    assert manager.get_display_unit("force") == "N"
+    assert manager.get_display_unit("pressure") == "kPa"
+    assert manager.get_display_unit("capacity") == "mAh"

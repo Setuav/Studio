@@ -50,12 +50,8 @@ class UnitManager(QObject):
         for q_id, q_def in QUANTITIES.items():
             fallback = preset_defaults.get(q_id, q_def.base_unit_id)
             saved_unit = str(settings.value(f"{self._SETTINGS_PREFIX}{q_id}", fallback))
-            if saved_unit in q_def.units:
-                self._display_units[q_id] = saved_unit
-            elif saved_unit.lower() in q_def.units:
-                self._display_units[q_id] = saved_unit.lower()
-            else:
-                self._display_units[q_id] = fallback
+            resolved = q_def.resolve_unit(saved_unit)
+            self._display_units[q_id] = resolved.id if resolved is not None else fallback
 
     def save_to_settings(self) -> None:
         settings = QSettings()
@@ -114,7 +110,7 @@ class UnitManager(QObject):
         if not qty:
             return unit_id or quantity_or_unit
         u_id = unit_id or self.get_display_unit(q_id)
-        u_def = qty.units.get(u_id)
+        u_def = qty.resolve_unit(u_id)
         return u_def.symbol if u_def else u_id
 
     def to_display(self, base_value: float, quantity_or_schema_unit: str) -> float:
