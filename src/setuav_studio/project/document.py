@@ -230,8 +230,8 @@ def _check_format_version(data: dict[str, Any], path: Path) -> str | None:
 def create_project(path: str | Path) -> ProjectDocument:
     """Create a new, empty project document at ``path``.
 
-    New projects always start with the core plugin requirement and empty
-    collections. The document is marked modified until the caller saves it.
+    New projects start with empty collections. The document is marked modified
+    until the caller saves it.
     """
     selected_path = Path(path).expanduser().resolve()
     if selected_path.suffix.lower() == ".suav":
