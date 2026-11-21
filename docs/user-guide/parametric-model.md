@@ -118,8 +118,8 @@ as `planform_area`, `span`, `aspect_ratio`, `taper_ratio`, `root_chord`,
 `tip_chord`, `average_chord`, and `mac`, with the same values as its
 **Planform** table. A fuselage exposes `length`, `width`, and `height` and the
 `width` and `height` of each section outline. Features that plugins add to a
-component, such as manufacturing shells and joints, are reached by their ID,
-for example `main_wing_shell.thickness`. The
+component, such as structural skins and ribs, are reached by their ID,
+for example `main_wing_skin.thickness`. The
 [Formula Assistant](#formula-assistant) lists every name with its current
 value.
 

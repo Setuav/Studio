@@ -124,7 +124,7 @@ def build_universal_scope(  # noqa: C901
 
         total_mass += model.mass
 
-    # 3. Generic Plugin Extensions (e.g. Manufacturing, Propulsion, Structures, etc.)
+    # 3. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
     extensions = p_dict.get("extensions", {})
     if isinstance(extensions, dict):
         for ext_key, ext_val in extensions.items():
@@ -145,7 +145,7 @@ def build_universal_scope(  # noqa: C901
                 scope[f"{clean_ext_key}_configuration"] = cfg_dot
                 ext_dot[cfg_id] = cfg_dot
 
-    # 4. Plugin features stored on components (e.g. manufacturing shells and joints)
+    # 4. Plugin features stored on components (e.g. structural skins and ribs)
     for _component_id, feature in extension_features(p_dict.get("components", [])):
         feature_id = str(feature["id"])
         feature_dot = to_dot_dict(feature["parameters"])

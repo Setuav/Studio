@@ -267,25 +267,25 @@ class TestStudioViewport(unittest.TestCase):
 
     def test_layer_visibility(self) -> None:
         self.viewport.add_layer("geometry")
-        self.viewport.add_layer("manufacturing")
+        self.viewport.add_layer("structures")
         self.viewport.add_box(
             "box-geom", (0, 0, 0), (10, 10, 10), layer="geometry", component_id=None
         )
         self.viewport.add_box(
-            "box-mfg", (10, 0, 0), (10, 10, 10), layer="manufacturing", component_id=None
+            "box-structures", (10, 0, 0), (10, 10, 10), layer="structures", component_id=None
         )
 
         # Both visible by default
         self.assertEqual(len(self.mock_renderer.scene_objects), 2)
-        self.assertTrue(self.viewport.is_layer_visible("manufacturing"))
+        self.assertTrue(self.viewport.is_layer_visible("structures"))
 
-        # Hide manufacturing layer
-        self.viewport.set_layer_visible("manufacturing", False)
-        self.assertFalse(self.viewport.is_layer_visible("manufacturing"))
+        # Hide structures layer
+        self.viewport.set_layer_visible("structures", False)
+        self.assertFalse(self.viewport.is_layer_visible("structures"))
         self.assertEqual(len(self.mock_renderer.scene_objects), 1)
 
         # Re-enable
-        self.viewport.set_layer_visible("manufacturing", True)
+        self.viewport.set_layer_visible("structures", True)
         self.assertEqual(len(self.mock_renderer.scene_objects), 2)
 
     def test_unregistered_layers_are_rejected(self) -> None:

@@ -1565,15 +1565,13 @@ PLUGIN_FOLDERS = (
     ("debug_", "src/plugins/debug/assets/icons"),
 )
 CORE_FOLDER = "src/setuav_studio/assets/icons"
-MANUFACTURING_FOLDER = (
-    "plugins/manufacturing_plugin/src/setuav_manufacturing_plugin/resources/icons"
-)
 
 
-def destination(name, cad_root):
-    """The SVG file of icon ``name``, or None for a manufacturing icon without ``--cad``."""
+def destination(name):
+    """The SVG file of icon ``name``, or None for an icon that belongs to no Studio
+    folder; those are written only with ``--out``."""
     if name.startswith("manufacturing"):
-        return None if cad_root is None else cad_root / MANUFACTURING_FOLDER / f"{name}.svg"
+        return None
     folder = next((path for prefix, path in PLUGIN_FOLDERS if name.startswith(prefix)), CORE_FOLDER)
     return STUDIO / folder / f"{name}.svg"
 
@@ -1581,7 +1579,6 @@ def destination(name, cad_root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("names", nargs="*", help="icons to write (default: all)")
-    parser.add_argument("--cad", type=Path, help="setuav-cad checkout, for the manufacturing icons")
     parser.add_argument("--out", type=Path, help="write every icon into this folder instead")
     args = parser.parse_args()
     unknown = sorted(set(args.names) - set(ICONS))
@@ -1594,7 +1591,7 @@ def main():
         scales.update(dict.fromkeys(family, shared))
     skipped = []
     for name in args.names or sorted(scenes):
-        path = args.out / f"{name}.svg" if args.out else destination(name, args.cad)
+        path = args.out / f"{name}.svg" if args.out else destination(name)
         if path is None:
             skipped.append(name)
             continue
@@ -1602,7 +1599,7 @@ def main():
         path.write_text(scenes[name].svg(scales.get(name)))
         print(path)
     if skipped:
-        print("not written (pass --cad):", ", ".join(skipped))
+        print("not written (pass --out):", ", ".join(skipped))
 
 
 if __name__ == "__main__":

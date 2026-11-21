@@ -54,9 +54,9 @@ class FormulaToolsTests(unittest.TestCase):
         wing = self.project.get_component("main-wing")
         assert wing is not None
         wing["extensions"] = {
-            "com.example.manufacturing": {
+            "com.example.structures": {
                 "features": [
-                    {"id": "main-wing-shell", "type": "shell", "parameters": {"thickness": 1.2}}
+                    {"id": "main-wing-skin", "type": "skin", "parameters": {"thickness": 1.2}}
                 ]
             }
         }
@@ -64,7 +64,7 @@ class FormulaToolsTests(unittest.TestCase):
     def test_component_features_are_in_formulas_and_the_assistant(self) -> None:
         self._add_feature()
         scope = self.project.get_scope(api=self.api)
-        self.assertEqual(ExpressionEvaluator().evaluate("main_wing_shell.thickness", scope), 1.2)
+        self.assertEqual(ExpressionEvaluator().evaluate("main_wing_skin.thickness", scope), 1.2)
 
         dialog = AdvancedExpressionDialog(self.api)
         self.addCleanup(dialog.deleteLater)
@@ -75,7 +75,7 @@ class FormulaToolsTests(unittest.TestCase):
             if tag:
                 tags.append(tag)
             iterator += 1
-        self.assertIn("main_wing_shell.thickness", tags)
+        self.assertIn("main_wing_skin.thickness", tags)
         # Every tag the assistant inserts evaluates.
         for tag in tags:
             with self.subTest(tag=tag):

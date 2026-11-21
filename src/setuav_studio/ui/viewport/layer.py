@@ -14,7 +14,7 @@ class Layer:
     """A named layer grouping scene objects in the viewport.
 
     Attributes:
-        layer_id: Unique identifier of the layer (e.g. 'geometry', 'manufacturing').
+        layer_id: Unique identifier of the layer (e.g. 'geometry', 'structures').
         name: Human-readable display name for the layer.
         visible: Whether objects in this layer are rendered.
         on_top: Whether the layer's overlay lines are drawn over the model, so a

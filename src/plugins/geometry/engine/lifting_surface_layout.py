@@ -3,7 +3,7 @@
 A wing is a chain of sections from its root profile. Each section has a span, a sweep
 measured on the sweep-location chord line, a dihedral, a twist increment and its tip
 profile (chord and airfoil); a section's root profile is the tip of the section before it.
-The profile stations that the geometry, aerodynamics and manufacturing read are always
+The profile stations that the geometry and aerodynamics read are always
 built from this layout.
 
 The planform of the whole wing (span, chords, area and the other driver values) and its

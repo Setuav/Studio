@@ -34,7 +34,7 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A color for every component, set in the Transform tab or from the Project
   Explorer menu.
 - Formulas in the Mass tab and in airfoil shaping, tip cap and polygon vertex
-  fields; plugin features such as manufacturing shells in formulas and in the
+  fields; plugin features such as structural skins in formulas and in the
   Formula Assistant.
 - A new isometric icon set and one toolbar per workflow stage.
 - Documentation for every modeling page and analysis, and a guide to writing

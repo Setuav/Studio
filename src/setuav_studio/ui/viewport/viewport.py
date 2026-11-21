@@ -118,7 +118,7 @@ class StudioViewport(QWidget):
     underlying viewer implementation.
 
     Layer visibility can be toggled independently so that, for example, a
-    manufacturing overlay can be shown or hidden without affecting the main
+    structures overlay can be shown or hidden without affecting the main
     geometry layer.
     """
 
@@ -301,7 +301,7 @@ class StudioViewport(QWidget):
         """Register a new layer or update an existing one.
 
         Args:
-            layer_id: Unique identifier for the layer (e.g. 'manufacturing').
+            layer_id: Unique identifier for the layer (e.g. 'structures').
             name: Human-readable display name. Defaults to *layer_id*.
             visible: Initial visibility state. Defaults to True.
             on_top: Draw the layer's overlay lines over the model. Defaults to False.
