@@ -21,7 +21,6 @@ from plugins.electrical_propulsion.models.propulsor import (
     PropulsorModel,
     has_motor,
     has_propeller,
-    propulsor_mass,
 )
 from setuav_studio.api import ParameterField, StudioAPI
 from setuav_studio.model.expression import set_expression
@@ -133,7 +132,6 @@ class _PropulsorPage(PropertyTableMixin, QWidget):
             params = self._component["parameters"]
             set_expression(params, key, expr_to_store)
             params[key] = int(number) if _FIELDS[key].field_type is int else number
-            self._component["mass"] = propulsor_mass(params)
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
 
@@ -255,7 +253,6 @@ class PropulsorMotorEditor(_PropulsorPage):
                 motor_max_current=float(motor.max_current),
                 motor_mass=float(motor.weight_g),
             )
-            self._component["mass"] = propulsor_mass(params)
 
         self._api.edit_component(self._component, f"Pick motor '{motor.name}'", apply_edit)
 

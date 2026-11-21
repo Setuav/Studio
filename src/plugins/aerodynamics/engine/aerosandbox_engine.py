@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from copy import deepcopy
 from typing import Any
 
@@ -68,6 +67,9 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy and control surfaces."""
         wings: list[Any] = []
         fuselages: list[Any] = []
+        # The AeroSandbox wings made from each lifting surface. A mirrored
+        # surface may become two wings; it stays one reference surface.
+        surfaces: list[list[Any]] = []
 
         comp_by_id = {
             str(comp.get("id")): comp
@@ -86,10 +88,11 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
                     condition=condition,
                     control_encoding=control_encoding,
                 )
-                if isinstance(wing_res, list):
-                    wings.extend(wing_res)
-                elif wing_res is not None:
-                    wings.append(wing_res)
+                surface = wing_res if isinstance(wing_res, list) else [wing_res]
+                surface = [wing for wing in surface if wing is not None]
+                if surface:
+                    wings.extend(surface)
+                    surfaces.append(surface)
             elif comp_type == "org.setuav.core:fuselage":
                 fuselage = self._convert_fuselage(comp, comp_by_id=comp_by_id)
                 if isinstance(fuselage, list):
@@ -100,13 +103,12 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         if not wings:
             return asb.Airplane(name="Studio Aircraft", wings=[], fuselages=fuselages)
 
-        # Primary wing reference (largest area wing is the reference aerodynamic surface)
-        main_wing = max(wings, key=lambda w: self._compute_wing_area(w))
-        main_span, main_area = self._compute_wing_span_and_area(main_wing)
-        main_c_ref = main_area / main_span if main_span > 0 else 0.1
+        # The lifting surface with the largest planform area is the reference.
+        main_surface = max(surfaces, key=lambda surface: sum(w.area() for w in surface))
+        s_ref, b_ref, c_ref = self._surface_reference(main_surface)
 
-        # Calculate reasonable moment center (at quarter chord of main wing root)
-        root_xsec = main_wing.xsecs[0]
+        # Without a mass CG, moments are taken about the main surface's root quarter chord.
+        root_xsec = main_surface[0].xsecs[0]
         reference_xyz = xyz_ref or (
             float(root_xsec.xyz_le[0]) + 0.25 * float(root_xsec.chord),
             0.0,
@@ -117,38 +119,32 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
             name="Studio Aircraft",
             wings=wings,
             fuselages=fuselages,
-            s_ref=main_area,
-            c_ref=main_c_ref,
-            b_ref=main_span,
+            s_ref=s_ref,
+            c_ref=c_ref,
+            b_ref=b_ref,
             xyz_ref=reference_xyz,
         )
 
-    def _compute_wing_area(self, wing: Any) -> float:
-        area = 0.0
-        for i in range(len(wing.xsecs) - 1):
-            x1 = wing.xsecs[i]
-            x2 = wing.xsecs[i + 1]
-            dy = abs(x2.xyz_le[1] - x1.xyz_le[1])
-            dz = abs(x2.xyz_le[2] - x1.xyz_le[2])
-            span_seg = math.sqrt(dy * dy + dz * dz)
-            area += 0.5 * (x1.chord + x2.chord) * span_seg
-        return area * (2.0 if wing.symmetric else 1.0)
+    @staticmethod
+    def _surface_reference(surface: list[Any]) -> tuple[float, float, float]:
+        """Return the planform area, span and mean aerodynamic chord of one lifting surface.
 
-    def _compute_wing_span_and_area(self, wing: Any) -> tuple[float, float]:
-        span = 0.0
-        area = 0.0
-        for i in range(len(wing.xsecs) - 1):
-            x1 = wing.xsecs[i]
-            x2 = wing.xsecs[i + 1]
-            dy = abs(x2.xyz_le[1] - x1.xyz_le[1])
-            dz = abs(x2.xyz_le[2] - x1.xyz_le[2])
-            span_seg = math.sqrt(dy * dy + dz * dz)
-            span = max(span, abs(x2.xyz_le[1]), abs(x1.xyz_le[1]))
-            area += 0.5 * (x1.chord + x2.chord) * span_seg
-        if wing.symmetric:
-            span *= 2.0
-            area *= 2.0
-        return span, area
+        A surface split into right and left wings is measured as one surface: the
+        areas and spans add up, and the chord is the area-weighted mean.
+        """
+        areas = [float(wing.area()) for wing in surface]
+        area = sum(areas)
+        span = sum(float(wing.span(include_centerline_distance=True)) for wing in surface)
+        chord = (
+            sum(
+                a * float(wing.mean_aerodynamic_chord())
+                for a, wing in zip(areas, surface, strict=True)
+            )
+            / area
+            if area > 0.0
+            else 0.0
+        )
+        return area, span, chord
 
     def _convert_fuselage(
         self,
@@ -385,28 +381,3 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
                 coords = coords[::-1]
 
         return coords
-
-    def _compute_reference_geometry(self, airplane: Any) -> tuple[float, float]:
-        """Compute reference span (m) and area (m²)."""
-        total_span = 0.0
-        total_area = 0.0
-
-        for wing in airplane.wings:
-            wing_span = 0.0
-            wing_area = 0.0
-            for i in range(len(wing.xsecs) - 1):
-                x1 = wing.xsecs[i]
-                x2 = wing.xsecs[i + 1]
-                dy = abs(x2.xyz_le[1] - x1.xyz_le[1])
-                wing_span = max(wing_span, abs(x2.xyz_le[1]), abs(x1.xyz_le[1]))
-                avg_chord = (x1.chord + x2.chord) / 2.0
-                wing_area += avg_chord * dy
-
-            if wing.symmetric:
-                wing_span *= 2.0
-                wing_area *= 2.0
-
-            total_span = max(total_span, wing_span)
-            total_area += wing_area
-
-        return total_span, total_area

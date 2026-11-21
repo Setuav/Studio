@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,9 @@ from plugins.electrical_propulsion.editors.propulsor import (
     propulsor_part_nodes,
 )
 from plugins.electrical_propulsion.models import BatteryModel, PropulsorModel
-from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
+from plugins.electrical_propulsion.models.battery import battery_pack
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
+from plugins.electrical_propulsion.powertrain import BATTERY_TYPE
 from plugins.electrical_propulsion.scene_controller import PropulsionSceneController
 from setuav_studio.api import (
     ComponentTreeNodeContribution,
@@ -77,7 +79,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 category="Propulsion",
             ),
             ComponentTypeContribution(
-                id="org.setuav.core:battery",
+                id=BATTERY_TYPE,
                 name="Battery",
                 icon="propulsion_battery",
                 model=BatteryModel,
@@ -87,6 +89,11 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         ]
         for ct in self._component_types:
             api.register_component_type(ct)
+        # A propulsor's and a battery's mass follow from their parameters,
+        # including parameters given by formulas.
+        api.register_component_deriver(PROPULSOR_TYPE, _derive_propulsor_mass)
+        api.register_component_deriver(BATTERY_TYPE, _derive_battery_mass)
+        api.derive_components()
 
         # A propulsor's motor and propeller are nodes beneath it with pages of their own.
         api.register_component_tree_provider(_TREE_PROVIDER_ID, _propulsor_part_tree_nodes)
@@ -230,6 +237,8 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             api.unregister_toolbar_item(f"{_ANALYSIS_TOOLBAR_PREFIX}{key}")
         unregister_plugin_icons(self.id)
 
+        api.unregister_component_deriver(PROPULSOR_TYPE)
+        api.unregister_component_deriver(BATTERY_TYPE)
         for ct in self._component_types:
             api.unregister_component_type(ct.id)
         self._component_types = []
@@ -274,3 +283,17 @@ def _selected_propulsor(api: StudioAPI, selection: dict[str, Any]) -> dict[str, 
     if component is None:
         raise LookupError(f"Propulsor '{selection['component_id']}' is not in the project.")
     return component
+
+
+def _derive_propulsor_mass(component: dict[str, Any], _components: Mapping[str, Any]) -> None:
+    """Set the propulsor's mass to its motor and propeller masses."""
+    if component.get("kind") == "instance":
+        return
+    component["mass"] = propulsor_mass(component["parameters"])
+
+
+def _derive_battery_mass(component: dict[str, Any], _components: Mapping[str, Any]) -> None:
+    """Set the battery's mass to its pack mass."""
+    if component.get("kind") == "instance":
+        return
+    component["mass"] = battery_pack(component["parameters"]).mass_g

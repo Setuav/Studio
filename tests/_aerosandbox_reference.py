@@ -8,6 +8,7 @@ aircraft, so it can expose regressions in Setuav's project-to-AeroSandbox adapte
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 import aerosandbox as asb
 import numpy as np
@@ -151,9 +152,11 @@ def build_fixed_wing_reference(
         name="Fixed-Wing Native Reference",
         wings=[main_wing, vtail],
         fuselages=[fuselage],
-        s_ref=0.28404326116446976,
-        b_ref=1.5023809523809522,
-        c_ref=0.18906207557698465,
+        # The main wing is the reference surface: planform area, tip-to-tip span
+        # and mean aerodynamic chord.
+        s_ref=cast(float, main_wing.area()),
+        b_ref=cast(float, main_wing.span(include_centerline_distance=True)),
+        c_ref=main_wing.mean_aerodynamic_chord(),
         # Moment reference at the fixture's mass-balance CG. The aircraft is
         # symmetric, so the CG lies on the centre plane.
         xyz_ref=[0.395319, 0.0, 0.02688],

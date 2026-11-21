@@ -65,8 +65,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             control_encoding: str = "native",
         ) -> Any: ...
 
-        def _compute_reference_geometry(self, airplane: Any) -> tuple[float, float]: ...
-
     def analyze(
         self,
         components: list[dict[str, Any]],
@@ -165,20 +163,19 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         )
         if not airplane.wings:
             raise ValueError("No valid lifting surfaces found in project for aerodynamic analysis.")
-        span, area = self._compute_reference_geometry(airplane)
-        mean_chord = area / span if span > 0 else 0.0
+        area = float(airplane.s_ref)
         reference_xyz = mass_cg or tuple(float(value) for value in airplane.xyz_ref)
         return {
             "mass_cg": mass_cg,
             "mass_cg_source": mass_cg_source,
             "airplane": airplane,
-            "mean_chord": mean_chord,
+            "mean_chord": float(airplane.c_ref),
             "ref_area": area if area > 0 else 1.0,
             "reference_xyz": reference_xyz,
             "reference": ReferenceValues(
                 s_ref=area,
-                b_ref=span,
-                c_ref=mean_chord,
+                b_ref=float(airplane.b_ref),
+                c_ref=float(airplane.c_ref),
                 x_cg=float(reference_xyz[0]),
                 y_cg=float(reference_xyz[1]),
                 z_cg=float(reference_xyz[2]),

@@ -258,6 +258,19 @@ class FlightPerformanceSolverTests(unittest.TestCase):
             {"power_curves", "thrust_curves", "climb", "endurance", "range", "battery_load"},
         )
 
+    def test_wing_area_is_the_aerodynamic_reference_area(self) -> None:
+        """Lift and drag coefficients are scaled by the area they were normalised with."""
+        from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
+
+        project = open_project(TEST_PROJECT_PATH)
+        result = FlightPerformanceSolver(_config(), project).run()
+
+        components = project.data["components"]
+        reference_area_m2 = AeroSandboxEngine()._build_airplane(components).s_ref
+        self.assertAlmostEqual(
+            float(result.summary["wing_area"].value), reference_area_m2 * 100.0, places=2
+        )
+
     def test_aircraft_without_propulsion_gets_an_aerodynamic_result(self) -> None:
         result = FlightPerformanceSolver(_config(), _project_without_propulsion()).run()
 

@@ -18,7 +18,7 @@ from plugins.electrical_propulsion.editors.propulsor import (
 from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
 from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.plugin import PluginManager
-from setuav_studio.project import open_project
+from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
@@ -53,6 +53,22 @@ class _RecordingToken:
 
     def cancel(self) -> None:
         return None
+
+
+def _api_with_fixture() -> tuple[StudioAPI, ProjectDocument]:
+    """An API with the fixture project and the mass derivers the plugin registers."""
+    from plugins.electrical_propulsion.plugin import (
+        _derive_battery_mass,
+        _derive_propulsor_mass,
+    )
+    from plugins.electrical_propulsion.powertrain import BATTERY_TYPE
+
+    api = StudioAPI()
+    api.register_component_deriver(PROPULSOR_TYPE, _derive_propulsor_mass)
+    api.register_component_deriver(BATTERY_TYPE, _derive_battery_mass)
+    doc = open_project(TEST_PROJECT_PATH)
+    api._host.set_project(doc)
+    return api, doc
 
 
 class TestElectricalPropulsion(unittest.TestCase):
@@ -107,9 +123,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         window.deleteLater()
 
     def _propulsor(self) -> tuple[StudioAPI, dict[str, Any]]:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
+        api, doc = _api_with_fixture()
         propulsor = next(c for c in doc.data["components"] if c["type"] == PROPULSOR_TYPE)
         return api, propulsor
 
@@ -234,11 +248,33 @@ class TestElectricalPropulsion(unittest.TestCase):
         api.undo()
         self.assertEqual(propulsor["mass"], 136.0)
 
+    def test_component_mass_follows_a_formula_in_the_propeller_mass(self) -> None:
+        from setuav_studio.model.expression import set_expression
+
+        api, propulsor = self._propulsor()
+        assert api.project is not None
+        project = api.project
+
+        def add_constant_and_formula() -> None:
+            project.data["parameters"]["prop_mass"] = {"value": 30.0, "unit": "g"}
+            set_expression(propulsor["parameters"], "propeller_mass", "= prop_mass")
+
+        api.edit_project("Drive the propeller mass", add_constant_and_formula)
+        self.assertEqual(propulsor["mass"], 108.0 + 30.0)
+
+        api.edit_project(
+            "Heavier propeller",
+            lambda: project.data["parameters"]["prop_mass"].update(value=45.0),
+        )
+        self.assertEqual(propulsor["parameters"]["propeller_mass"], 45.0)
+        self.assertEqual(propulsor["mass"], 108.0 + 45.0)
+
     def test_explorer_lists_the_motor_and_propeller_under_their_propulsor(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
 
-        api, _propulsor = self._propulsor()
+        api = StudioAPI()
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
         plugin = ElectricalPropulsionPlugin()
         plugin.activate(api)
         self.addCleanup(plugin.deactivate, api)
@@ -255,9 +291,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor.deleteLater()
 
     def _battery_editor(self) -> tuple[StudioAPI, dict[str, Any], BatteryEditor]:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
+        api, doc = _api_with_fixture()
         battery_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
         )

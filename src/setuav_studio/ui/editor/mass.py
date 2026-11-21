@@ -23,6 +23,13 @@ from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.units import get_unit_manager
+from setuav_studio.utilities.mass_balance import (
+    get_component_subparts,
+    resolve_component_aggregate_mass_properties,
+    resolve_component_local_cg,
+    resolve_component_local_inertia,
+)
 
 
 class MassPropertiesEditor(PropertyTableMixin, QWidget):
@@ -53,6 +60,13 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._commit_timer.timeout.connect(self._commit_pending)
         self.destroyed.connect(self._commit_timer.stop)
         self._section_icons: list[tuple[QLabel, str]] = []
+        # Subparts such as control surfaces carry their own mass; the fields
+        # below edit this component alone and a read-only row shows the total.
+        self._has_subparts = bool(
+            self._component is not None
+            and api.project is not None
+            and get_component_subparts(component_id, api.project, api.subpart_types)
+        )
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -112,12 +126,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
     def _create_mass_section(self, component_id: str) -> None:
         layout = self._create_section("Mass", "fa6s.cubes-stacked")
-        self.mass_table = self._property_table(
-            [
-                ("component", "Component"),
-                ("mass", "Mass"),
-            ]
-        )
+        rows = [("component", "Component"), ("mass", "Mass")]
+        if self._has_subparts:
+            rows.append(("total_mass", "Total with Subparts"))
+        self.mass_table = self._property_table(rows)
         component_name = (
             str(self._component.get("name") or component_id)
             if self._component is not None
@@ -271,45 +283,31 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
     def _load_component(self, component: dict[str, Any]) -> None:
         self._loading = True
         try:
-            comp_id = str(component.get("id") or "")
-            proj = self._api.project
-            from setuav_studio.utilities.mass_balance import (
-                get_component_subparts,
-                resolve_component_aggregate_mass_properties,
-                resolve_component_local_cg,
-                resolve_component_local_inertia,
-            )
+            source = self._source_component(component)
+            mass = _number(component.get("mass", source.get("mass", 0.0)))
+            self.mass_g.setValue(mass)
 
-            subpart_types = self._api.subpart_types
-            has_subparts = bool(
-                comp_id
-                and proj is not None
-                and get_component_subparts(comp_id, proj, subpart_types)
-            )
-            if has_subparts and proj is not None:
-                agg = resolve_component_aggregate_mass_properties(comp_id, proj, subpart_types)
-                self.mass_g.setValue(round(agg.mass_kg * 1000.0, 3))
-                self.cg_spins["x"].setValue(round(agg.cg_local_m[0] * 1000.0, 3))
-                self.cg_spins["y"].setValue(round(agg.cg_local_m[1] * 1000.0, 3))
-                self.cg_spins["z"].setValue(round(agg.cg_local_m[2] * 1000.0, 3))
-                for key, spin in self.inertia_spins.items():
-                    spin.setValue(float(getattr(agg.inertia_local_kg_m2, key)))
-            else:
-                source = self._source_component(component)
-                mass = component.get("mass", source.get("mass", 0.0))
-                self.mass_g.setValue(_number(mass))
+            cg_x, cg_y, cg_z = resolve_component_local_cg(component)
+            self.cg_spins["x"].setValue(cg_x)
+            self.cg_spins["y"].setValue(cg_y)
+            self.cg_spins["z"].setValue(cg_z)
 
-                # 1. CG resolution via core mass_balance
-                cg_x, cg_y, cg_z = resolve_component_local_cg(component)
-                self.cg_spins["x"].setValue(cg_x)
-                self.cg_spins["y"].setValue(cg_y)
-                self.cg_spins["z"].setValue(cg_z)
+            inertia_tensor = resolve_component_local_inertia(component, mass / 1000.0)
+            for key, spin in self.inertia_spins.items():
+                spin.setValue(float(getattr(inertia_tensor, key)))
 
-                # 2. Inertia resolution via core mass_balance
-                mass_kg = _number(mass) / 1000.0
-                inertia_tensor = resolve_component_local_inertia(component, mass_kg)
-                for key, spin in self.inertia_spins.items():
-                    spin.setValue(float(getattr(inertia_tensor, key)))
+            if self._has_subparts and self._api.project is not None:
+                total = resolve_component_aggregate_mass_properties(
+                    str(component["id"]), self._api.project, self._api.subpart_types
+                )
+                units = get_unit_manager()
+                total_g = units.to_display(total.mass_kg * 1000.0, "mass")
+                self._set_property_value(
+                    self.mass_table,
+                    "total_mass",
+                    f"{total_g:.3f} {units.get_unit_symbol('mass')}",
+                    editable=False,
+                )
         finally:
             self._loading = False
 

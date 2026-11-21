@@ -310,7 +310,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             params = self._component["parameters"]
             set_expression(params, key, expr_to_store)
             params[key] = max(1, int(number)) if key in {"cell_count", "parallel_count"} else number
-            self._component["mass"] = battery_pack(params).mass_g
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
         self._load_battery()
@@ -336,7 +335,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         def apply_edit() -> None:
             set_expression(params, key, None)
             params[key] = current if overridden else None
-            self._component["mass"] = battery_pack(params).mass_g
 
         label = "Override" if overridden else "Use default"
         self._api.edit_component(self._component, f"{label} {key}", apply_edit)
@@ -352,7 +350,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             for key in BATTERY_OVERRIDES:
                 set_expression(params, key, None)
                 params[key] = None
-            self._component["mass"] = battery_pack(params).mass_g
 
         self._api.edit_component(
             self._component, f"Set battery chemistry '{chemistry}'", apply_edit

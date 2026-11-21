@@ -164,9 +164,8 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertAlmostEqual(tip.xyz_le[1], 0.75, places=3)  # 750 mm
         self.assertAlmostEqual(tip.chord, 0.12, places=3)  # 120 mm chord
 
-        span, area = engine._compute_reference_geometry(airplane)
-        self.assertGreater(span, 1.4)  # symmetric 750mm half-span -> ~1.5m total
-        self.assertGreater(area, 0.2)
+        self.assertGreater(airplane.b_ref, 1.4)  # symmetric 750mm half-span -> ~1.5m total
+        self.assertGreater(airplane.s_ref, 0.2)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_aerobuildup_sweep_with_6dof_and_forces(self) -> None:
@@ -745,7 +744,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_overlap_preserves_exact_span_intervals(self) -> None:
         """Flap/aileron overlap must remain two controls without spanwise bleeding."""
-        import aerosandbox as asb
 
         components = [
             {
@@ -809,33 +807,25 @@ class AeroSandboxEngineTests(unittest.TestCase):
             control_encoding="native",
         )
 
-        self.assertEqual(
-            [wing.name for wing in airplane.wings], ["Main Wing_Right", "Main Wing_Left"]
-        )
+        # The flap deflects both sides alike and the aileron opposite, which a
+        # mirrored AeroSandbox wing reproduces, so the wing stays whole.
+        self.assertEqual([wing.name for wing in airplane.wings], ["Main Wing"])
+        self.assertTrue(airplane.wings[0].symmetric)
 
-        def section_controls(wing: asb.Wing) -> list[list[tuple[str, float]]]:
-            return [
-                [(surface.name, float(surface.deflection)) for surface in xsec.control_surfaces]
-                for xsec in wing.xsecs[:-1]
+        section_controls = [
+            [
+                (surface.name, float(surface.deflection), surface.symmetric)
+                for surface in xsec.control_surfaces
             ]
-
+            for xsec in airplane.wings[0].xsecs[:-1]
+        ]
         self.assertEqual(
-            section_controls(airplane.wings[0]),
+            section_controls,
             [
                 [],
-                [("flap", 8.0)],
-                [("flap", 8.0), ("aileron", 5.0)],
-                [("aileron", 5.0)],
-                [],
-            ],
-        )
-        self.assertEqual(
-            section_controls(airplane.wings[1]),
-            [
-                [],
-                [("aileron", -5.0)],
-                [("flap", 8.0), ("aileron", -5.0)],
-                [("flap", 8.0)],
+                [("flap", 8.0, True)],
+                [("flap", 8.0, True), ("aileron", 5.0, False)],
+                [("aileron", 5.0, False)],
                 [],
             ],
         )
@@ -892,11 +882,14 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 condition=FlightCondition(control_deflections={surface_type: 6.0}),
                 control_encoding="native",
             )
-            right = next(
-                float(surface.deflection)
-                for xsec in airplane.wings[0].xsecs
-                for surface in xsec.control_surfaces
+            right_surface = next(
+                surface for xsec in airplane.wings[0].xsecs for surface in xsec.control_surfaces
             )
+            right = float(right_surface.deflection)
+            if len(airplane.wings) == 1:
+                # A mirrored wing: AeroSandbox deflects the left surface the same way
+                # when the surface is symmetric, and the opposite way otherwise.
+                return right, right if right_surface.symmetric else -right
             left_controls = [
                 float(surface.deflection)
                 for xsec in airplane.wings[-1].xsecs
@@ -1078,6 +1071,90 @@ class AeroSandboxEngineTests(unittest.TestCase):
         pt = result.polar_points[0]
         self.assertGreater(pt.cl, 0.0)
         self.assertGreater(pt.cd, 0.0)
+
+
+def _fixture_components() -> list[dict]:
+    project = json.loads((TEST_PROJECT_PATH / "project.json").read_text(encoding="utf-8"))
+    return project["components"]
+
+
+def _aileron_sweep(method: AnalysisMethod) -> AeroResult:
+    return AeroSandboxEngine().analyze(
+        _fixture_components(),
+        FlightCondition(
+            velocity=25.0,
+            altitude=1000.0,
+            alpha=4.0,
+            sweep_variable="aileron",
+            sweep_min=-10.0,
+            sweep_max=10.0,
+            sweep_steps=3,
+        ),
+        method=method,
+    )
+
+
+@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+class AeroReferenceTests(unittest.TestCase):
+    """Coefficients, drag breakdown and stability share one reference surface."""
+
+    def test_reference_is_the_main_wing(self) -> None:
+        airplane = AeroSandboxEngine()._build_airplane(_fixture_components())
+        main_wing = max(airplane.wings, key=lambda wing: wing.area())
+
+        self.assertAlmostEqual(airplane.s_ref, main_wing.area(), places=9)
+        self.assertAlmostEqual(
+            airplane.b_ref, main_wing.span(include_centerline_distance=True), places=9
+        )
+        self.assertAlmostEqual(airplane.c_ref, main_wing.mean_aerodynamic_chord(), places=9)
+
+    def test_aileron_deflection_keeps_the_reference(self) -> None:
+        main_area = AeroSandboxEngine()._build_airplane(_fixture_components()).s_ref
+        for method in (AnalysisMethod.AERO_BUILDUP, AnalysisMethod.VLM):
+            with self.subTest(method=method.value):
+                result = _aileron_sweep(method)
+                self.assertAlmostEqual(result.reference.s_ref, main_area, places=9)
+
+    def test_aileron_deflection_keeps_the_wing_whole(self) -> None:
+        """Antisymmetric ailerons must not turn the wing into two low-aspect-ratio halves."""
+        # Sweep points at -10, 0 and +10 degrees of aileron.
+        deflected, neutral, _ = _aileron_sweep(AnalysisMethod.AERO_BUILDUP).polar_points
+        self.assertNotAlmostEqual(deflected.cl_roll, 0.0, places=3)
+        self.assertLess(abs(deflected.cl - neutral.cl) / neutral.cl, 0.06)
+        assert neutral.cd_induced is not None and deflected.cd_induced is not None
+        self.assertLess(deflected.cd_induced, 1.2 * neutral.cd_induced)
+
+    def test_drag_breakdown_adds_up_to_total_drag(self) -> None:
+        result = AeroSandboxEngine().analyze(
+            _fixture_components(),
+            FlightCondition(
+                velocity=25.0, altitude=1000.0, sweep_min=-2.0, sweep_max=8.0, sweep_steps=3
+            ),
+            method=AnalysisMethod.AERO_BUILDUP,
+        )
+        for point in result.polar_points:
+            parts = (point.cd_induced, point.cd_profile, point.cd_wave)
+            self.assertAlmostEqual(sum(part or 0.0 for part in parts), point.cd, places=9)
+
+    def test_static_margin_uses_the_neutral_point_chord(self) -> None:
+        result = AeroSandboxEngine().analyze(
+            _fixture_components(),
+            FlightCondition(velocity=25.0, altitude=1000.0, alpha=2.0, sweep_steps=1),
+            method=AnalysisMethod.AERO_BUILDUP,
+        )
+        stability = result.stability_derivatives
+        assert stability is not None
+        reference = result.reference
+        self.assertAlmostEqual(
+            stability.static_margin,
+            (stability.x_np - reference.x_cg) / reference.c_ref * 100.0,
+            places=9,
+        )
+        self.assertAlmostEqual(
+            reference.c_ref,
+            AeroSandboxEngine()._build_airplane(_fixture_components()).c_ref,
+            places=9,
+        )
 
 
 class AirfoilResolutionTests(unittest.TestCase):

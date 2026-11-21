@@ -368,12 +368,24 @@ class AeroSandboxGeometryMixin:
 
     @staticmethod
     def _control_is_symmetric(control: dict[str, Any]) -> bool:
-        mode = control["symmetry_mode"]
-        if mode == "symmetric":
-            return True
-        if mode in ("antisymmetric", "anti-symmetric"):
+        """Whether the left surface deflects like the right one, not opposite to it."""
+        return abs(float(control["delta_l"]) - float(control["delta_r"])) <= 1e-4
+
+    @classmethod
+    def _control_mirrors(cls, control: dict[str, Any], control_encoding: str) -> bool:
+        """Whether a mirrored AeroSandbox wing reproduces the left surface's deflection.
+
+        AeroSandbox mirrors a symmetric control surface with the same deflection and
+        an asymmetric one with the opposite deflection. A deflection built into the
+        airfoil is always mirrored unchanged.
+        """
+        if not control["include_left"]:
             return False
-        return control["type"] not in ("aileron", "elevon")
+        if cls._control_is_symmetric(control):
+            return True
+        return control_encoding != "airfoil" and (
+            abs(float(control["delta_l"]) + float(control["delta_r"])) <= 1e-4
+        )
 
     def _controls_for_interval(
         self,
@@ -485,10 +497,7 @@ class AeroSandboxGeometryMixin:
         xsecs_left = self._build_wing_xsecs(
             left_stations, parsed_cs, "left", control_encoding, reverse=True
         )
-        has_asymmetric_controls = any(
-            not cs["include_left"] or abs(float(cs["delta_r"]) - float(cs["delta_l"])) > 1e-4
-            for cs in parsed_cs
-        )
+        controls_mirror = all(self._control_mirrors(cs, control_encoding) for cs in parsed_cs)
 
         name = self._component_label(comp)
 
@@ -506,7 +515,7 @@ class AeroSandboxGeometryMixin:
                 )
                 for right, left in zip(xsecs_right, reversed(xsecs_left), strict=True)
             )
-            if not has_asymmetric_controls and global_reflection_matches:
+            if controls_mirror and global_reflection_matches:
                 return asb.Wing(name=name, xsecs=xsecs_right, symmetric=True)
 
             return [
