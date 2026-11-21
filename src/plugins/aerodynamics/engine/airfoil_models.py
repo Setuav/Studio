@@ -32,7 +32,7 @@ class AirfoilPolarPoint:
 
     @property
     def cl_over_cd(self) -> float:
-        return self.cl / self.cd
+        return self.cl / self.cd if abs(self.cd) > 1e-9 else 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -102,7 +102,7 @@ def summarize_polar(points: list[AirfoilPolarPoint]) -> AirfoilPolarSummary:
     cls = np.array([p.cl for p in valid])
     cds = np.array([p.cd for p in valid])
     cms = np.array([p.cm for p in valid])
-    lds = cls / cds
+    lds = np.divide(cls, cds, out=np.zeros_like(cls, dtype=float), where=np.abs(cds) > 1e-9)
 
     cl_max_idx = int(np.argmax(cls))
     cl_min_idx = int(np.argmin(cls))
