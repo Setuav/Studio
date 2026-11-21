@@ -59,12 +59,21 @@ airfoil. The section twist is the section pitch plus the pitch of the frame
 the surface is attached to.
 
 When **Symmetry / Mirror** is on, the surface becomes one symmetric wing if
-its left half is the mirror image across the vehicle's center plane and
-AeroSandbox can mirror every control deflection. With AeroBuildup and Lifting
-Line, a left deflection equal or opposite to the right one can be mirrored, so
-deflected ailerons keep the wing whole. With VLM only equal deflections can be
-mirrored. Otherwise, for example on a rolled V-tail, the two halves become two
-separate wings. They still count as one surface for the reference values.
+its left half is the mirror image across the vehicle's center plane. A surface
+is mirrored in the frame of the component it is attached to, so this holds
+unless that component is rolled, yawed, or off the center plane; the surface's
+own rotation, such as the roll of a V-tail, does not matter.
+
+With AeroBuildup and Lifting Line, every control deflection is passed as a
+symmetric part, \((\delta_r + \delta_l)/2\), and an antisymmetric part,
+\((\delta_r - \delta_l)/2\), which together give both sides their own
+deflection on one symmetric wing. With VLM the deflection is built into the
+airfoils, so the wing stays symmetric only while both sides deflect alike.
+
+Otherwise the two halves become two separate wings. They still count as one
+surface for the reference values. AeroBuildup then treats each half as a wing
+of half the aspect ratio and underestimates its lift, so the result adds a
+**Note** naming the surface. VLM and Lifting Line are not affected.
 
 **Airfoils.** A NACA 4-digit airfoil without airfoil shaping uses
 AeroSandbox's own analytic NACA section. Every other airfoil uses the same

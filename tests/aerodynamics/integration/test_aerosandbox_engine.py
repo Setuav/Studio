@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -79,6 +80,21 @@ def _sample_components() -> list[dict]:
             },
         },
     ]
+
+
+def _mirrored_deflections(wing: Any) -> tuple[float, float]:
+    """Right and left deflections a mirrored AeroSandbox wing applies to its control.
+
+    AeroSandbox deflects the left half like the right one for a symmetric control
+    surface and opposite to it otherwise.
+    """
+    xsec = next(xsec for xsec in wing.xsecs if xsec.control_surfaces)
+    right = sum(float(surface.deflection) for surface in xsec.control_surfaces)
+    left = sum(
+        float(surface.deflection) * (1.0 if surface.symmetric else -1.0)
+        for surface in xsec.control_surfaces
+    )
+    return right, left
 
 
 class AeroSandboxEngineTests(unittest.TestCase):
@@ -834,9 +850,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
     def test_control_surface_right_left_symmetry_modes(self) -> None:
         """Auto, explicit symmetric/antisymmetric and one-sided modes are deterministic."""
 
-        def converted_deflections(
-            surface_type: str, symmetry_mode: str
-        ) -> tuple[float, float | None]:
+        def converted_deflections(surface_type: str, symmetry_mode: str) -> tuple[float, float]:
             components = [
                 {
                     "id": "wing-1",
@@ -882,27 +896,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 condition=FlightCondition(control_deflections={surface_type: 6.0}),
                 control_encoding="native",
             )
-            right_surface = next(
-                surface for xsec in airplane.wings[0].xsecs for surface in xsec.control_surfaces
-            )
-            right = float(right_surface.deflection)
-            if len(airplane.wings) == 1:
-                # A mirrored wing: AeroSandbox deflects the left surface the same way
-                # when the surface is symmetric, and the opposite way otherwise.
-                return right, right if right_surface.symmetric else -right
-            left_controls = [
-                float(surface.deflection)
-                for xsec in airplane.wings[-1].xsecs
-                for surface in xsec.control_surfaces
-            ]
-            return right, left_controls[0] if left_controls else None
+            self.assertEqual(len(airplane.wings), 1)
+            return _mirrored_deflections(airplane.wings[0])
 
         cases = [
             ("elevator", "auto", (6.0, 6.0)),
             ("aileron", "auto", (6.0, -6.0)),
             ("aileron", "symmetric", (6.0, 6.0)),
             ("elevator", "antisymmetric", (6.0, -6.0)),
-            ("flap", "none", (6.0, None)),
+            # A surface on the right half only leaves the left half undeflected.
+            ("flap", "none", (6.0, 0.0)),
         ]
         for surface_type, symmetry_mode, expected in cases:
             with self.subTest(surface_type=surface_type, symmetry_mode=symmetry_mode):
@@ -968,26 +971,13 @@ class AeroSandboxEngineTests(unittest.TestCase):
             control_encoding="native",
         )
 
-        def deflections(wing_name: str) -> list[float]:
-            wing = next(wing for wing in airplane.wings if wing.name == wing_name)
-            return [
-                float(surface.deflection)
-                for xsec in wing.xsecs
-                for surface in xsec.control_surfaces
-            ]
-
-        self.assertEqual(deflections("Elevon Wing_Right"), [7.0])
-        self.assertEqual(deflections("Elevon Wing_Left"), [1.0])
-        self.assertEqual(deflections("V-Tail_Right"), [6.0])
-        self.assertEqual(deflections("V-Tail_Left"), [2.0])
-
-        # The rolled V-tail remains a real left/right pair, not a global-XZ
-        # AeroSandbox mirror that would lose its attachment frame.
-        right_tip = airplane.wings[2].xsecs[-1].xyz_le
-        left_tip = airplane.wings[3].xsecs[0].xyz_le
-        self.assertGreater(float(right_tip[2]), 0.0)
-        self.assertAlmostEqual(float(right_tip[1]), -float(left_tip[1]), places=6)
-        self.assertAlmostEqual(float(right_tip[2]), float(left_tip[2]), places=6)
+        # Both surfaces reflect in the center plane (the V-tail's own roll does not
+        # change that), so each stays one mirrored wing.
+        self.assertEqual([wing.name for wing in airplane.wings], ["Elevon Wing", "V-Tail"])
+        self.assertTrue(all(wing.symmetric for wing in airplane.wings))
+        self.assertEqual(_mirrored_deflections(airplane.wings[0]), (7.0, 1.0))
+        self.assertEqual(_mirrored_deflections(airplane.wings[1]), (6.0, 2.0))
+        self.assertGreater(float(airplane.wings[1].xsecs[-1].xyz_le[2]), 0.0)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_aero_buildup_primary_solver(self) -> None:
@@ -1155,6 +1145,39 @@ class AeroReferenceTests(unittest.TestCase):
             AeroSandboxEngine()._build_airplane(_fixture_components()).c_ref,
             places=9,
         )
+
+
+@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+class MirroredSurfaceTests(unittest.TestCase):
+    """A mirrored surface stays one AeroSandbox wing whenever AeroSandbox can mirror it."""
+
+    def test_mixed_tail_deflections_keep_the_tail_whole(self) -> None:
+        airplane = AeroSandboxEngine()._build_airplane(
+            _fixture_components(),
+            condition=FlightCondition(control_deflections={"elevator": 5.0, "rudder": 3.0}),
+            control_encoding="native",
+        )
+        tail = next(wing for wing in airplane.wings if wing.name == "V-Tail")
+        self.assertTrue(tail.symmetric)
+        # Elevator on both halves, rudder opposite on the left half.
+        self.assertEqual(_mirrored_deflections(tail), (8.0, 2.0))
+
+    def test_an_off_center_mirror_is_noted_for_aero_buildup(self) -> None:
+        components = _fixture_components()
+        fuselage = next(c for c in components if c["id"] == "fuselage")
+        fuselage.setdefault("transform", {})["rotation"] = {"roll": 5.0}
+        condition = FlightCondition(velocity=25.0, alpha=2.0, sweep_steps=1)
+
+        buildup = AeroSandboxEngine().analyze(
+            components, condition, method=AnalysisMethod.AERO_BUILDUP, include_stability=False
+        )
+        self.assertTrue(any(note.startswith("Main Wing:") for note in buildup.notes))
+        self.assertEqual(AeroResult.from_dict(buildup.to_dict()).notes, buildup.notes)
+
+        lifting_line = AeroSandboxEngine().analyze(
+            components, condition, method=AnalysisMethod.LIFTING_LINE, include_stability=False
+        )
+        self.assertEqual(lifting_line.notes, [])
 
 
 class MissingAeroSandboxTests(unittest.TestCase):

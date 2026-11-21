@@ -311,6 +311,10 @@ class FlightPerformanceSolver(AbstractSolver):
             )
         if powertrain is not None and envelope.propulsion is not None:
             summary.extend(self._propulsion_summary(powertrain, envelope, envelope.propulsion))
+        summary.extend(
+            SummaryItem(f"note_{index}", note, "Note")
+            for index, note in enumerate(aero.notes, start=1)
+        )
 
         return SolverResult(
             solver_id=self.config.solver_id,

@@ -385,7 +385,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            summary={item.key: item for item in summary},
+            summary={item.key: item for item in [*summary, *_note_items(res)]},
             tables={table.id: table},
             plots={plot.id: plot for plot in plots},
         )
@@ -647,7 +647,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            summary={item.key: item for item in summary},
+            summary={item.key: item for item in [*summary, *_note_items(res)]},
             tables={table.id: table},
             plots={plot.id: plot for plot in plots},
         )
@@ -933,7 +933,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            summary={item.key: item for item in summary},
+            summary={item.key: item for item in [*summary, *_note_items(res)]},
             tables={table.id: table},
             plots={plot.id: plot for plot in plots},
         )
@@ -1148,7 +1148,14 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            summary={item.key: item for item in summary},
+            summary={item.key: item for item in [*summary, *_note_items(res)]},
             tables={table.id: table},
             plots={},
         )
+
+
+def _note_items(res: AeroResult) -> list[SummaryItem]:
+    """The analysis notes as summary rows."""
+    return [
+        SummaryItem(f"note_{index}", note, "Note") for index, note in enumerate(res.notes, start=1)
+    ]

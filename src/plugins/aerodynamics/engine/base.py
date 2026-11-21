@@ -761,6 +761,8 @@ class AeroResult:
     control_analysis: ControlChannelAnalysis | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
+    # Limits of the analysis the user should know about, as sentences.
+    notes: list[str] = field(default_factory=list)
     # Raw engine specific payload (for custom downstream rendering or debugging)
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -804,6 +806,7 @@ class AeroResult:
             if self.control_analysis is not None
             else None,
             "condition": self.condition.to_dict(),
+            "notes": list(self.notes),
             # Don't serialize non-JSON raw object instances in to_dict
             "raw": _json_safe(self.raw),
         }
@@ -846,6 +849,7 @@ class AeroResult:
             sweep_result=sweep,
             control_analysis=control_analysis,
             condition=cond,
+            notes=[str(note) for note in data["notes"]],
             raw=_string_keyed_dict(data["raw"]),
         )
 

@@ -266,6 +266,7 @@ airspeeds that are not feasible are shaded.
 | Cruise Battery Power, Cruise Current, Cruise Throttle | W, A, % | With feasible points; values at the best range speed |
 | Best Climb Speed, Max Rate of Climb | m/s, m/s | With feasible points |
 | Max Climb Angle | ° | With feasible points |
+| Note | — | When a mirrored surface had to be modelled as two wings; see [Geometry conversion](aerodynamics.md#geometry-conversion) |
 
 ## Assumptions and limits
 

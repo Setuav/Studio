@@ -69,6 +69,7 @@ def aerobuildup_model(
         polar_cl=polar_cl,
         polar_cd=polar_cd,
         drag_polar=fit_drag_polar(polar_cl, polar_cd),
+        notes=tuple(result.notes),
     )
 
 

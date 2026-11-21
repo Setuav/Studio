@@ -44,6 +44,8 @@ class AerodynamicModel:
     polar_cl: np.ndarray
     polar_cd: np.ndarray
     drag_polar: DragPolar | None
+    # Limits of the polar the user should know about, as sentences.
+    notes: tuple[str, ...] = ()
 
     def drag_coefficient(self, cl: np.ndarray) -> np.ndarray:
         if self.drag_polar is not None:

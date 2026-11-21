@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from .aerosandbox_geometry import split_surface_names
 from .aerosandbox_module import asb, np
 from .base import (
     AeroAnalysisError,
@@ -279,6 +280,7 @@ class AeroSandboxResultMixin:
             sweep_result=sweep_result,
             control_analysis=control_analysis,
             condition=condition,
+            notes=self._result_notes(method, setup["airplane"]),
             raw={
                 "airplane": setup["airplane"],
                 "method": method.value,
@@ -295,6 +297,17 @@ class AeroSandboxResultMixin:
                 "stability_error": stability_error,
             },
         )
+
+    @staticmethod
+    def _result_notes(method: AnalysisMethod, airplane: Any) -> list[str]:
+        if method != AnalysisMethod.AERO_BUILDUP:
+            return []
+        return [
+            f"{name}: its halves are not mirror images across the center plane, so "
+            "AeroBuildup models them as two separate wings of half the aspect ratio "
+            "and underestimates their lift. VLM and Lifting Line model it correctly."
+            for name in split_surface_names(airplane)
+        ]
 
     @staticmethod
     def _fit_control_channel_analysis(

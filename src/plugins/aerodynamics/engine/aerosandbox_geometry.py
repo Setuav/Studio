@@ -19,6 +19,20 @@ from setuav_studio.utilities.transform import (
 from .aerosandbox_module import asb, np
 from .base import AeroAnalysisError, ControlSurfaceType, FlightCondition
 
+# A mirrored surface that AeroSandbox cannot mirror becomes two wings named with
+# these suffixes.
+SPLIT_RIGHT_SUFFIX = "_Right"
+SPLIT_LEFT_SUFFIX = "_Left"
+
+
+def split_surface_names(airplane: Any) -> list[str]:
+    """Names of the mirrored surfaces that became two AeroSandbox wings."""
+    return [
+        str(wing.name).removesuffix(SPLIT_RIGHT_SUFFIX)
+        for wing in airplane.wings
+        if str(wing.name).endswith(SPLIT_RIGHT_SUFFIX)
+    ]
+
 
 def metric_frame(position_mm: Point3D, rotation_deg: Rotation3D) -> tuple[Any, Any]:
     """Convert a core transform (mm, roll/pitch/yaw degrees) to a metre position and 3x3 matrix."""
@@ -372,19 +386,17 @@ class AeroSandboxGeometryMixin:
         return abs(float(control["delta_l"]) - float(control["delta_r"])) <= 1e-4
 
     @classmethod
-    def _control_mirrors(cls, control: dict[str, Any], control_encoding: str) -> bool:
-        """Whether a mirrored AeroSandbox wing reproduces the left surface's deflection.
+    def _controls_mirror(cls, controls: list[dict[str, Any]], control_encoding: str) -> bool:
+        """Whether a mirrored AeroSandbox wing reproduces every left surface's deflection.
 
-        AeroSandbox mirrors a symmetric control surface with the same deflection and
-        an asymmetric one with the opposite deflection. A deflection built into the
-        airfoil is always mirrored unchanged.
+        Native control surfaces always can: each deflection is split into a symmetric
+        and an antisymmetric part (see ``_controls_for_interval``). A deflection built
+        into the airfoil is mirrored unchanged, so it needs equal deflections.
         """
-        if not control["include_left"]:
-            return False
-        if cls._control_is_symmetric(control):
+        if control_encoding != "airfoil":
             return True
-        return control_encoding != "airfoil" and (
-            abs(float(control["delta_l"]) + float(control["delta_r"])) <= 1e-4
+        return all(
+            control["include_left"] and cls._control_is_symmetric(control) for control in controls
         )
 
     def _controls_for_interval(
@@ -394,22 +406,45 @@ class AeroSandboxGeometryMixin:
         eta_end: float,
         side: str,
         control_encoding: str,
+        *,
+        mirrored: bool = False,
     ) -> list[Any]:
         eta_mid = 0.5 * (eta_start + eta_end)
-        return [
-            asb.ControlSurface(
-                name=control["name"],
-                symmetric=self._control_is_symmetric(control),
-                deflection=(
-                    0.0
-                    if control_encoding == "airfoil"
-                    else float(control["delta_l"] if side == "left" else control["delta_r"])
-                ),
-                hinge_point=1.0 - float(control["chord_fraction"]),
+        surfaces: list[Any] = []
+        for control in controls:
+            if not self._control_applies(control, eta_mid, side):
+                continue
+            hinge_point = 1.0 - float(control["chord_fraction"])
+            if control_encoding == "airfoil":
+                deflections = [(True, 0.0)]
+            elif mirrored:
+                # AeroSandbox gives the left half of a symmetric wing the same
+                # deflection for a symmetric surface and the opposite one for an
+                # asymmetric surface, so the sum of the two parts reproduces both
+                # sides. A surface on the right half only has a left deflection of 0.
+                right = float(control["delta_r"])
+                left = float(control["delta_l"]) if control["include_left"] else 0.0
+                symmetric_part = 0.5 * (right + left)
+                antisymmetric_part = 0.5 * (right - left)
+                deflections = (
+                    [(False, antisymmetric_part)] if abs(antisymmetric_part) > 1e-9 else []
+                )
+                if abs(symmetric_part) > 1e-9 or not deflections:
+                    deflections.insert(0, (True, symmetric_part))
+            else:
+                deflections = [
+                    (True, float(control["delta_l"] if side == "left" else control["delta_r"]))
+                ]
+            surfaces.extend(
+                asb.ControlSurface(
+                    name=control["name"],
+                    symmetric=symmetric,
+                    deflection=deflection,
+                    hinge_point=hinge_point,
+                )
+                for symmetric, deflection in deflections
             )
-            for control in controls
-            if self._control_applies(control, eta_mid, side)
-        ]
+        return surfaces
 
     def _airfoil_for_station(
         self,
@@ -440,6 +475,7 @@ class AeroSandboxGeometryMixin:
         control_encoding: str,
         *,
         reverse: bool = False,
+        mirrored: bool = False,
     ) -> list[Any]:
         ordered = list(reversed(stations)) if reverse else list(stations)
         sections: list[Any] = []
@@ -452,6 +488,7 @@ class AeroSandboxGeometryMixin:
                     float(ordered[index + 1]["eta"]),
                     side,
                     control_encoding,
+                    mirrored=mirrored,
                 )
             xyz = station["xyz_le"]
             sections.append(
@@ -492,35 +529,34 @@ class AeroSandboxGeometryMixin:
         right_stations = [
             self._interpolate_station(station_raw, eta, "right") for eta in breakpoints
         ]
+        name = self._component_label(comp)
+        if not mirror:
+            xsecs = self._build_wing_xsecs(right_stations, parsed_cs, "right", control_encoding)
+            return asb.Wing(name=name, xsecs=xsecs, symmetric=False)
+
         left_stations = [self._interpolate_station(station_raw, eta, "left") for eta in breakpoints]
+        # Wing.symmetric mirrors in the global XZ plane. Setuav mirrors in the frame
+        # of the component the surface is attached to, which is the same plane
+        # unless that component is rolled, yawed or off the center plane.
+        global_reflection_matches = all(
+            np.allclose(
+                left["xyz_le"],
+                [right["xyz_le"][0], -right["xyz_le"][1], right["xyz_le"][2]],
+                atol=1e-9,
+            )
+            for right, left in zip(right_stations, left_stations, strict=True)
+        )
+        if global_reflection_matches and self._controls_mirror(parsed_cs, control_encoding):
+            xsecs = self._build_wing_xsecs(
+                right_stations, parsed_cs, "right", control_encoding, mirrored=True
+            )
+            return asb.Wing(name=name, xsecs=xsecs, symmetric=True)
+
         xsecs_right = self._build_wing_xsecs(right_stations, parsed_cs, "right", control_encoding)
         xsecs_left = self._build_wing_xsecs(
             left_stations, parsed_cs, "left", control_encoding, reverse=True
         )
-        controls_mirror = all(self._control_mirrors(cs, control_encoding) for cs in parsed_cs)
-
-        name = self._component_label(comp)
-
-        if mirror:
-            # Wing.symmetric mirrors in the *global* XZ plane.  It is only
-            # equivalent to Setuav's attach-frame mirror when the transformed
-            # left stations are exactly that global reflection (e.g. a normal
-            # horizontal wing).  A rolled/rotated V-tail must remain two real
-            # asymmetric AeroSandbox wings.
-            global_reflection_matches = all(
-                np.allclose(
-                    left.xyz_le,
-                    [right.xyz_le[0], -right.xyz_le[1], right.xyz_le[2]],
-                    atol=1e-9,
-                )
-                for right, left in zip(xsecs_right, reversed(xsecs_left), strict=True)
-            )
-            if controls_mirror and global_reflection_matches:
-                return asb.Wing(name=name, xsecs=xsecs_right, symmetric=True)
-
-            return [
-                asb.Wing(name=f"{name}_Right", xsecs=xsecs_right, symmetric=False),
-                asb.Wing(name=f"{name}_Left", xsecs=xsecs_left, symmetric=False),
-            ]
-
-        return asb.Wing(name=name, xsecs=xsecs_right, symmetric=False)
+        return [
+            asb.Wing(name=f"{name}{SPLIT_RIGHT_SUFFIX}", xsecs=xsecs_right, symmetric=False),
+            asb.Wing(name=f"{name}{SPLIT_LEFT_SUFFIX}", xsecs=xsecs_left, symmetric=False),
+        ]
