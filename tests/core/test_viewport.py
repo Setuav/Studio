@@ -1092,3 +1092,53 @@ class TestStudioViewport(unittest.TestCase):
             color=color,
         )
         self.assertEqual(len(env_none), 0)
+
+    def test_plane_wire_and_highlight_p3_matches_solid_corners(self) -> None:
+        from setuav_studio.ui.viewport.primitives_mesh import (
+            build_primitive_highlight_vertices,
+            build_primitive_solid_vertices,
+            build_primitive_wire_vertices,
+        )
+
+        # Normal with non-zero z in v basis vector (e.g. (1, 1, 1)) exposes p3 Z-sign bug.
+        plane = PlanePrimitive(
+            center=(1.0, 2.0, 3.0),
+            normal=(1.0, 1.0, 1.0),
+            width=20.0,
+            height=10.0,
+        )
+        solid = build_primitive_solid_vertices([plane])
+        # Solid stride is 9 floats/vertex; 2 triangles -> 6 vertices. Unique corners = {p0,p1,p2,p3}.
+        solid_pts = {
+            (round(solid[i], 5), round(solid[i + 1], 5), round(solid[i + 2], 5))
+            for i in range(0, len(solid), 9)
+        }
+        self.assertEqual(len(solid_pts), 4)
+
+        wire = build_primitive_wire_vertices([plane])
+        wire_pts = {
+            (round(wire[i], 5), round(wire[i + 1], 5), round(wire[i + 2], 5))
+            for i in range(0, len(wire), 6)
+        }
+        self.assertEqual(wire_pts, solid_pts)
+
+        highlight = build_primitive_highlight_vertices([plane], (1.0, 0.5, 0.0))
+        highlight_pts = {
+            (round(highlight[i], 5), round(highlight[i + 1], 5), round(highlight[i + 2], 5))
+            for i in range(0, len(highlight), 6)
+        }
+        self.assertEqual(highlight_pts, solid_pts)
+
+    def test_rotated_box_corners_preserve_center_y(self) -> None:
+        from setuav_studio.ui.viewport.raycast import _box_corners, _ray_primitive_intersection
+
+        center = (10.0, 50.0, -5.0)
+        corners = _box_corners(center, (20.0, 10.0, 6.0), (15.0, 20.0, 45.0))
+        self.assertEqual(len(corners), 8)
+        mean = tuple(sum(c[axis] for c in corners) / 8.0 for axis in range(3))
+        for axis in range(3):
+            self.assertAlmostEqual(mean[axis], center[axis], places=6)
+
+        box = BoxPrimitive(center=center, size=(20.0, 10.0, 6.0), rotation=(15.0, 20.0, 45.0))
+        hit = _ray_primitive_intersection((10.0, 50.0, 50.0), (0.0, 0.0, -1.0), box)
+        self.assertIsNotNone(hit)
