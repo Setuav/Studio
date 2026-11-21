@@ -88,11 +88,11 @@ def _box_corners(
         y_rad = math.radians(yaw)
         cr, sr = math.cos(r), math.sin(r)
         cp, sp = math.cos(p), math.sin(p)
-        cy, sy = math.cos(y_rad), math.sin(y_rad)
+        c_y, s_y = math.cos(y_rad), math.sin(y_rad)
         rotated: list[Point3D] = []
         for x, y, z in raw_corners:
-            rx = (cp * cy) * x + (cy * sp * sr - sy * cr) * y + (cy * sp * cr + sy * sr) * z
-            ry = (cp * sy) * x + (sy * sp * sr + cy * cr) * y + (sy * sp * cr - cy * sr) * z
+            rx = (cp * c_y) * x + (c_y * sp * sr - s_y * cr) * y + (c_y * sp * cr + s_y * sr) * z
+            ry = (cp * s_y) * x + (s_y * sp * sr + c_y * cr) * y + (s_y * sp * cr - c_y * sr) * z
             rz = (-sp) * x + (cp * sr) * y + (cp * cr) * z
             rotated.append((cx + rx, cy + ry, cz + rz))
         return rotated
