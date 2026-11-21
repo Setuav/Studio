@@ -7,7 +7,7 @@ from copy import deepcopy
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
-from plugins.geometry.engine.control_surface_geometry import chord_follows_ratio, span_follows_ratio
+from plugins.geometry.engine.control_surface_geometry import hinge_fraction_at, span_follows_ratio
 from setuav_studio.utilities.transform import (
     Point3D,
     Rotation3D,
@@ -190,10 +190,10 @@ class AeroSandboxGeometryMixin:
         controls: list[dict[str, Any]],
         condition: FlightCondition | None,
         total_span: float,
-        stations: list[dict[str, Any]],
+        profiles: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         return [
-            self._parse_control_surface(control, condition, total_span, stations)
+            self._parse_control_surface(control, condition, total_span, profiles)
             for control in controls
         ]
 
@@ -202,7 +202,7 @@ class AeroSandboxGeometryMixin:
         control: dict[str, Any],
         condition: FlightCondition | None,
         total_span: float,
-        stations: list[dict[str, Any]],
+        profiles: list[dict[str, Any]],
     ) -> dict[str, Any]:
         control_type = ControlSurfaceType.from_str(control.get("type")) or ControlSurfaceType.FLAP
         control_id = str(control["id"])
@@ -216,7 +216,6 @@ class AeroSandboxGeometryMixin:
             symmetry_mode,
         )
         eta_start, eta_end = self._control_span_range(control, total_span)
-        chord_fraction = self._control_chord_fraction(control, eta_start, eta_end, stations)
         return {
             "id": control_id,
             "name": control_name,
@@ -224,7 +223,10 @@ class AeroSandboxGeometryMixin:
             "symmetry_mode": symmetry_mode,
             "eta_start": eta_start,
             "eta_end": eta_end,
-            "chord_fraction": chord_fraction,
+            # The control's own sizing on its lifting surface gives the hinge line.
+            "geometry": control,
+            "profiles": profiles,
+            "semi_span": total_span * 1000.0,
             "delta_r": delta_right,
             "delta_l": delta_left,
             "include_left": symmetry_mode != "none",
@@ -304,32 +306,12 @@ class AeroSandboxGeometryMixin:
         eta_end = float(np.clip(eta_end, 0.0, 1.0))
         return (eta_end, eta_start) if eta_start > eta_end else (eta_start, eta_end)
 
-    def _control_chord_fraction(
-        self,
-        control: dict[str, Any],
-        eta_start: float,
-        eta_end: float,
-        stations: list[dict[str, Any]],
-    ) -> float:
-        if chord_follows_ratio(control):
-            return float(np.clip(float(control["chord_fraction"]), 0.05, 0.95))
-        chord = float(control["chord"]) / 1000.0
-        mid_chord = self._chord_at_eta(stations, 0.5 * (eta_start + eta_end))
-        return float(np.clip(chord / max(mid_chord, 0.01), 0.05, 0.95))
-
     @staticmethod
-    def _chord_at_eta(stations: list[dict[str, Any]], eta: float) -> float:
-        for start, end in pairwise(stations):
-            if start["eta"] <= eta <= end["eta"]:
-                fraction = float(
-                    np.clip(
-                        (eta - start["eta"]) / max(end["eta"] - start["eta"], 1e-9),
-                        0.0,
-                        1.0,
-                    )
-                )
-                return (1.0 - fraction) * start["chord"] + fraction * end["chord"]
-        return float(stations[0]["chord"])
+    def _hinge_point(control: dict[str, Any], eta: float) -> float:
+        """Hinge as a fraction of the local chord, on the hinge line of the 3D model."""
+        return hinge_fraction_at(
+            control["geometry"], control["profiles"], eta * control["semi_span"]
+        )
 
     @staticmethod
     def _station_breakpoints(
@@ -414,7 +396,7 @@ class AeroSandboxGeometryMixin:
         for control in controls:
             if not self._control_applies(control, eta_mid, side):
                 continue
-            hinge_point = 1.0 - float(control["chord_fraction"])
+            hinge_point = self._hinge_point(control, eta_mid)
             if control_encoding == "airfoil":
                 deflections = [(True, 0.0)]
             elif mirrored:
@@ -463,7 +445,7 @@ class AeroSandboxGeometryMixin:
             if abs(deflection) > 1e-4:
                 airfoil = airfoil.add_control_surface(
                     deflection=deflection,
-                    hinge_point_x=1.0 - float(control["chord_fraction"]),
+                    hinge_point_x=self._hinge_point(control, float(station["eta"])),
                 )
         return airfoil
 
@@ -523,7 +505,7 @@ class AeroSandboxGeometryMixin:
 
         cs_list = self._collect_control_surfaces(comp, comp_by_id)
 
-        parsed_cs = self._parse_control_surfaces(cs_list, condition, total_span, station_raw)
+        parsed_cs = self._parse_control_surfaces(cs_list, condition, total_span, profiles)
 
         breakpoints = self._station_breakpoints(station_raw, parsed_cs)
         right_stations = [

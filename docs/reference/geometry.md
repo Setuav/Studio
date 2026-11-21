@@ -383,8 +383,8 @@ profile of one side. Fractions of the span are "eta" values: \(\eta = y / s\).
 |---|---|---|
 | Type | — | **Aileron**, **Flap**, **Elevator**, **Rudder**, **Elevon**, or **Ruddervator**. |
 | Sizing Driver Mode | — | Which values you edit and which ones are kept when the lifting surface changes. See below. |
-| Area | dm² | Area of the control surface on one side: Span Length × Chord Fraction × the chord at its mid-span, interpolated linearly between the root and tip chords. |
-| Area Ratio | % | Area divided by \(s\,(c_r + c_t)\) of the lifting surface. Read-only. |
+| Area | dm² | Area of the control surface on one side, behind the hinge line the 3D model cuts, integrated along the span. |
+| Area Ratio | % | Area as a share of one side of the lifting surface, the sum of its section trapezoids. Read-only. |
 | Span Start | mm | Inboard end, from the root profile. |
 | Span End | mm | Outboard end, from the root profile. |
 | Span Length | mm | Span End minus Span Start. Read-only. |

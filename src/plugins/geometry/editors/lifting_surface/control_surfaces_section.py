@@ -188,8 +188,6 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         self._control_surface_index = row
         cs = cs_list[row]
         geom = self._cs_geom(cs)
-        semi_span, root_chord, tip_chord, wing_area = self._surface_span_info()
-
         comp_id = str(self._component["id"])
         self._api.set_section_selection((comp_id, 1, row))
 
@@ -198,9 +196,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         try:
             from ...engine.control_surface_geometry import compute_control_surface_metrics
 
-            metrics = compute_control_surface_metrics(
-                geom, semi_span, root_chord, tip_chord, wing_area
-            )
+            metrics = compute_control_surface_metrics(geom, self._profiles())
 
             name_val = str(cs.get("name") or cs.get("id") or "")
             cs_type = str(geom.get("type") or "aileron").lower()
@@ -351,7 +347,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
             return
         cs = cs_list[self._control_surface_index]
         geom = self._cs_geom(cs)
-        semi_span, root_chord, tip_chord, _wing_area = self._surface_span_info()
+        profiles = self._profiles()
 
         cell = self._property_cell(self.cs_properties_table, key)
         parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
@@ -361,7 +357,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
 
         def change() -> None:
             set_expression(geom, key, expr_to_store)
-            self._apply_cs_spinbox_change(geom, key, num_val, semi_span, root_chord, tip_chord)
+            self._apply_cs_spinbox_change(geom, key, num_val, profiles)
 
         self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
@@ -372,17 +368,14 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         geometry: dict[str, Any],
         key: str,
         value: float,
-        semi_span: float,
-        root_chord: float,
-        tip_chord: float = 100.0,
+        profiles: list[dict[str, Any]],
     ) -> None:
+        semi_span, root_chord, *_ = surface_span_info(profiles)
         from ...engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
             driver_mode = read_sizing_mode(geometry)
-            solve_control_surface_from_area(
-                geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
-            )
+            solve_control_surface_from_area(geometry, float(value), profiles, driver_mode)
         elif key in {"span_start", "span_end"}:
             geometry[key] = float(value)
             geometry[key.replace("span", "eta")] = round(float(value) / semi_span, 4)

@@ -83,10 +83,10 @@ and **Camber Scale** are applied to those coordinates. See
 
 **Control surfaces.** Control surfaces attached to a lifting surface are cut
 into its sections. The wing is split at the span start and end of each control
-surface. The hinge lies at \(1 - c_f\) of the local chord, where \(c_f\) is
-the **Chord Fraction**. With an absolute **Control Chord**, \(c_f\) is that
-chord divided by the wing chord at the middle of the control span. \(c_f\) is
-limited to 0.05–0.95. **Hinge Sweep** is not used.
+surface. Each section gets the hinge position of the 3D model's hinge line at
+its middle, as a fraction of the local chord limited to 0.05–0.95, so the
+aerodynamic model follows **Control Chord** and **Hinge Sweep** as drawn. See
+[Geometry](geometry.md#control-surface).
 
 The **Deflection Angle** set on a control surface is always included. Each
 analysis channel adds to it:

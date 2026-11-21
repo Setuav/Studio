@@ -160,8 +160,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         )
         layout.addWidget(self.properties_table)
 
-    def _surface_info(self) -> tuple[float, float, float, float]:
-        """Return (semi_span, root_chord, tip_chord, area_dm2) of the lifting surface."""
+    def _surface_profiles(self) -> list[dict[str, Any]]:
+        """The profile stations of the lifting surface the control surface is cut from."""
         project = self._api.project
         assert project is not None
         surface = project.get_component(str(self._component["attach_to"]))
@@ -169,7 +169,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             raise ValueError(
                 f"Control surface {self._component['id']} is not attached to a surface"
             )
-        return surface_span_info(surface["parameters"]["geometry"]["profiles"])
+        return surface["parameters"]["geometry"]["profiles"]
 
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")
@@ -203,11 +203,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             geom = self._geometry()
-            semi_span, root_chord, tip_chord, wing_area = self._surface_info()
-
-            metrics = compute_control_surface_metrics(
-                geom, semi_span, root_chord, tip_chord, wing_area
-            )
+            metrics = compute_control_surface_metrics(geom, self._surface_profiles())
 
             cs_type = str(geom.get("type") or "aileron").lower()
             sizing_mode = read_sizing_mode(geom)
@@ -357,7 +353,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         if self._loading or value is None:
             return
         geom = self._geometry()
-        semi_span, root_chord, tip_chord, _wing_area = self._surface_info()
+        profiles = self._surface_profiles()
 
         cell = self._property_cell(self.properties_table, key)
         parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
@@ -367,7 +363,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         def change() -> None:
             set_expression(geom, key, expr_to_store)
-            self._apply_spinbox_change(geom, key, num_val, semi_span, root_chord, tip_chord)
+            self._apply_spinbox_change(geom, key, num_val, profiles)
 
         self._edit_component(f"Edit control surface {key}", change)
         self._load_properties()
@@ -377,17 +373,14 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         geometry: dict[str, Any],
         key: str,
         value: float,
-        semi_span: float,
-        root_chord: float,
-        tip_chord: float = 100.0,
+        profiles: list[dict[str, Any]],
     ) -> None:
+        semi_span, root_chord, *_ = surface_span_info(profiles)
         from ..engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
             driver_mode = read_sizing_mode(geometry)
-            solve_control_surface_from_area(
-                geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
-            )
+            solve_control_surface_from_area(geometry, float(value), profiles, driver_mode)
         elif key in {"span_start", "span_end"}:
             geometry[key] = float(value)
             geometry[key.replace("span", "eta")] = round(float(value) / semi_span, 4)
