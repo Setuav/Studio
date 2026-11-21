@@ -49,7 +49,7 @@ def add_constraint_action(
     new_constraint = {
         "id": cid,
         "name": cname,
-        "expression": "span > 0",
+        "expression": "total_mass > 0",
         "severity": "warning",
         "enabled": True,
         "description": "",

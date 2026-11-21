@@ -48,8 +48,8 @@ MATH_FUNCTIONS: list[tuple[str, str, str]] = [
     ("asin(x)", "asin(", "Arc sine in radians"),
     ("acos(x)", "acos(", "Arc cosine in radians"),
     ("atan(x)", "atan(", "Arc tangent in radians"),
-    ("deg2rad(x)", "deg2rad(", "Convert degrees to radians: deg2rad(180) -> pi"),
-    ("rad2deg(x)", "rad2deg(", "Convert radians to degrees: rad2deg(pi) -> 180"),
+    ("radians(x)", "radians(", "Convert degrees to radians: radians(180) -> pi"),
+    ("degrees(x)", "degrees(", "Convert radians to degrees: degrees(pi) -> 180"),
     ("abs(x)", "abs(", "Absolute value: abs(-5) -> 5"),
     ("exp(x)", "exp(", "Exponential function e^x"),
     ("log(x)", "log(", "Natural logarithm (ln)"),
@@ -293,7 +293,7 @@ class AdvancedExpressionDialog(QDialog):
 
         # Quick Math Operator Bar
         op_bar = QHBoxLayout()
-        for op in ("+", "-", "*", "/", "^", "(", ")", "<=", ">=", "==", "!=", "and", "or"):
+        for op in ("+", "-", "*", "/", "**", "(", ")", "<=", ">=", "==", "!=", "and", "or"):
             btn = QPushButton(op, self)
             btn.setMaximumWidth(40)
             btn.clicked.connect(lambda _, text=op: self._insert_text(f" {text} "))

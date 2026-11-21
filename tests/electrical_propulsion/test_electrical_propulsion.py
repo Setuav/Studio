@@ -269,6 +269,20 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(propulsor["parameters"]["propeller_mass"], 45.0)
         self.assertEqual(propulsor["mass"], 108.0 + 45.0)
 
+    def test_propulsor_and_battery_masses_are_marked_derived(self) -> None:
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from plugins.electrical_propulsion.powertrain import BATTERY_TYPE
+
+        api = StudioAPI()
+        plugin = ElectricalPropulsionPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+
+        for type_id in (PROPULSOR_TYPE, BATTERY_TYPE):
+            component_type = api.get_component_type(type_id)
+            assert component_type is not None
+            self.assertTrue(component_type.derived_mass, type_id)
+
     def test_explorer_lists_the_motor_and_propeller_under_their_propulsor(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer

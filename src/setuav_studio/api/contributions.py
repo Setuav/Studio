@@ -53,6 +53,8 @@ class ComponentTypeContribution:
         to, such as a control surface of its lifting surface. Its frame is that
         component's, the explorer nests it there, and that component's mass and envelope
         include it.
+    @param derived_mass Whether the plugin derives the component's mass from its
+        parameters with a component deriver. The Mass tab then shows it read-only.
     """
 
     id: str
@@ -62,6 +64,7 @@ class ComponentTypeContribution:
     editor: Callable[[dict[str, Any]], QWidget] | None = None
     category: str | None = None
     subpart: bool = False
+    derived_mass: bool = False
     # The type label of one component when it depends on its data, e.g. a
     # control surface's kind; without it every component shows ``name``.
     describe: Callable[[dict[str, Any]], str] | None = None

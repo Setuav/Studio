@@ -84,6 +84,9 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         root_layout.addWidget(scroll)
 
         self._create_mass_section(component_id)
+        component_type = api.get_component_type(str(component.get("type") or ""))
+        if component_type is not None and component_type.derived_mass:
+            self.mass_g.setReadOnly(True)
         self._create_cg_section()
         self._create_inertia_section()
         self._content_layout.addStretch(1)

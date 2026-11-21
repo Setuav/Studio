@@ -77,6 +77,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 model=PropulsorModel,
                 editor=lambda comp: PropulsorEditor(api, comp),
                 category="Propulsion",
+                derived_mass=True,
             ),
             ComponentTypeContribution(
                 id=BATTERY_TYPE,
@@ -85,6 +86,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                 model=BatteryModel,
                 editor=lambda comp: BatteryEditor(api, comp),
                 category="Electrical",
+                derived_mass=True,
             ),
         ]
         for ct in self._component_types:

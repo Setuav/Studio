@@ -68,6 +68,10 @@ field on the **Mass** tab, Studio stores the mass, the local CG, and the
 inertia tensor on the component, and the stored values replace the ones from
 the envelope.
 
+The mass of a propulsor or a battery is derived from its parameters, so its
+**Mass** field on this tab is read-only. Change the motor, propeller, or pack
+values instead.
+
 For a lifting surface with control surfaces, the fields hold the surface's own
 values, and a read-only **Total with Subparts** row shows the mass of the
 surface and its control surfaces together.

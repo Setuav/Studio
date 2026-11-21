@@ -217,7 +217,7 @@ reports the ones that are false.
   **Add Constraint…**.
 
 The new constraint is named `Constraint 1` (then `Constraint 2`, and so on)
-and starts with the expression `span > 0`. Replace the expression with your
+and starts with the expression `total_mass > 0`. Replace the expression with your
 own condition. The **Constraints** group appears once the project has a
 constraint.
 

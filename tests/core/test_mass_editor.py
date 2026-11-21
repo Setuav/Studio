@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import ComponentTypeContribution, StudioAPI
 from setuav_studio.project import open_project
 from setuav_studio.ui.editor import MassPropertiesEditor
 from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
@@ -52,6 +52,37 @@ class MassEditorWithSubpartsTests(unittest.TestCase):
         self.assertAlmostEqual(float(self.wing["mass"]), 250.0)
         aircraft_after = resolve_aircraft_mass_properties(self.project).mass_kg
         self.assertAlmostEqual(aircraft_after, aircraft_before, places=9)
+
+
+class DerivedMassTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = get_qapp()
+
+    def setUp(self) -> None:
+        self.api = StudioAPI()
+        register_fixture_component_types(self.api)
+        # A plugin that derives the propulsor's mass marks its type so.
+        self.api.register_component_type(
+            ComponentTypeContribution(
+                id="org.setuav.core:propulsor", name="Propulsor", derived_mass=True
+            )
+        )
+        self.project = open_project(TEST_PROJECT_PATH)
+        self.api._host.set_project(self.project)
+
+    def _editor(self, component_id: str) -> MassPropertiesEditor:
+        component = self.project.get_component(component_id)
+        assert component is not None
+        editor = MassPropertiesEditor(self.api, component)
+        self.addCleanup(editor.deleteLater)
+        return editor
+
+    def test_derived_mass_is_read_only(self) -> None:
+        self.assertTrue(self._editor("propulsor-cruise").mass_g.isReadOnly())
+
+    def test_entered_mass_stays_editable(self) -> None:
+        self.assertFalse(self._editor("main-wing").mass_g.isReadOnly())
 
 
 if __name__ == "__main__":
