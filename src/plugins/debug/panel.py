@@ -7,6 +7,7 @@ import importlib
 import platform
 import sys
 import time
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -30,10 +31,10 @@ from PySide6.QtWidgets import (
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.utilities.transform import get_local_transform
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
-    from setuav_studio.project import ProjectDocument
 
 _START_TIME = time.monotonic()
 
@@ -71,6 +72,12 @@ def _format_duration(seconds: float) -> str:
     minutes = (secs % 3600) // 60
     s = secs % 60
     return f"{hours:02d}:{minutes:02d}:{s:02d}"
+
+
+def _unsubscribe_all(unsubscribes: list[Callable[[], None]]) -> None:
+    """Invoke and clear all stored StudioAPI unsubscribe callbacks."""
+    while unsubscribes:
+        unsubscribes.pop()()
 
 
 class DebugPanel(PropertyTableMixin, QWidget):
@@ -301,19 +308,20 @@ class DebugPanel(PropertyTableMixin, QWidget):
     # ------------------------------------------------------------------
 
     def _connect_listeners(self) -> None:
-        """Register listeners with StudioAPI."""
-        self._unsubscribes.append(self._api.on_selection_changed(self._on_selection_changed))
-        self._unsubscribes.append(
-            self._api.on_section_selection_changed(self._on_section_selection_changed)
-        )
-        self._unsubscribes.append(
-            self._api.on_solver_config_selection_changed(self._on_solver_config_selection_changed)
-        )
-        self._unsubscribes.append(self._api.on_project_changed(self._on_project_changed))
-        self._unsubscribes.append(
-            self._api.on_project_content_changed(self._on_project_content_changed)
-        )
-        self._unsubscribes.append(self._api.on_modified_changed(self._on_modified_changed))
+        """Register weak-referenced listeners with StudioAPI and clean up on destruction."""
+        panel_ref = weakref.ref(self)
+
+        def refresh_inspector(_arg: Any = None) -> None:
+            panel = panel_ref()
+            if panel is not None:
+                panel._refresh_inspector()
+
+        self._unsubscribes.append(self._api.on_selection_changed(refresh_inspector))
+        self._unsubscribes.append(self._api.on_section_selection_changed(refresh_inspector))
+        self._unsubscribes.append(self._api.on_solver_config_selection_changed(refresh_inspector))
+        self._unsubscribes.append(self._api.on_project_changed(refresh_inspector))
+        self._unsubscribes.append(self._api.on_project_content_changed(refresh_inspector))
+        self._unsubscribes.append(self._api.on_modified_changed(refresh_inspector))
 
         # Event Bus Subscriptions
         events_to_track = (
@@ -327,8 +335,17 @@ class DebugPanel(PropertyTableMixin, QWidget):
             StudioEvents.TASK_FINISHED,
         )
         for ev in events_to_track:
-            unsub = self._api.subscribe(ev, lambda payload, name=ev: self._log_event(name, payload))
+
+            def on_event(payload: Any, name: str = ev) -> None:
+                panel = panel_ref()
+                if panel is not None:
+                    panel._log_event(name, payload)
+
+            unsub = self._api.subscribe(ev, on_event)
             self._unsubscribes.append(unsub)
+
+        unsubscribes = self._unsubscribes
+        self.destroyed.connect(lambda _obj=None, items=unsubscribes: _unsubscribe_all(items))
 
     def _log_event(self, event_name: str, payload: Any = None) -> None:
         """Record an event into the stream table."""
@@ -369,24 +386,6 @@ class DebugPanel(PropertyTableMixin, QWidget):
         self._events_history.clear()
         self.events_table.setRowCount(0)
         self._lbl_events_count.setText("(0)")
-
-    def _on_selection_changed(self, selection: Any | None) -> None:
-        self._refresh_inspector()
-
-    def _on_section_selection_changed(self, _selection: Any | None) -> None:
-        self._refresh_inspector()
-
-    def _on_solver_config_selection_changed(self, _config: Any | None) -> None:
-        self._refresh_inspector()
-
-    def _on_project_changed(self, _project: ProjectDocument | None) -> None:
-        self._refresh_inspector()
-
-    def _on_project_content_changed(self, _project: ProjectDocument | None) -> None:
-        self._refresh_inspector()
-
-    def _on_modified_changed(self, _modified: bool) -> None:
-        self._refresh_inspector()
 
     def _on_timer_tick(self) -> None:
         if self.isVisible():
@@ -446,12 +445,9 @@ class DebugPanel(PropertyTableMixin, QWidget):
             c_type = str(comp_dict.get("type", "-"))
             c_attach_to = str(comp_dict.get("attach_to") or "Vehicle")
 
-            pos = comp_dict.get("position", [0.0, 0.0, 0.0])
-            rot = comp_dict.get("rotation", [0.0, 0.0, 0.0])
-            pos_str = f"[{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]" if len(pos) >= 3 else str(pos)
-            rot_str = (
-                f"[{rot[0]:.2f}°, {rot[1]:.2f}°, {rot[2]:.2f}°]" if len(rot) >= 3 else str(rot)
-            )
+            pos, rot = get_local_transform(comp_dict)
+            pos_str = f"[{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]"
+            rot_str = f"[{rot[0]:.2f}°, {rot[1]:.2f}°, {rot[2]:.2f}°]"
 
             self._set_property_value(self.component_table, "name", c_name)
             self._set_property_value(self.component_table, "id", c_id)
@@ -571,7 +567,5 @@ class DebugPanel(PropertyTableMixin, QWidget):
 
     def closeEvent(self, event: Any) -> None:
         self._timer.stop()
-        for unsub in self._unsubscribes:
-            unsub()
-        self._unsubscribes.clear()
+        _unsubscribe_all(self._unsubscribes)
         super().closeEvent(event)
