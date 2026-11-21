@@ -51,12 +51,10 @@ from .lifting_surface_planform_engine import (
 from .lifting_surface_tips import compute_winglet_projected_dimensions
 from .palettes import (
     DEFAULT_PALETTE,
-    active_palette,
     control_surface_color,
     lifting_surface_color,
     palette_names,
     segment_colors,
-    set_active_palette,
 )
 from .scene import GeometryProvider, build_project_geometry
 from .transforms import (
@@ -88,7 +86,6 @@ __all__ = [
     "Matrix4",
     "Point3D",
     "Section",
-    "active_palette",
     "airfoil_label",
     "apply_airfoil_shaping",
     "biconvex",
@@ -123,7 +120,6 @@ __all__ = [
     "sample_profile",
     "section_transform",
     "segment_colors",
-    "set_active_palette",
     "solve_control_surface_from_area",
     "sync_component_envelope",
     "sync_sizing_values",

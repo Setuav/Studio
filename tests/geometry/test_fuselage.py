@@ -580,10 +580,6 @@ class FuselageGeometryTests(unittest.TestCase):
         # Segment loft choice edits
         editor._update_segment_choice(0, "method", "ruled")
         self.assertEqual(comp["parameters"]["geometry"]["segments"][0]["loft"]["method"], "ruled")
-        self.assertEqual(
-            comp["parameters"]["geometry"]["segments"][0]["loft"]["profile_correspondence"],
-            "cardinal_quadrants",
-        )
 
     def test_fuselage_editor_property_expression_changes(self) -> None:
         """Verify editing section properties via expressions or numbers applies correctly."""

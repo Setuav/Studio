@@ -25,28 +25,20 @@ class GeometrySceneTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
 
-    def test_palettes_are_complete_and_switchable(self) -> None:
+    def test_palettes_are_complete(self) -> None:
         from plugins.geometry.engine.palettes import (
-            DEFAULT_PALETTE,
-            active_palette,
             lifting_surface_color,
             palette_names,
             segment_colors,
-            set_active_palette,
         )
 
         self.assertEqual(len(palette_names()), 3)
         for name in palette_names():
             with self.subTest(palette=name):
-                set_active_palette(name)
-                self.assertEqual(active_palette(), name)
-                self.assertEqual(len(segment_colors()), 5)
-                self.assertEqual(len(lifting_surface_color()), 3)
-                for color in (*segment_colors(), lifting_surface_color()):
+                self.assertEqual(len(segment_colors(name)), 5)
+                self.assertEqual(len(lifting_surface_color(name)), 3)
+                for color in (*segment_colors(name), lifting_surface_color(name)):
                     self.assertTrue(all(0.0 <= channel <= 1.0 for channel in color))
-        set_active_palette(DEFAULT_PALETTE)
-        with self.assertRaises(ValueError):
-            set_active_palette("nonexistent")
 
     def test_solid_mesh_contains_triangle_vertices(self) -> None:
         loft = LoftPrimitive(

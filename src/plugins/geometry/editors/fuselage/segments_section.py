@@ -152,7 +152,6 @@ class SegmentsSectionMixin(FuselageEditorHost):
         def change() -> None:
             loft = self._object(segment, "loft")
             loft[key] = value
-            loft["profile_correspondence"] = "cardinal_quadrants"
 
         self._edit_component("Edit fuselage segment", change)
 

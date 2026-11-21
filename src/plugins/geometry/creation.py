@@ -92,10 +92,7 @@ class AirframeCreationController:
                     "segments": [
                         {
                             "tag": "main",
-                            "loft": {
-                                "method": "smooth",
-                                "profile_correspondence": "cardinal_quadrants",
-                            },
+                            "loft": {"method": "smooth"},
                             "sections": sections,
                         }
                     ]
