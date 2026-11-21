@@ -410,6 +410,36 @@ class TestElectricalPropulsion(unittest.TestCase):
         assert cell is not None
         self.assertEqual(cell.line_edit.text(), "3")
 
+    def test_closed_propulsion_editors_unregister_content_listeners(self) -> None:
+        import gc
+        import weakref
+
+        from PySide6.QtCore import QCoreApplication, QEvent
+
+        api, doc = _api_with_fixture()
+        initial_listeners = len(api._project_content_listeners)
+        battery = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
+        )
+        propulsor = next(c for c in doc.data["components"] if c.get("type") == PROPULSOR_TYPE)
+
+        bat_editor = BatteryEditor(api, battery)
+        prop_editor = PropulsorEditor(api, propulsor)
+        bat_ref = weakref.ref(bat_editor)
+        prop_ref = weakref.ref(prop_editor)
+        self.assertGreater(len(api._project_content_listeners), initial_listeners)
+
+        bat_editor.deleteLater()
+        prop_editor.deleteLater()
+        del bat_editor, prop_editor
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        gc.collect()
+
+        self.assertIsNone(bat_ref())
+        self.assertIsNone(prop_ref())
+        self.assertEqual(len(api._project_content_listeners), initial_listeners)
+
     def test_battery_editor_chemistry_change_clears_overrides(self) -> None:
         from PySide6.QtCore import Qt
 

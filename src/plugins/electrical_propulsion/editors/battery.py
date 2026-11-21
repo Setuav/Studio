@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -84,7 +85,17 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
         self._content_layout.addStretch()
         self._load_battery()
-        api.on_project_content_changed(self._on_project_content_changed)
+        self_ref = weakref.ref(self)
+
+        def _on_content_changed(_project: Any = None) -> None:
+            editor = self_ref()
+            if editor is not None:
+                editor._on_project_content_changed()
+
+        api.on_project_content_changed(_on_content_changed)
+        self.destroyed.connect(
+            lambda _obj=None, a=api, fn=_on_content_changed: a.remove_project_content_listener(fn)
+        )
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if not self._loading:
