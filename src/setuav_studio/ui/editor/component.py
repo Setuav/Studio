@@ -225,7 +225,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
         self._content_layout.addStretch()
         params = self._component.get("parameters", {})
-        self._committed_params: dict[str, Any] = dict(params) if isinstance(params, dict) else {}
+        self._committed_params: dict[str, Any] = (
+            deepcopy(params) if isinstance(params, dict) else {}
+        )
         exprs = params.get("_expressions") if isinstance(params, dict) else None
         self._committed_expressions: dict[str, str] = dict(exprs) if isinstance(exprs, dict) else {}
         self._committed_mass: Any = self._component.get("mass")
@@ -405,7 +407,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
             self._load_custom_data()
             params = self._component.get("parameters", {})
-            self._committed_params = dict(params) if isinstance(params, dict) else {}
+            self._committed_params = deepcopy(params) if isinstance(params, dict) else {}
             exprs = params.get("_expressions") if isinstance(params, dict) else None
             self._committed_expressions = dict(exprs) if isinstance(exprs, dict) else {}
             self._committed_mass = self._component.get("mass")
