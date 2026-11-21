@@ -203,7 +203,7 @@ class ProjectController:
 
         changes: list[str] = []
         disk_data: dict[str, Any] = {}
-        if self.project.location.exists():
+        if not self.project.untitled and self.project.location.exists():
             try:
                 disk_data = open_project(self.project.location).data
             except ProjectOpenError as exc:

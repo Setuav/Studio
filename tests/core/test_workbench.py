@@ -205,6 +205,40 @@ class TestWorkbenchAndTools(unittest.TestCase):
         # Count should remain 1
         self.assertEqual(len(received_payloads), 1)
 
+    def test_untitled_project_ignores_same_named_file_on_disk_for_unsaved_changes(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from setuav_studio.project import create_project
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cwd = os.getcwd()
+            os.chdir(tmpdir)
+            try:
+                api = StudioAPI()
+                win = MainWindow(api)
+                self.addCleanup(win.close)
+                win.project_controller.new_untitled_project()
+                assert win.project_controller.project is not None
+                assert win.project_controller.project.untitled
+
+                # Create an unrelated saved file at the same path as the untitled placeholder name
+                unrelated = create_project(
+                    Path(win.project_controller.project.location),
+                )
+                unrelated.data["components"].append(
+                    {"id": "disk-only", "name": "Disk Only", "type": "org.setuav.core:point-mass"}
+                )
+                from setuav_studio.project import save_project
+
+                save_project(unrelated)
+
+                changes = win.project_controller.collect_unsaved_changes()
+                self.assertEqual(changes, [])
+            finally:
+                os.chdir(cwd)
+
 
 if __name__ == "__main__":
     unittest.main()
