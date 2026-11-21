@@ -1,22 +1,37 @@
 # Setuav Studio Developer Documentation
 
-Build Python packages that extend Setuav Studio with panels, workspaces, menu
-commands, editors, project-tree nodes, schemas, and analysis providers.
+Build Python packages that extend Setuav Studio with panels, toolbar items,
+tools, settings pages, component types, editors, solvers, and project-tree
+nodes.
 
-Only symbols imported from `setuav_studio.api` are public. Application modules
-outside this package are implementation details and may change at any time.
+Plugins use three modules:
+
+- `setuav_studio.api` — `StudioAPI`, the contribution descriptors, and
+  `StudioPlugin`.
+- `setuav_studio.solver` — `AbstractSolver`, `SolverConfig`, and
+  `SolverResult` for analyses.
+- `setuav_studio.ui.style.icons` — `register_plugin_icons` and
+  `unregister_plugin_icons`.
+
+Other application modules are implementation details and may change at any
+time. The bundled plugins in `src/plugins/` are complete reference
+implementations; `src/plugins/flight_performance/` is the smallest.
 
 ## Start here
 
-1. Implement the `StudioPlugin` lifecycle contract.
+1. Implement the `StudioPlugin` lifecycle contract: `id`, `activate`, and
+   `deactivate`.
 2. Register contributions through the `StudioAPI` received by `activate`.
-3. Publish the plugin class through the `setuav_studio.plugins` entry-point group.
-4. Undo registrations and release resources in the required `deactivate` method.
+3. Undo every registration in `deactivate`.
+4. Publish the plugin through the `setuav_studio.plugins` entry-point group.
 
 ```python
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.api import PanelContribution, StudioAPI
+from setuav_studio.api import PanelContribution, StudioAPI, ToolbarContribution
+
+PANEL_ID = "com.example.demo.panel"
+TOOLBAR_ID = "com.example.demo.hello"
 
 
 class ExamplePlugin:
@@ -24,44 +39,109 @@ class ExamplePlugin:
     priority = 100
 
     def activate(self, api: StudioAPI) -> None:
-        api.add_panel(
+        api.register_panel(
             PanelContribution(
-                id="com.example.demo.panel",
+                id=PANEL_ID,
                 title="Demo",
                 factory=lambda: QLabel("Hello from a plugin"),
             )
         )
-        api.show_status("Example plugin activated", "success")
+        api.register_toolbar_item(
+            ToolbarContribution(
+                id=TOOLBAR_ID,
+                title="Say Hello",
+                icon="fa6s.hand",
+                callback=lambda: api.show_status("Hello", "success"),
+                group="example",
+                order=500,
+            )
+        )
 
     def deactivate(self, api: StudioAPI) -> None:
-        api.remove_panel("com.example.demo.panel")
+        api.unregister_toolbar_item(TOOLBAR_ID)
+        api.unregister_panel(PANEL_ID)
 ```
 
-## API reference
+## API overview
 
-- **Plugin API** — services available through `StudioAPI`
-- **Contributions** — immutable UI and project descriptors
-- **Provider contracts** — callbacks and domain services
-- **Plugin lifecycle** — activation and deactivation contract
+Every `register_*` method has a matching `unregister_*` method.
 
-## Package discovery
+| Area | `StudioAPI` members | Descriptor |
+|---|---|---|
+| Panels | `register_panel`, `show_panel` | `PanelContribution` |
+| Toolbar | `register_toolbar_item`, `refresh_toolbar_states` | `ToolbarContribution`, `ToolbarMenuItemContribution` |
+| Menus | `register_tool` (Tools menu), `register_action` (any menu path) | `ToolContribution`, `ActionContribution` |
+| Settings | `register_settings_page` | `SettingsPageContribution` |
+| Components | `register_component_type`, `register_component_editor`, `register_component_model`, `register_component_deriver` | `ComponentTypeContribution`, `ComponentDeriver` |
+| Project tree | `register_project_tree_provider`, `register_component_tree_provider`, `register_component_menu_provider` | `ProjectTreeNodeContribution`, `ComponentTreeNodeContribution`, `ComponentMenuItemContribution` |
+| Analyses | `register_solver`, `add_solver_config`, `run_solver`, `get_solver_results` | `AbstractSolver`, `SolverConfig` |
+| Project data | `project`, `edit_component`, `edit_project`, `transaction`, `undo`, `redo` | — |
+| Events | `subscribe`, `publish`, `on_project_changed`, `on_selection_changed`, `set_selection` | `StudioEvents` |
+| Feedback | `show_status`, `report_progress`, `tasks.submit` | — |
 
-Declare the plugin in its package's `pyproject.toml`:
+Numeric editor fields are described with `ParameterField` and
+`TableParameterField`; a field can hold a number or a formula that uses the
+project constants.
 
-```toml
-[project.entry-points."setuav_studio.plugins"]
-"com.example.demo" = "example_plugin.plugin:ExamplePlugin"
+Run long work through `api.tasks.submit` so the Qt UI thread never blocks.
+
+## Analyses
+
+An analysis is a solver class plus a toolbar item that adds a configuration to
+the project. The solver declares its editable parameters in
+`PARAMETER_FIELDS` and returns a `SolverResult` with summary values, tables,
+and plots:
+
+```python
+from typing import ClassVar
+
+from setuav_studio.api import ParameterField
+from setuav_studio.solver import AbstractSolver, SolverResult
+
+
+class HoverSolver(AbstractSolver):
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(key="altitude", label="Altitude", unit="m", quantity="length"),
+    ]
+
+    def run(self) -> SolverResult:
+        return SolverResult(solver_id="com.example.hover", config=self.config, name="Hover")
 ```
 
-The entry point may resolve to a plugin class or instance. Setuav Studio loads
-plugins in priority and plugin-ID order. A plugin that fails to load does not
-prevent other plugins from starting.
+Register it in `activate` with
+`api.register_solver("com.example.hover", HoverSolver, icon="...")`. The icon
+is shown next to the solver's analyses in the Project Explorer. Add a toolbar
+item in the `"analysis"` group whose callback calls `api.add_solver_config`
+with a `SolverConfig` for the solver.
+
+## Icons
+
+An `icon` field accepts an icon name, a file path, or a `QIcon`. Names resolve
+in this order: icons registered by plugins, the core icons in
+`src/setuav_studio/assets/icons/`, then QtAwesome specifiers such as
+`fa6s.chart-line`.
+
+To ship icons, put one SVG per icon, named after the icon, in a folder of the
+plugin and register the folder:
+
+```python
+from pathlib import Path
+
+from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
+
+register_plugin_icons(self.id, Path(__file__).parent / "assets" / "icons")
+...
+unregister_plugin_icons(self.id)  # in deactivate
+```
+
+`assets/icons/hover.svg` then becomes the icon `hover`. The isometric style of
+the bundled icons is generated by `src/setuav_studio/assets/icons/tools/iso.py`.
 
 ## Plugin discovery and loading
 
-### 1. Package metadata
+### Installed packages
 
-Declare the plugin package and its entry point in `pyproject.toml`:
+Declare the entry point in the package's `pyproject.toml`:
 
 ```toml
 [project]
@@ -72,96 +152,53 @@ dependencies = ["setuav-studio"]
 "com.acme.uav-tools" = "acme_uav_tools.plugin:AcmePlugin"
 ```
 
-The entry-point target must expose a plugin class or instance with:
+The target may be a plugin class or instance with:
 
 - `id`: stable reverse-domain identifier.
-- `priority`: optional integer; lower values activate first.
-- `activate(api)`: required lifecycle method.
-- `deactivate(api)`: required cleanup method for every registration.
+- `priority`: optional integer; lower values activate first, default `100`.
+- `activate(api)` and `deactivate(api)`.
 
-### 2. Schema manifest (when the plugin adds project data)
+### User plugin folder
 
-Plugins that add component, assembly, or analysis data ship a `plugin.json`
-manifest that follows the core plugin-manifest schema. The manifest declares
-the plugin ID and version, then maps typed IDs to schema files:
+Plugins can also be placed in the user plugin folder, either as a single
+`.py` file or as a folder with a `pyproject.toml` entry point, a package
+`__init__.py`, or a `plugin.py`. The folder is set by the
+`SETUAV_STUDIO_PLUGINS_DIR` environment variable, otherwise it is the
+application data folder's `plugins` directory. The Plugin Manager can install
+a plugin archive into it.
 
-```json
-{
-  "$schema": "https://schemas.setuav.org/core/plugin-manifest.schema.json",
-  "id": "com.acme.uav-tools",
-  "version": "1.0.0",
-  "component_types": {
-    "com.acme.uav-tools:sensor": {
-      "schema": "components/sensor.schema.json"
-    }
-  },
-  "assembly_types": {},
-  "analysis_types": {}
-}
-```
+### Startup and activation
 
-Keep schema paths relative to the manifest and use the same plugin ID prefix
-for every type. A UI-only plugin does not need a schema manifest.
+On startup the host collects the bundled plugins, installed entry points, and
+user plugins, orders them by `(priority, id)`, and calls `activate(api)`.
+Contributions become available only after activation returns. Remove all of
+them in `deactivate(api)` so the plugin can be disabled and re-enabled safely
+from the Plugin Manager.
 
-### 3. Startup and activation
+### Project requirements
 
-On startup the host discovers bundled plugins and installed entry points,
-orders them by `(priority, id)`, and calls `activate(api)`. Contributions,
-listeners, providers, and commands become available only after activation
-returns successfully. Remove all of them in `deactivate(api)` so the plugin
-can be disabled and re-enabled safely.
+A plugin that stores data in projects can declare
+`provides = {"com.acme.uav-tools": "1.2.0"}`. A project lists the plugins it
+needs under `plugins` as `{"id": ..., "version": ...}`; a missing or
+incompatible plugin is reported as a project issue, and the project still
+opens.
 
-When a plugin owns a workspace, pass a `default_layout` callback to its
-`WorkspaceContribution`. The callback receives a `WorkspaceLayoutContext` and
-can show or hide its panels, split them, and set rounded initial widths. The
-shell only applies the callback when no user perspective is saved; the layout
-definition stays with the plugin.
-
-```python
-from setuav_studio.api import WorkspaceContribution, WorkspaceLayoutContext
-
-
-def default_layout(layout: WorkspaceLayoutContext) -> None:
-    layout.split("project.explorer", "com.acme.panel")
-    layout.show("project.explorer", "com.acme.panel")
-    layout.resize(("project.explorer", "com.acme.panel"), (300, 900))
-
-
-workspace = WorkspaceContribution(
-    id="com.acme.workspace",
-    title="Acme Tools",
-    default_layout=default_layout,
-)
-```
-
-### 4. Failure scenarios
+### Failure scenarios
 
 - An import or entry-point error is logged and the plugin is skipped.
-- A missing `id` or `activate` method is rejected as an invalid plugin.
 - An exception from `activate` is isolated; other plugins still start.
 - A duplicate plugin ID is ignored after the first successful activation.
-- Missing or incompatible project plugin requirements are reported as project
-  issues; the application remains usable in degraded mode.
 
-The host records these failures as load issues for diagnostics. Plugins should
-validate their own optional dependencies before registering UI and report
-actionable errors through the application logger or status service.
+The host records these failures as load issues shown in the Plugin Manager.
+Plugins should check their optional dependencies before registering UI and
+report actionable errors with `api.show_status`.
 
-## Plugin template and tests
+## Testing a plugin
 
-You can use existing plugins in `src/plugins/` as reference implementations.
-Copy a plugin as a starting point, configure its reverse-domain identifier, and
-declare its dependencies in `pyproject.toml`.
-
-Before publishing, verify that the plugin can be activated, deactivated, and
-activated again. Every registration made in `activate` should have a matching
-cleanup call in `deactivate`: panels, workspaces, actions, editors, icons,
-providers, listeners, and background resources.
-
-## Compatibility
-
-`PLUGIN_API_VERSION` versions the public plugin contract. Plugins declare
-their supported compatibility range with Setuav Studio.
+Verify that the plugin can be activated, deactivated, and activated again.
+Every registration made in `activate` needs a matching cleanup in
+`deactivate`: panels, toolbar items, actions, settings pages, component
+types, editors, solvers, icons, providers, and listeners.
 
 ## Security
 

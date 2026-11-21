@@ -34,7 +34,16 @@ the current project, while **Save As** creates a copy in another format or
 location. A `project.json` or `.suav` file can also be opened by passing its
 path on the command line.
 
-## Editing
+## First design
 
-Select an item in the Project Explorer to inspect it in the Properties panel.
-Use **Edit → Undo** and **Edit → Redo** for project changes.
+1. **File → New Project** and choose where to save the `.suav` archive.
+2. Add a fuselage, a lifting surface, and a control surface from the toolbar.
+   Each starts from a default shape.
+3. Select a part in the Project Explorer or the 3D Viewer and edit it in the
+   Properties panel. Add a propulsor, a battery, and point masses the same way.
+4. Select **Vehicle** to check the total mass and center of gravity.
+5. Add an analysis from the toolbar, set its parameters, and click **Run
+   Analysis**. Its tables and plots appear under the analysis.
+
+Use **Edit → Undo** and **Edit → Redo** for project changes. See
+[Interface](interface.md) for the panels and the 3D Viewer.

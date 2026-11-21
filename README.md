@@ -18,38 +18,48 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/Setuav/Studio" alt="MIT license">
   </a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11 or newer">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12 or newer">
 </p>
 
 **Setuav Studio** brings geometry design, engineering analysis, and project data into
-one extensible desktop workspace. It is built with Python and PySide6 and uses a
-plugin architecture so design and analysis capabilities can evolve independently.
+one desktop application. It is built with Python and PySide6 and uses a plugin
+architecture so design and analysis capabilities can evolve independently.
+
+<p align="center">
+  <img src="docs/user-guide/images/design.png" alt="Setuav Studio with a vehicle in the 3D Viewer">
+</p>
 
 <table>
   <tr>
-    <td align="center"><img src="docs/user-guide/images/design-workspace.png" alt="Design workspace" width="480"></td>
-    <td align="center"><img src="docs/user-guide/images/performance-workspace.png" alt="Performance workspace" width="480"></td>
+    <td align="center"><img src="docs/user-guide/images/analysis-plots.png" alt="Alpha Sweep plots" width="480"></td>
+    <td align="center"><img src="docs/user-guide/images/analysis-table.png" alt="Flight Performance envelope table" width="480"></td>
   </tr>
   <tr>
-    <td align="center"><em>Design workspace</em></td>
-    <td align="center"><em>Performance workspace</em></td>
+    <td align="center"><em>Aerodynamic polar plots</em></td>
+    <td align="center"><em>Flight performance envelope</em></td>
   </tr>
 </table>
 
 ## Features
 
 - Parametric fuselage, lifting-surface, and control-surface design.
-- Interactive OpenGL geometry viewer with selection and section editing.
-- Aerodynamic analysis, stability results, polar charts, and airfoil tools.
-- Electrical propulsion modeling and result visualization.
-- Flight-performance envelope analysis.
-- Weight-and-balance analysis with component-level mass properties.
-- Extensible workspaces, panels, tools, component editors, and project schemas.
+- Constants, formulas, and constraints that drive any numeric field.
+- Interactive OpenGL 3D viewer with selection, section editing, display modes,
+  and a center of gravity marker.
+- Aerodynamic analyses: alpha sweep, beta sweep, control deflection, and
+  operating point, plus single-airfoil analysis.
+- Electrical propulsion with a motor, propeller, and battery catalog: throttle
+  sweep, airspeed sweep, and operating point analyses.
+- Flight-performance envelope: power, climb, endurance, and range.
+- Mass and center of gravity from component masses and point masses.
+- Results as tables with CSV export and plots.
+- Plugin API for panels, toolbar items, tools, component types, editors,
+  solvers, and project-tree nodes.
 - Folder, `project.json`, and portable `.suav` project support.
 
 ## Quick start
 
-Requires Python 3.11 or newer, [`uv`](https://docs.astral.sh/uv/) for locked
+Requires Python 3.12 or newer, [`uv`](https://docs.astral.sh/uv/) for locked
 dependency management, and a desktop environment supported by PySide6. The
 aerodynamics extra installs AeroSandbox; these dependencies are
 included by `--all-extras` in the commands below.
@@ -58,7 +68,7 @@ Clone the repository and install the locked runtime environment:
 
 ```bash
 git clone https://github.com/Setuav/Studio.git
-cd studio
+cd Studio
 uv sync --locked --all-extras
 ```
 
@@ -121,8 +131,8 @@ startup, security, and dependency checks automatically.
 ## Plugin development
 
 Plugins extend Setuav Studio through the `StudioAPI`. A plugin can register
-workspaces, panels, toolbar actions, tools, component editors, project schemas,
-geometry providers, and project-tree nodes. Each plugin owns its activation and
+panels, toolbar items, tools, settings pages, component types and editors,
+solvers, and project-tree nodes. Each plugin owns its activation and
 cleanup lifecycle, allowing capabilities to be added without changing the
 application core.
 
