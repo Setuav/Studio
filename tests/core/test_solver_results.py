@@ -19,6 +19,7 @@ from setuav_studio.solver.results import (
     TableColumn,
     TableDefinition,
 )
+from setuav_studio.ui.editor.analysis_plot import AnalysisPlotPropertyEditor
 from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.panels.results import (
     AnalysisChartPanel,
@@ -492,3 +493,60 @@ def test_summary_and_table_display_unit_conversion() -> None:
     assert math.isclose(table.get_column_display_values("rpm")[0], 100.0, rel_tol=1e-12)
     assert math.isclose(table.get_column_display_values("v")[0], 36.0, rel_tol=1e-12)
     assert table.get_column_display_values("ok") == [True]
+
+
+def test_analysis_plot_editor_updates_default_label_when_y_column_changes() -> None:
+    api = StudioAPI()
+    project = ProjectDocument(Path("plot.json"), "json", {"components": []})
+    api._host.set_project(project)
+
+    table = TableDefinition(
+        id="sweep",
+        columns=[
+            TableColumn(key="alpha", label="Angle of Attack"),
+            TableColumn(key="cl", label="Lift Coefficient"),
+            TableColumn(key="cd", label="Drag Coefficient"),
+        ],
+        data={"alpha": [0.0, 2.0], "cl": [0.1, 0.3], "cd": [0.02, 0.03]},
+    )
+    plot = PlotDefinition(
+        id="polar",
+        title="Polar",
+        table_id="sweep",
+        x_column="alpha",
+        series=[
+            PlotSeriesDef(y_column="cl", label="Lift Coefficient"),
+            PlotSeriesDef(y_column="cl", label="Custom Curve"),
+        ],
+    )
+    result = SolverResult(
+        solver_id="org.setuav.aero",
+        config=SolverConfig(solver_id="org.setuav.aero"),
+        tables={"sweep": table},
+        plots={"polar": plot},
+    )
+    project.add_solver_result(result)
+
+    editor = AnalysisPlotPropertyEditor(
+        api,
+        {"kind": "analysis_plot", "result_id": result.id, "plot_id": "polar"},
+    )
+    try:
+        from PySide6.QtWidgets import QComboBox
+
+        # Curve 0 has default label matching column label ("Lift Coefficient") -> must follow new Y
+        # Curve 1 has custom label ("Custom Curve") -> must preserve custom label
+        for idx, expected_label in ((0, "Drag Coefficient"), (1, "Custom Curve")):
+            layout_item = editor._series_layout.itemAt(idx)
+            assert layout_item is not None
+            card = layout_item.widget()
+            assert card is not None
+            combos = card.findChildren(QComboBox)
+            y_combo = combos[0]
+            cd_idx = y_combo.findData("cd")
+            assert cd_idx >= 0
+            y_combo.setCurrentIndex(cd_idx)
+            assert plot.series[idx].y_column == "cd"
+            assert plot.series[idx].label == expected_label
+    finally:
+        editor.deleteLater()
