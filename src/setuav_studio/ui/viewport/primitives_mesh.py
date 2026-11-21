@@ -247,7 +247,7 @@ def build_primitive_wire_vertices(  # noqa: C901
             p3 = (
                 cx - hw * u[0] + hh * v[0],
                 cy - hw * u[1] + hh * v[1],
-                cz - hw * u[2] - hh * v[2],
+                cz - hw * u[2] + hh * v[2],
             )
             _append_ring(vertices, (p0, p1, p2, p3), color)
             if wire_mode == WIRE_FULL:
@@ -394,7 +394,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
             p3 = (
                 cx - hw * u[0] + hh * v[0],
                 cy - hw * u[1] + hh * v[1],
-                cz - hw * u[2] - hh * v[2],
+                cz - hw * u[2] + hh * v[2],
             )
             _append_ring(vertices, (p0, p1, p2, p3), color)
 
