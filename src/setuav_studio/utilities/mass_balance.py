@@ -15,6 +15,7 @@ from setuav_studio.model.mass import (
 from setuav_studio.utilities.transform import (
     Matrix3,
     euler_to_matrix,
+    inverse_rotate_vector,
     resolve_world_transform,
     rotate_vector,
     transpose_matrix,
@@ -222,8 +223,16 @@ def resolve_component_intrinsic_mass_properties(
     rx, ry, rz = rotate_vector(cg_local_mm, world_rot_deg)
     cg_body_mm = (world_pos_mm[0] + rx, world_pos_mm[1] + ry, world_pos_mm[2] + rz)
 
-    if is_mirrored_component(effective, by_id):
-        cg_body_mm = (cg_body_mm[0], 0.0, cg_body_mm[2])
+    mirror_frame = _mirror_frame(effective, by_id)
+    if mirror_frame is not None:
+        # The mass covers both halves; the mirrored half is reflected in the XZ
+        # plane of the frame the surface is attached in, so the pair's CG lies in
+        # that plane.
+        frame_pos_mm, frame_rot_deg = mirror_frame
+        offset = tuple(cg_body_mm[i] - frame_pos_mm[i] for i in range(3))
+        in_frame = inverse_rotate_vector((offset[0], offset[1], offset[2]), frame_rot_deg)
+        mx, my, mz = rotate_vector((in_frame[0], 0.0, in_frame[2]), frame_rot_deg)
+        cg_body_mm = (frame_pos_mm[0] + mx, frame_pos_mm[1] + my, frame_pos_mm[2] + mz)
 
     cg_body_m: Vector3 = (
         cg_body_mm[0] / 1000.0,
@@ -466,17 +475,37 @@ def is_mirrored_component(
     component: dict[str, Any],
     by_id: dict[str, dict[str, Any]],
 ) -> bool:
-    """Return whether the component is mirrored across the body XZ plane.
+    """Return whether the component has a mirrored half.
 
     A component is mirrored by its own geometry; a control surface follows the
-    lifting surface it attaches to.
+    lifting surface it attaches to unless its Symmetry Mode is None (Single).
     """
-    if _geometry_mirror(component):
-        return True
-    if component.get("type") != "org.setuav.core:control-surface":
-        return False
-    surface = by_id.get(str(component.get("attach_to") or ""))
-    return surface is not None and _geometry_mirror(_effective_component(surface, by_id))
+    return _mirror_frame(component, by_id) is not None
+
+
+def _mirror_frame(
+    component: dict[str, Any],
+    by_id: dict[str, dict[str, Any]],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    """World position and rotation of the frame a mirrored component is reflected in.
+
+    None when the component has no mirrored half.
+    """
+    mirrored = component
+    if not _geometry_mirror(component):
+        if component.get("type") != "org.setuav.core:control-surface":
+            return None
+        geometry = component.get("parameters", {}).get("geometry", {})
+        if str(geometry.get("symmetry_mode") or "auto").lower() == "none":
+            return None
+        surface = by_id.get(str(component.get("attach_to") or ""))
+        if surface is None or not _geometry_mirror(_effective_component(surface, by_id)):
+            return None
+        mirrored = surface
+    frame_id = str(mirrored.get("attach_to") or "")
+    if frame_id not in by_id:
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    return resolve_world_transform(frame_id, by_id)
 
 
 def _geometry_mirror(component: dict[str, Any]) -> bool:

@@ -412,9 +412,8 @@ between 5 % and 95 % of the local chord.
 
 ### Mirrored side and channels
 
-In the 3D Viewer, the mirrored side of an **Aileron** or **Elevon** deflects
-opposite to the modeled side; other types deflect the same way. **Symmetry
-Mode** sets how the aerodynamic model deflects the mirrored side. With **Auto
+**Symmetry Mode** sets how the mirrored side deflects, in the 3D Viewer and in
+the aerodynamic model alike. With **Auto
 (By Type)**, the Deflection Angle of an aileron or elevon and the aileron and
 rudder commands of an analysis act opposite on the two sides; everything else
 acts the same on both sides. **Antisymmetric (Differential)** and

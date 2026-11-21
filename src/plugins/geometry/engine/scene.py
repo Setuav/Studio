@@ -154,13 +154,32 @@ def _is_xz_mirror(derivation: Any) -> bool:
     return derivation.get("plane", "XZ") in ("XZ", "1", None)
 
 
-def _invert_differential_controls(controls: list[dict[str, Any]]) -> None:
+def _mirrored_deflection(control: dict[str, Any]) -> float | None:
+    """Deflection of a control surface's mirrored copy; None when it has none.
+
+    Follows the control's Symmetry Mode as the aerodynamic model does: Auto deflects
+    ailerons and elevons opposite and everything else alike.
+    """
+    mode = str(control.get("symmetry_mode") or "auto").lower()
+    deflection = float(control.get("deflection", 0.0))
+    if mode == "none":
+        return None
+    if mode in ("antisymmetric", "anti-symmetric"):
+        return -deflection
+    if mode == "symmetric":
+        return deflection
+    differential = str(control.get("type", "aileron")).lower() in ("aileron", "elevon")
+    return -deflection if differential else deflection
+
+
+def _mirrored_controls(controls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The control surfaces of a surface's mirrored copy, with their mirrored deflection."""
+    mirrored: list[dict[str, Any]] = []
     for control in controls:
-        if isinstance(control, dict) and str(control.get("type", "aileron")).lower() in (
-            "aileron",
-            "elevon",
-        ):
-            control["deflection"] = -float(control.get("deflection", 0.0))
+        deflection = _mirrored_deflection(control)
+        if deflection is not None:
+            mirrored.append({**deepcopy(control), "deflection": deflection})
+    return mirrored
 
 
 def _child_control_surfaces(
@@ -180,7 +199,7 @@ def _child_control_surfaces(
         if (control := _child_control_surface(child, owner_id)) is not None
     ]
     if _is_xz_mirror(item.get("derivation")):
-        _invert_differential_controls(controls)
+        return _mirrored_controls(controls)
     return controls
 
 
@@ -260,9 +279,7 @@ def _append_mirrored_geometry(
         target_matrix,
         multiply_matrix(mirror, local_matrix),
     )
-    mirrored_controls = deepcopy(controls)
-    _invert_differential_controls(mirrored_controls)
-    mirrored_lofts = provider(source, mirrored_controls)
+    mirrored_lofts = provider(source, _mirrored_controls(controls))
     lofts.extend(
         _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror", str(source["id"]), item_id)
         for loft in mirrored_lofts
@@ -556,13 +573,13 @@ def _build_component_envelope_geometry(
     lines: list[tuple[Point3D, Point3D]] = []
 
     cs_deflection = 0.0
-    cs_type = "aileron"
+    cs_geometry: dict[str, Any] = {}
     if component_type == "org.setuav.core:control-surface":
         params = source.get("parameters") if isinstance(source, dict) else {}
         geom = params.get("geometry") if isinstance(params, dict) else {}
         if isinstance(geom, dict):
+            cs_geometry = geom
             cs_deflection = float(geom.get("deflection", 0.0))
-            cs_type = str(geom.get("type", "aileron")).lower()
 
     env_to_draw = (
         _rotate_control_surface_envelope(envelope, cs_deflection)
@@ -588,10 +605,12 @@ def _build_component_envelope_geometry(
         _append_envelope_lines(lines, envelope, mirrored_matrix)
         _append_lifting_surface_tip_envelope_lines(lines, source, mirrored_matrix)
 
+    mirrored_deflection = _mirrored_deflection(cs_geometry)
     if (
         component_type == "org.setuav.core:control-surface"
         and target_source
         and _is_bilateral(target_source)
+        and mirrored_deflection is not None
     ):
         outer_target_id = _attach_target(target_item) if target_item else None
         pp_matrix = (
@@ -606,7 +625,6 @@ def _build_component_envelope_geometry(
             pp_matrix,
             multiply_matrix(mirror, multiply_matrix(target_local_matrix, cs_local_matrix)),
         )
-        mirrored_deflection = -cs_deflection if cs_type in ("aileron", "elevon") else cs_deflection
         mirrored_env = _rotate_control_surface_envelope(envelope, mirrored_deflection)
         _append_envelope_lines(lines, mirrored_env, mirrored_matrix)
 

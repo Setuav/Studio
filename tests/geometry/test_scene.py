@@ -461,3 +461,17 @@ class NumberFieldTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_mirrored_controls_follow_their_symmetry_mode() -> None:
+    from plugins.geometry.engine.scene import _mirrored_controls
+
+    controls = [
+        {"id": "a", "type": "aileron", "deflection": 5.0},
+        {"id": "f", "type": "flap", "deflection": 5.0},
+        {"id": "s", "type": "aileron", "deflection": 5.0, "symmetry_mode": "symmetric"},
+        {"id": "x", "type": "flap", "deflection": 5.0, "symmetry_mode": "antisymmetric"},
+        {"id": "n", "type": "flap", "deflection": 5.0, "symmetry_mode": "none"},
+    ]
+    mirrored = {control["id"]: control["deflection"] for control in _mirrored_controls(controls)}
+    assert mirrored == {"a": -5.0, "f": 5.0, "s": 5.0, "x": -5.0}

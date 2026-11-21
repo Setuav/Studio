@@ -99,9 +99,11 @@ R = R_z(\psi)\,R_y(\theta)\,R_x(\phi)
 \]
 
 A mirrored lifting surface stands for both halves. Its CG is placed on the
-symmetry plane, \(r_{i,y} = 0\). The same holds for a control surface on a
-mirrored lifting surface. The mass is not doubled, so the mass of a mirrored
-surface is the mass of both halves.
+plane it is mirrored in: the XZ plane of the component it is attached to, or
+of the vehicle, which is \(r_{i,y} = 0\) for a part on the center line. The
+same holds for a control surface on a mirrored lifting surface, unless its
+**Symmetry Mode** is **None (Single)**. The mass is not doubled, so the mass of
+a mirrored surface is the mass of both halves.
 
 ### Total mass and CG
 

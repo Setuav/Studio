@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import math
+import unittest
 
 from setuav_studio.utilities.mass_balance import (
     _parallel_axis,
     get_component_subparts,
     resolve_aircraft_mass_properties,
     resolve_component_aggregate_mass_properties,
+    resolve_component_intrinsic_mass_properties,
     resolve_component_local_cg,
 )
+from tests._common import TEST_PROJECT_PATH
 
 
 def test_parallel_axis_theorem() -> None:
@@ -157,3 +161,29 @@ def test_aggregate_mass_includes_subparts_only() -> None:
         "fuselage", components, subpart_types
     )
     assert math.isclose(fuselage_total.mass_kg, 0.3)
+
+
+class MirroredMassTests(unittest.TestCase):
+    """A mirrored part's CG lies in the plane it is mirrored in."""
+
+    def _components(self) -> list[dict]:
+        return json.loads((TEST_PROJECT_PATH / "project.json").read_text(encoding="utf-8"))[
+            "components"
+        ]
+
+    def test_single_sided_control_surface_keeps_its_own_side(self) -> None:
+        components = self._components()
+        aileron = next(c for c in components if c["id"] == "aileron")
+        mirrored = resolve_component_intrinsic_mass_properties("aileron", components)
+        self.assertAlmostEqual(mirrored.cg_body_m[1], 0.0, places=9)
+
+        aileron["parameters"]["geometry"]["symmetry_mode"] = "none"
+        single = resolve_component_intrinsic_mass_properties("aileron", components)
+        self.assertGreater(single.cg_body_m[1], 0.1)
+
+    def test_mirror_plane_follows_the_attach_frame(self) -> None:
+        components = self._components()
+        fuselage = next(c for c in components if c["id"] == "fuselage")
+        fuselage.setdefault("transform", {}).setdefault("position", {})["y"] = 20.0
+        wing = resolve_component_intrinsic_mass_properties("main-wing", components)
+        self.assertAlmostEqual(wing.cg_body_m[1], 0.020, places=9)
