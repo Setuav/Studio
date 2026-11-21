@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QPushButton, QTreeWidgetItemIterator
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.constraint import ConstraintChecker
@@ -48,6 +49,52 @@ class FormulaToolsTests(unittest.TestCase):
         result = ConstraintChecker().check_constraint(constraint, self.project.data)
         self.assertIsNone(result.error)
         self.assertTrue(result.passed)
+
+    def _add_feature(self) -> None:
+        wing = self.project.get_component("main-wing")
+        assert wing is not None
+        wing["extensions"] = {
+            "com.example.manufacturing": {
+                "features": [
+                    {"id": "main-wing-shell", "type": "shell", "parameters": {"thickness": 1.2}}
+                ]
+            }
+        }
+
+    def test_component_features_are_in_formulas_and_the_assistant(self) -> None:
+        self._add_feature()
+        scope = self.project.get_scope(api=self.api)
+        self.assertEqual(ExpressionEvaluator().evaluate("main_wing_shell.thickness", scope), 1.2)
+
+        dialog = AdvancedExpressionDialog(self.api)
+        self.addCleanup(dialog.deleteLater)
+        tags = []
+        iterator = QTreeWidgetItemIterator(dialog.comp_tree)
+        while iterator.value():
+            tag = iterator.value().data(0, Qt.ItemDataRole.UserRole)
+            if tag:
+                tags.append(tag)
+            iterator += 1
+        self.assertIn("main_wing_shell.thickness", tags)
+        # Every tag the assistant inserts evaluates.
+        for tag in tags:
+            with self.subTest(tag=tag):
+                ExpressionEvaluator().evaluate(tag, scope)
+
+    def test_name_columns_fit_their_names(self) -> None:
+        dialog = AdvancedExpressionDialog(self.api)
+        self.addCleanup(dialog.deleteLater)
+        self.assertGreaterEqual(dialog.comp_tree.header().sectionSize(0), 220)
+        self.assertGreaterEqual(dialog.params_table.horizontalHeader().sectionSize(0), 220)
+
+    def test_inline_completion_shows_type_names(self) -> None:
+        from setuav_studio.ui.widget.table import ExpressionPropertyCell
+
+        cell = ExpressionPropertyCell(api=self.api)
+        self.addCleanup(cell.deleteLater)
+        labels = [label for _insert, label in cell.line_edit._build_completion_items()]
+        self.assertTrue(any(label.endswith("[Lifting Surface]") for label in labels))
+        self.assertFalse(any("org.setuav" in label for label in labels))
 
 
 if __name__ == "__main__":

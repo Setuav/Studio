@@ -332,8 +332,12 @@ class FocusAwareLineEdit(QLineEdit):
                 items.append((name, f"{name:<18} ({_completion_value(constant['value'])})"))
             for component in metadata["components"]:
                 component_id = str(component["id"])
-                items.append((component_id, f"{component_id:<18} [{component['type']}]"))
+                type_label = resolved_api.get_component_type_label(str(component["type"]))
+                items.append((component_id, f"{component_id:<18} [{type_label}]"))
                 for prop in component["properties"]:
+                    # Formulas compute with numbers; text values only lengthen the list.
+                    if isinstance(prop["value"], str):
+                        continue
                     name = str(prop["expression"])
                     items.append((name, f"{name:<18} ({_completion_value(prop['value'])})"))
 

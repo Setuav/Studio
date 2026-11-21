@@ -136,21 +136,6 @@ def build_universal_scope(  # noqa: C901
             if ext_key != clean_ext_key:
                 scope[ext_key] = ext_dot
 
-            # Features under extension (e.g. manufacturing spars, ribs, covers)
-            features = ext_val.get("features")
-            if isinstance(features, dict):
-                for fid, feat in features.items():
-                    if not isinstance(feat, dict) or feat.get("deleted") is True:
-                        continue
-                    clean_fid = str(feat.get("id") or fid).replace("-", "_")
-                    feat_dot = to_dot_dict(feat)
-                    scope[clean_fid] = feat_dot
-                    scope[f"{clean_ext_key}_{clean_fid}"] = feat_dot
-                    ext_dot[clean_fid] = feat_dot
-                    if fid != clean_fid:
-                        scope[fid] = feat_dot
-                        ext_dot[fid] = feat_dot
-
             # Configuration under extension
             cfg = ext_val.get("configuration")
             if isinstance(cfg, dict):
@@ -160,15 +145,46 @@ def build_universal_scope(  # noqa: C901
                 scope[f"{clean_ext_key}_configuration"] = cfg_dot
                 ext_dot[cfg_id] = cfg_dot
 
-    # 4. Project level totals
+    # 4. Plugin features stored on components (e.g. manufacturing shells and joints)
+    for _component_id, feature in extension_features(p_dict.get("components", [])):
+        feature_id = str(feature["id"])
+        feature_dot = to_dot_dict(feature["parameters"])
+        scope[feature_id.replace("-", "_")] = feature_dot
+        scope[feature_id] = feature_dot
+
+    # 5. Project level totals
     scope["total_mass"] = total_mass
     scope["mtow"] = resolved_params.get("mtow", total_mass)
 
     return scope
 
 
+def extension_features(components: Any) -> list[tuple[str, dict[str, Any]]]:
+    """Plugin features stored on components, as ``(component_id, feature)`` pairs.
+
+    A plugin keeps them in ``component["extensions"][<namespace>]["features"]``, a list
+    of mappings with an ``id`` and their ``parameters``.
+    """
+    found: list[tuple[str, dict[str, Any]]] = []
+    for component in components if isinstance(components, list) else []:
+        extensions = component.get("extensions") if isinstance(component, dict) else None
+        if not isinstance(extensions, dict):
+            continue
+        for data in extensions.values():
+            features = data.get("features") if isinstance(data, dict) else None
+            for feature in features if isinstance(features, list) else []:
+                if (
+                    isinstance(feature, dict)
+                    and feature.get("id")
+                    and isinstance(feature.get("parameters"), dict)
+                ):
+                    found.append((str(component["id"]), feature))
+    return found
+
+
 __all__ = [
     "DotDict",
     "build_universal_scope",
+    "extension_features",
     "to_dot_dict",
 ]

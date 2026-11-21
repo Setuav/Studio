@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QStringListModel, Qt
@@ -383,7 +384,7 @@ class AdvancedExpressionDialog(QDialog):
         components = self._metadata.get("components", [])
         self.expr_edit.set_symbol_data(constants, components, math_funcs)
 
-    def _populate_component_tree(self) -> None:  # noqa: C901
+    def _populate_component_tree(self) -> None:
         self.comp_tree.clear()
         components = self._metadata.get("components", [])
 
@@ -404,13 +405,12 @@ class AdvancedExpressionDialog(QDialog):
             else:
                 top_level_comps.append(comp)
 
-        def _build_comp_item(comp: dict[str, Any], prefix: str | None = None) -> QTreeWidgetItem:
+        def _build_comp_item(comp: dict[str, Any]) -> QTreeWidgetItem:
             cid = comp["id"]
             cname = comp["name"]
             ctype = comp["type"]
-            effective_prefix = prefix or cid
 
-            item_title = f"{cname} ({effective_prefix})"
+            item_title = f"{cname} ({cid})"
             parent_item = QTreeWidgetItem([item_title, "", ""])
 
             # Indexed sub-elements (profile_0_chord, section_1_span) are grouped under a
@@ -422,7 +422,7 @@ class AdvancedExpressionDialog(QDialog):
                 pkey = prop["key"]
                 pval = prop["value"]
                 val_str = f"{pval:.4g}" if isinstance(pval, (int, float)) else str(pval)
-                expr_tag = f"{effective_prefix}.{pkey}"
+                expr_tag = prop["expression"]
 
                 kind, index, subprop = [*pkey.split("_", 2), "", ""][:3]
                 if kind in _INDEXED_ELEMENTS and index.isdigit() and subprop:
@@ -440,7 +440,7 @@ class AdvancedExpressionDialog(QDialog):
                         folders[kind].addChild(element_item)
                         element_items[element_key] = element_item
 
-                    sub_tag = f"{effective_prefix}.{element_key}.{subprop}"
+                    sub_tag = f"{cid}.{element_key}.{subprop}"
                     child_item = QTreeWidgetItem([subprop, val_str, sub_tag])
                     child_item.setData(0, Qt.ItemDataRole.UserRole, sub_tag)
                     element_items[element_key].addChild(child_item)
@@ -464,20 +464,12 @@ class AdvancedExpressionDialog(QDialog):
         for comp in child_comps:
             p_id = comp.get("parent_id", "")
             parent_item = tree_items.get(p_id) or tree_items.get(p_id.replace("-", "_"))
-            clean_parent = p_id.replace("-", "_")
-            cid = comp["id"]
-            short_name = cid
-            if cid.startswith(f"{clean_parent}_"):
-                short_name = cid[len(clean_parent) + 1 :]
-            elif "_" in cid:
-                short_name = cid.split("_")[-1]
-
-            hierarchical_prefix = f"{clean_parent}.{short_name}"
-            item = _build_comp_item(comp, prefix=hierarchical_prefix)
+            item = _build_comp_item(comp)
             if parent_item is not None:
                 parent_item.addChild(item)
             else:
                 self.comp_tree.addTopLevelItem(item)
+        _fit_name_column(self.comp_tree.header(), self.comp_tree.resizeColumnToContents)
 
     def _populate_parameters_table(self) -> None:
         constants = self._metadata.get("constants", [])
@@ -498,6 +490,9 @@ class AdvancedExpressionDialog(QDialog):
             self.params_table.setItem(row, 0, item_name)
             self.params_table.setItem(row, 1, item_val)
             self.params_table.setItem(row, 2, item_unit)
+        _fit_name_column(
+            self.params_table.horizontalHeader(), self.params_table.resizeColumnToContents
+        )
 
     def _populate_functions_table(self) -> None:
         self.funcs_table.setRowCount(len(MATH_FUNCTIONS))
@@ -601,3 +596,12 @@ class AdvancedExpressionDialog(QDialog):
     def get_expression(self) -> str:
         """Return the cleaned expression string."""
         return self.expr_edit.text().strip()
+
+
+def _fit_name_column(header: QHeaderView, resize_to_contents: Callable[[int], None]) -> None:
+    """Size the name column to its content, at least wide enough to read."""
+    resize_to_contents(0)
+    header.resizeSection(0, max(header.sectionSize(0), _MIN_NAME_COLUMN_WIDTH))
+
+
+_MIN_NAME_COLUMN_WIDTH = 220

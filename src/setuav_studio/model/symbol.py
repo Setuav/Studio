@@ -10,6 +10,7 @@ from copy import deepcopy
 from typing import Any
 
 from setuav_studio.model.component import Component, GenericComponent
+from setuav_studio.model.scope import extension_features
 
 
 def create_model_for_component(
@@ -155,47 +156,23 @@ def get_available_symbols_metadata(  # noqa: C901
                 }
             )
 
-    # 3. Extension Features (e.g. Manufacturing spars, ribs, covers)
-    extensions = p_dict.get("extensions", {})
-    if isinstance(extensions, dict):
-        for ext_key, ext_val in extensions.items():
-            if not isinstance(ext_val, dict):
-                continue
-            clean_ext_key = str(ext_key).replace("-", "_")
-            features = ext_val.get("features", {})
-            if isinstance(features, dict):
-                for fid, feat in features.items():
-                    if not isinstance(feat, dict) or feat.get("deleted") is True:
-                        continue
-                    clean_fid = str(feat.get("id") or fid).replace("-", "_")
-                    fname = str(feat.get("name") or clean_fid)
-                    ftype = str(feat.get("type") or ext_key)
-
-                    fprops: list[dict[str, Any]] = []
-                    for k, v in feat.items():
-                        if (
-                            isinstance(v, (int, float, str, bool))
-                            and not k.startswith("_")
-                            and k not in ("id", "name", "type", "deleted")
-                        ):
-                            fprops.append(
-                                {
-                                    "key": k,
-                                    "value": v,
-                                    "expression": f"{clean_fid}.{k}",
-                                }
-                            )
-
-                    components_list.append(
-                        {
-                            "id": clean_fid,
-                            "raw_id": fid,
-                            "name": fname,
-                            "type": ftype,
-                            "parent_id": clean_ext_key,
-                            "properties": fprops,
-                        }
-                    )
+    # 3. Plugin features stored on components, listed under their component
+    for component_id, feature in extension_features(components):
+        feature_id = str(feature["id"]).replace("-", "_")
+        components_list.append(
+            {
+                "id": feature_id,
+                "raw_id": str(feature["id"]),
+                "name": str(feature.get("name") or feature_id),
+                "type": str(feature.get("type") or ""),
+                "parent_id": component_id.replace("-", "_"),
+                "properties": [
+                    {"key": key, "value": value, "expression": f"{feature_id}.{key}"}
+                    for key, value in feature["parameters"].items()
+                    if isinstance(value, (int, float, str, bool)) and not key.startswith("_")
+                ],
+            }
+        )
 
     return {
         "constants": constants_list,

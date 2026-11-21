@@ -309,9 +309,27 @@ class Component:
             return self._raw_data["extensions"]
         return self._raw_data.setdefault("extensions", {})
 
+    @property
+    def cg_x(self) -> float:
+        """Local CG x in mm, from the Mass tab or else the envelope."""
+        return self._resolved_local_cg()[0]
+
+    @property
+    def cg_y(self) -> float:
+        return self._resolved_local_cg()[1]
+
+    @property
+    def cg_z(self) -> float:
+        return self._resolved_local_cg()[2]
+
+    def _resolved_local_cg(self) -> tuple[float, float, float]:
+        from setuav_studio.utilities.mass_balance import resolve_component_local_cg
+
+        return resolve_component_local_cg(self._raw_data)
+
     def get_exposed_properties(self) -> dict[str, Any]:
         """Return a dictionary of all property names and their current values."""
-        cg = self.local_cg
+        cg_x, cg_y, cg_z = self._resolved_local_cg()
         props: dict[str, Any] = {
             "id": self.id,
             "name": self.name,
@@ -323,9 +341,9 @@ class Component:
             "roll": self.roll,
             "pitch": self.pitch,
             "yaw": self.yaw,
-            "cg_x": float(cg.get("x", 0.0) or 0.0),
-            "cg_y": float(cg.get("y", 0.0) or 0.0),
-            "cg_z": float(cg.get("z", 0.0) or 0.0),
+            "cg_x": cg_x,
+            "cg_y": cg_y,
+            "cg_z": cg_z,
         }
         for k, v in self.parameters.items():
             if isinstance(v, (int, float, str, bool)):
