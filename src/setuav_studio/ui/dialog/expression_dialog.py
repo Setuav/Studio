@@ -581,11 +581,11 @@ class AdvancedExpressionDialog(QDialog):
             if self._is_constraint or isinstance(val, bool):
                 if val:
                     self.preview_label.setText(
-                        f"<span style='color: {status_color('success')}; font-weight: bold;'>✔ Condition Passed (True)</span>"
+                        f"<span style='color: {status_color('success')}; font-weight: bold;'>Condition Passed (True)</span>"
                     )
                 else:
                     self.preview_label.setText(
-                        f"<span style='color: {status_color('warning')}; font-weight: bold;'>⚠ Condition Violated (False)</span>"
+                        f"<span style='color: {status_color('warning')}; font-weight: bold;'>Condition Violated (False)</span>"
                     )
             else:
                 val_str = f"{val:.6g}" if isinstance(val, (int, float)) else str(val)
@@ -594,7 +594,7 @@ class AdvancedExpressionDialog(QDialog):
                 )
         except ExpressionEvaluationError as exc:
             self.preview_label.setText(
-                f"<span style='color: {status_color('error')}; font-weight: bold;'>❌ Syntax Error: {exc}</span>"
+                f"<span style='color: {status_color('error')}; font-weight: bold;'>Syntax Error: {exc}</span>"
             )
             self.breakdown_label.setText("")
 

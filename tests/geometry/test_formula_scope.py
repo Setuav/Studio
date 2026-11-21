@@ -80,7 +80,7 @@ class AirframeFormulaScopeTests(unittest.TestCase):
         self.project.data["constraints"] = [constraint]
         editor = ConstraintPropertyEditor(self.api, constraint)
         self.addCleanup(editor.deleteLater)
-        self.assertEqual(editor._property_value(editor.general_table, "status"), "✔ Passed")
+        self.assertEqual(editor._property_value(editor.general_table, "status"), "Passed")
 
     def test_formulas_on_measured_geometry_evaluate_when_the_project_opens(self) -> None:
         from setuav_studio.project.evaluator import recompute_project_expressions

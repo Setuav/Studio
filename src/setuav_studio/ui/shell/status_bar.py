@@ -77,7 +77,7 @@ class ProblemsBadge(QFrame):
 
     def text(self) -> str:
         """Return formatted badge text containing error and warning counts."""
-        return f"🔴 {self.error_count_label.text()}  ⚠️ {self.warning_count_label.text()}"
+        return f"Errors {self.error_count_label.text()}  Warnings {self.warning_count_label.text()}"
 
     def click(self) -> None:
         self.clicked.emit()
