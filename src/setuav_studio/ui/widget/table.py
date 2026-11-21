@@ -323,43 +323,19 @@ class FocusAwareLineEdit(QLineEdit):
 
         resolved_api = self._api
         if resolved_api is not None and resolved_api.project is not None:
-            data = resolved_api.project.data
-            if isinstance(data, dict):
-                # 1. Project Parameters (Highest priority)
-                params = data.get("parameters", {})
-                if isinstance(params, dict):
-                    for k, val in params.items():
-                        clean = str(k).replace("-", "_")
-                        val_str = (
-                            f"{val:g}"
-                            if isinstance(val, (int, float))
-                            else str(val if val is not None else "")
-                        )
-                        label = f"{clean:<18} ({val_str})" if val_str else clean
-                        items.append((clean, label))
-                        if clean != str(k):
-                            orig_label = f"{k!s:<18} ({val_str})" if val_str else str(k)
-                            items.append((str(k), orig_label))
+            # The same names and values the Formula Assistant lists.
+            from setuav_studio.model.symbol import get_available_symbols_metadata
 
-                # 2. Components and Component Parameters
-                comps = data.get("components", [])
-                if isinstance(comps, list):
-                    for c in comps:
-                        if isinstance(c, dict):
-                            cid = str(c.get("id") or "").replace("-", "_")
-                            c_type = str(c.get("type") or "component")
-                            items.append((cid, f"{cid:<18} [{c_type}]"))
-                            c_params = c.get("parameters", {})
-                            if isinstance(c_params, dict):
-                                for pk, pv in c_params.items():
-                                    if not pk.startswith("_"):
-                                        p_val_str = (
-                                            f"{pv:g}"
-                                            if isinstance(pv, (int, float))
-                                            else str(pv if pv is not None else "")
-                                        )
-                                        full_k = f"{cid}.{pk}"
-                                        items.append((full_k, f"{full_k:<18} ({p_val_str})"))
+            metadata = get_available_symbols_metadata(resolved_api.project.data, api=resolved_api)
+            for constant in metadata["constants"]:
+                name = str(constant["expression"])
+                items.append((name, f"{name:<18} ({_completion_value(constant['value'])})"))
+            for component in metadata["components"]:
+                component_id = str(component["id"])
+                items.append((component_id, f"{component_id:<18} [{component['type']}]"))
+                for prop in component["properties"]:
+                    name = str(prop["expression"])
+                    items.append((name, f"{name:<18} ({_completion_value(prop['value'])})"))
 
         # 3. Mathematical Constants
         items.append(("pi", f"{'pi':<18} (3.14159...)"))
@@ -1385,3 +1361,8 @@ class PropertyTableMixin:
             + 2
         )
         table.setFixedHeight(height)
+
+
+def _completion_value(value: object) -> str:
+    """A symbol's value as the completion list shows it."""
+    return f"{value:g}" if isinstance(value, (int, float)) else str(value)

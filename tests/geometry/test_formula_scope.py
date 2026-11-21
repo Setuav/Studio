@@ -155,6 +155,16 @@ class EditorFormulaTests(unittest.TestCase):
         self._set_k(4.0)
         self.assertAlmostEqual(section["profile"]["vertices"][0]["y"], 40.0)
 
+    def test_inline_completion_offers_measured_values(self) -> None:
+        from setuav_studio.ui.widget.table import ExpressionPropertyCell
+
+        cell = ExpressionPropertyCell(api=self.api)
+        self.addCleanup(cell.deleteLater)
+        names = {insert for insert, _label in cell.line_edit._build_completion_items()}
+        self.assertIn("main_wing.span", names)
+        self.assertIn("main_wing.planform_area", names)
+        self.assertIn("k", names)
+
     def test_envelope_rejects_a_formula(self) -> None:
         from setuav_studio.ui.editor.envelope import EnvelopeEditor
 
