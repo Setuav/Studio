@@ -1114,6 +1114,22 @@ class AeroReferenceTests(unittest.TestCase):
         assert neutral.cd_induced is not None and deflected.cd_induced is not None
         self.assertLess(deflected.cd_induced, 1.2 * neutral.cd_induced)
 
+    def test_oswald_efficiency_belongs_to_the_main_wing_in_any_order(self) -> None:
+        components = _fixture_components()
+        condition = FlightCondition(velocity=25.0, alpha=2.0, sweep_steps=1)
+        listed_first = AeroSandboxEngine().analyze(
+            components, condition, method=AnalysisMethod.AERO_BUILDUP, include_stability=False
+        )
+        tail_first = sorted(components, key=lambda component: component["id"] != "v-tail")
+        listed_last = AeroSandboxEngine().analyze(
+            tail_first, condition, method=AnalysisMethod.AERO_BUILDUP, include_stability=False
+        )
+        assert listed_first.oswald_efficiency is not None
+        assert listed_last.oswald_efficiency is not None
+        self.assertAlmostEqual(
+            listed_last.oswald_efficiency, listed_first.oswald_efficiency, places=9
+        )
+
     def test_drag_breakdown_adds_up_to_total_drag(self) -> None:
         result = AeroSandboxEngine().analyze(
             _fixture_components(),

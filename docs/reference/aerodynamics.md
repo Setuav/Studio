@@ -245,7 +245,7 @@ constant airspeed, altitude, and sideslip. Default name: **Alpha Sweep**.
 | Min Drag (CD,min) | — | Smallest CD in the sweep. |
 | Max Efficiency (L/D,max) | — | Largest L/D in the sweep. |
 | AoA at (L/D)max | ° | Angle of attack of that point. |
-| Oswald Efficiency (e) | — | AeroBuildup only. Mean over the sweep of the efficiency AeroSandbox reports for the first lifting surface. |
+| Oswald Efficiency (e) | — | AeroBuildup only. Mean over the sweep of the efficiency AeroSandbox reports for the main wing (see [Reference values](#reference-values)). |
 | Neutral Point | m | See [Stability](#stability). Evaluated at α = 0°. |
 | Static Margin | % | See [Stability](#stability). Evaluated at α = 0°. |
 

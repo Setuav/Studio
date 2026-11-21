@@ -103,8 +103,14 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         if not wings:
             return asb.Airplane(name="Studio Aircraft", wings=[], fuselages=fuselages)
 
-        # The lifting surface with the largest planform area is the reference.
+        # The lifting surface with the largest planform area is the reference. Its
+        # wings come first, so per-wing results such as the Oswald efficiency of
+        # ``wing_aero_components[0]`` belong to it whatever the component order.
         main_surface = max(surfaces, key=lambda surface: sum(w.area() for w in surface))
+        wings = [
+            *main_surface,
+            *(wing for surface in surfaces if surface is not main_surface for wing in surface),
+        ]
         s_ref, b_ref, c_ref = self._surface_reference(main_surface)
 
         # Without a mass CG, moments are taken about the main surface's root quarter chord.
