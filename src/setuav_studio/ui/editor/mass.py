@@ -47,6 +47,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self.setObjectName("core.mass_properties_editor")
         self._api = api
         component_id = str(component["id"])
+        self._component_id = component_id
         self._component = (
             api.project.get_component(component_id)
             if api.project is not None and component_id
@@ -87,6 +88,15 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
         if self._component is not None:
             self._load_component(self._component)
+            api.on_project_content_changed(self._on_project_content_changed)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if self._loading or not self._component_id or self._api.project is None:
+            return
+        comp = self._api.project.get_component(self._component_id)
+        if comp is not None:
+            self._component = comp
+            self._load_component(comp)
 
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:
@@ -329,11 +339,14 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             **{f"inertia.{key}": spin for key, spin in self.inertia_spins.items()},
         }
         cell = cells[field]
-        parsed = evaluate_table_cell_input(raw, self._api, cell=cell, label=cell.get_label())
+        group, _, key = field.partition(".")
+        min_val = 0.0 if (group == "mass" or key in ("ixx", "iyy", "izz")) else None
+        parsed = evaluate_table_cell_input(
+            raw, self._api, cell=cell, label=cell.get_label(), min_val=min_val
+        )
         if parsed is None:
             return
         value, expression = parsed
-        group, _, key = field.partition(".")
 
         def change() -> None:
             if group == "mass":
@@ -345,7 +358,8 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             target[key_in_target] = value
             set_expression(target, key_in_target, expression)
 
-        self._api.edit_component(component, "Edit component mass definition", change)
+        self._api.edit_component(component, "Change component mass", change)
+        self._load_component(component)
         viewport = self._api.viewport
         if viewport is not None:
             viewport.update_component_cg()
@@ -372,7 +386,4 @@ def _number(value: object) -> float:
 
 def _show(cell: ExpressionPropertyCell, value: float, expression: str | None) -> None:
     """Show a stored formula, or the value when the field has none."""
-    if expression is not None:
-        cell.set_expression(expression)
-    else:
-        cell.setValue(value)
+    cell.setText(expression if expression is not None else str(value))
