@@ -192,6 +192,26 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("started", event_names)
         self.assertIn("finished", event_names)
 
+    def test_completed_task_releases_callbacks(self) -> None:
+        import gc
+        import weakref
+
+        class _Owner:
+            def on_done(self, _res: object) -> None:
+                pass
+
+        owner = _Owner()
+        ref = weakref.ref(owner)
+        handle = self.tm.submit(
+            name="Cleanup Test",
+            target=lambda _token: 1,
+            on_finished=owner.on_done,
+        )
+        _wait_for_task(handle)
+        del owner
+        gc.collect()
+        self.assertIsNone(ref())
+
 
 if __name__ == "__main__":
     unittest.main()

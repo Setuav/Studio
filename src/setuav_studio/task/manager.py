@@ -454,8 +454,11 @@ class TaskManager(QObject):
         self._cleanup_task(task_id)
 
     def _cleanup_task(self, task_id: str) -> None:
-        # Retain handle in history, release transient Qt signals
-        self._signals_map.pop(task_id, None)
+        # Retain handle in history, release transient Qt signals, callbacks, and tokens
+        with self._lock:
+            self._signals_map.pop(task_id, None)
+            self._callbacks.pop(task_id, None)
+            self._tokens.pop(task_id, None)
 
     def _publish_event(self, topic: str | StudioEvents, payload: Any) -> None:
         if self._api is not None:
