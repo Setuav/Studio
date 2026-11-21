@@ -27,6 +27,8 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
+from setuav_studio.model.appearance import DEFAULT_COMPONENT_COLOR, hex_to_rgb
+
 from .constants import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -300,6 +302,8 @@ class OpenGLViewer(QOpenGLWidget):
         self._overlays: dict[str, list[VisualPrimitive]] = {}
         self._on_top_overlays: set[str] = set()
         self._scene_objects: dict[str, SceneObject] = {}
+        # Color of each project component, for the surfaces of the objects drawing it.
+        self._component_colors: dict[str, tuple[float, float, float]] = {}
         # Vertices built for a scene object or an overlay, keyed by (kind, id): the
         # primitives they were built from, the drawing parameters, and the vertices.
         # Primitives are immutable, so equal primitives give equal vertices: a
@@ -1026,14 +1030,15 @@ class OpenGLViewer(QOpenGLWidget):
                     bool(self._hovered_component_id)
                     and obj.component_id == self._hovered_component_id
                 )
+                body_color = self._body_color(obj.component_id)
                 primitive_solid_values.extend(
                     self._object_vertices(
                         "solid",
                         obj_id,
                         prims,
-                        self._face_style,
-                        lambda prims=prims: build_primitive_solid_vertices(
-                            prims, face_style=self._face_style
+                        (self._face_style, body_color),
+                        lambda prims=prims, body_color=body_color: build_primitive_solid_vertices(
+                            prims, face_style=self._face_style, body_color=body_color
                         ),
                     )
                 )
@@ -1384,6 +1389,21 @@ class OpenGLViewer(QOpenGLWidget):
             self._mesh_cache.pop((kind, overlay_id), None)
         self._mesh_dirty = True
         self.update()
+
+    def set_component_colors(self, colors: dict[str, tuple[float, float, float]]) -> None:
+        """Set the color of each project component; objects drawing one take its color."""
+        if colors == self._component_colors:
+            return
+        self._component_colors = dict(colors)
+        self._mesh_dirty = True
+        self.update()
+
+    def _body_color(self, component_id: str | None) -> tuple[float, float, float] | None:
+        """The surface color of an object drawing ``component_id``; None keeps its own."""
+        if not component_id:
+            return None
+        default = hex_to_rgb(DEFAULT_COMPONENT_COLOR)
+        return self._component_colors.get(component_id, default)
 
     def set_scene_objects(self, objects: dict[str, SceneObject]) -> None:
         """Set active scene objects mapped by object_id for rendering, picking and highlighting."""

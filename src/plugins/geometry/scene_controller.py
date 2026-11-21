@@ -33,7 +33,6 @@ def _collect_primitives(
         primitives.setdefault(loft.component_id, []).append(
             LoftPrimitive(
                 sections=tuple(section.points for section in loft.sections),
-                color=(*loft.color, 1.0),
                 interpolation=loft.interpolation,
                 station_spacing=loft.station_spacing,
                 closed_ends=loft.closed_ends,

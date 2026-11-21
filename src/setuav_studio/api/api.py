@@ -354,6 +354,42 @@ class StudioAPI:
         if listener in self._modified_listeners:
             self._modified_listeners.remove(listener)
 
+    def component_color(self, component_id: str) -> str:
+        """The ``#RRGGBB`` color component ``component_id`` is drawn in.
+
+        A component without a color of its own is drawn in the default gray, and an
+        instance in its source's color.
+        """
+        from setuav_studio.model.appearance import component_color
+
+        if self._project is None:
+            raise LookupError("No project is open.")
+        components = {
+            str(c["id"]): c for c in self._project.data["components"] if isinstance(c, dict)
+        }
+        if component_id not in components:
+            raise LookupError(f"Component {component_id!r} is not in the project.")
+        return component_color(components[component_id], components)
+
+    def set_component_color(self, component_id: str, color: str | None) -> None:
+        """Set a component's ``#RRGGBB`` color as one undoable edit; None restores the default."""
+        from setuav_studio.model.appearance import is_hex_color
+
+        if color is not None and not is_hex_color(color):
+            raise ValueError(f"Expected a #RRGGBB color, got {color!r}")
+        component = self._project.get_component(component_id) if self._project else None
+        if component is None:
+            raise LookupError(f"Component {component_id!r} is not in the project.")
+
+        def change() -> None:
+            if color is None:
+                component.pop("color", None)
+            else:
+                component["color"] = color.upper()
+
+        name = component.get("name") or component_id
+        self.edit_component(component, f"Set color of {name}", change)
+
     def edit_component(
         self,
         component: dict[str, Any],

@@ -245,7 +245,6 @@ def _ray_primitive_intersection(  # noqa: C901
             loft = LoftGeometry(
                 component_id="primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
-                color=(1.0, 1.0, 1.0),
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,

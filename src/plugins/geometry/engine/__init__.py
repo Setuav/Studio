@@ -49,13 +49,6 @@ from .lifting_surface_planform_engine import (
     compute_planform_metrics,
 )
 from .lifting_surface_tips import compute_winglet_projected_dimensions
-from .palettes import (
-    DEFAULT_PALETTE,
-    control_surface_color,
-    lifting_surface_color,
-    palette_names,
-    segment_colors,
-)
 from .scene import GeometryProvider, build_project_geometry
 from .transforms import (
     Matrix4,
@@ -70,7 +63,6 @@ from .transforms import (
 __all__ = [
     "AIRFOILS_DATA_DIR",
     "AIRFOIL_SAMPLES",
-    "DEFAULT_PALETTE",
     "DEFAULT_PROFILES",
     "FUSELAGE_PROFILE_TYPES",
     "GEOMETRY_COMPONENT_TYPES",
@@ -100,18 +92,15 @@ __all__ = [
     "compute_planform_metrics",
     "compute_section_metrics",
     "compute_winglet_projected_dimensions",
-    "control_surface_color",
     "create_default_section",
     "create_default_segment",
     "derivation_matrix",
     "format_profile_size",
     "get_default_profile",
     "identity_matrix",
-    "lifting_surface_color",
     "multiply_matrix",
     "naca4",
     "naca5",
-    "palette_names",
     "parse_airfoil_dat",
     "preset_airfoil_spec",
     "resolve_chord_values",
@@ -119,7 +108,6 @@ __all__ = [
     "sample_airfoil_points",
     "sample_profile",
     "section_transform",
-    "segment_colors",
     "solve_control_surface_from_area",
     "sync_component_envelope",
     "sync_sizing_values",

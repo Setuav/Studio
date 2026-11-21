@@ -44,14 +44,20 @@ from .types import LoftGeometry, Section
 def build_primitive_solid_vertices(  # noqa: C901
     primitives: Sequence[VisualPrimitive],
     face_style: str = FACE_COLORED,
+    body_color: tuple[float, float, float] | None = None,
 ) -> list[float]:
+    """Surface triangles of ``primitives``.
+
+    ``body_color`` is the color of the component the primitives draw; it replaces
+    their own color when the faces are colored.
+    """
     vertices: list[float] = []
     for prim in primitives:
         # Rings and line segments have no surface.
         if isinstance(prim, (RingPrimitive, LineSegmentsPrimitive)) or not prim.solid:
             continue
-        raw_color = prim.color
-        color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _SOLID_GREY
+        own_color = body_color if body_color is not None else prim.color[:3]
+        color = own_color if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _SOLID_GREY
 
         if isinstance(prim, BoxPrimitive):
             c = _box_corners(prim.center, prim.size, prim.rotation)
@@ -134,7 +140,6 @@ def build_primitive_solid_vertices(  # noqa: C901
             loft = LoftGeometry(
                 component_id="primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
-                color=color,
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,
@@ -261,7 +266,6 @@ def build_primitive_wire_vertices(  # noqa: C901
             loft = LoftGeometry(
                 component_id=object_id or "primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
-                color=color,
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,
@@ -428,7 +432,6 @@ def build_primitive_highlight_vertices(  # noqa: C901
             loft = LoftGeometry(
                 component_id=object_id or "primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
-                color=color,
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,

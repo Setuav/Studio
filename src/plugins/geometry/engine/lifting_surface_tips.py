@@ -13,7 +13,6 @@ from .lifting_surface_math import (
     interp_branch_z,
     split_airfoil_upper_lower,
 )
-from .palettes import lifting_surface_color
 from .transforms import section_transform, transform_point
 
 
@@ -249,7 +248,6 @@ def build_tip_cap_loft(
         owner_id=comp_id,
         feature_wire="chords",
         sections=tuple(cap_sections),
-        color=lifting_surface_color(),
         interpolation="linear",
         station_spacing=10.0,
         closed_ends=False,
@@ -462,7 +460,6 @@ def build_winglet_loft(
         owner_id=comp_id,
         feature_wire="ends",
         sections=tuple(sections),
-        color=lifting_surface_color(),
         interpolation="smooth" if len(sections) > 2 else "linear",
         station_spacing=10.0,
         closed_ends=True,

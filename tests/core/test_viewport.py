@@ -52,6 +52,9 @@ class MockRenderer(QWidget):
     def set_scene_objects(self, objects: dict[str, SceneObject]) -> None:
         self.scene_objects = dict(objects)
 
+    def set_component_colors(self, colors: dict[str, tuple[float, float, float]]) -> None:
+        self.component_colors = dict(colors)
+
     def set_overlays(self, overlay_id: str, primitives: list | tuple, on_top: bool = False) -> None:
         self.overlays[overlay_id] = list(primitives)
         if on_top:

@@ -9,11 +9,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from setuav_studio.project import ProjectDocument
 
-from .data import ColorRGB, EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
+from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .envelope import GEOMETRY_COMPONENT_TYPES
 from .fuselage_geometry import sample_profile
 from .lifting_surface_geometry import build_lifting_surface_geometry
-from .palettes import segment_colors
 from .transforms import (
     Matrix4,
     derivation_matrix,
@@ -305,7 +304,6 @@ def _transform_loft(
             )
             for section in loft.sections
         ),
-        color=loft.color,
         interpolation=loft.interpolation,
         station_spacing=loft.station_spacing,
         closed_ends=loft.closed_ends,
@@ -339,7 +337,6 @@ def _build_lifting_surface_root_stubs(
         sections = _fuselage_cross_sections(fuselage)
         if not sections:
             continue
-        color = _fuselage_stub_color()
         for item_id, item in items.items():
             if item.get("attach_to") != fuselage_id:
                 continue
@@ -351,7 +348,7 @@ def _build_lifting_surface_root_stubs(
             if _is_bilateral(source):
                 matrices.append(_mirrored_root_matrix(item, world_matrix_fn))
             for matrix in matrices:
-                stub = _build_root_stub(sections, fuselage_id, root_section, matrix, color)
+                stub = _build_root_stub(sections, fuselage_id, root_section, matrix)
                 if stub is not None:
                     stubs.append(stub)
     return stubs
@@ -377,11 +374,6 @@ def _fuselage_items(items: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _fuselage_stub_color() -> ColorRGB:
-    colors = segment_colors()
-    return colors[0] if colors else (0.8, 0.8, 0.8)
-
-
 def _mirrored_root_matrix(
     item: dict[str, Any],
     world_matrix_fn: Callable[[str], Matrix4],
@@ -398,7 +390,6 @@ def _build_root_stub(
     fuselage_id: str,
     root_section: Section,
     matrix: Matrix4,
-    color: ColorRGB,
 ) -> LoftGeometry | None:
     outer_points = tuple(transform_point(matrix, point) for point in root_section.points)
     inward = _inward_span_direction(matrix)
@@ -410,7 +401,6 @@ def _build_root_stub(
         owner_id=fuselage_id,
         feature_wire="ends",
         sections=(Section(inner_points), Section(outer_points)),
-        color=color,
         interpolation="linear",
         station_spacing=10.0,
         closed_ends=False,

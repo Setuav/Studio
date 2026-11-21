@@ -18,7 +18,6 @@ from .lifting_surface_tips import (
     tip_treatment_type,
     winglet_parameters,
 )
-from .palettes import lifting_surface_color
 from .transforms import Matrix4, section_transform, transform_point
 
 
@@ -72,7 +71,6 @@ def build_lifting_surface_geometry(
                 component_id=comp_id,
                 owner_id=comp_id,
                 sections=sections,
-                color=lifting_surface_color(),
                 interpolation=interpolation,
                 station_spacing=15.0,
                 closed_ends=True,
@@ -286,7 +284,6 @@ def _plain_lifting_surface(
             component_id=comp_id,
             owner_id=comp_id,
             sections=sections,
-            color=lifting_surface_color(),
             interpolation=interpolation,
             station_spacing=15.0,
             closed_ends=True,

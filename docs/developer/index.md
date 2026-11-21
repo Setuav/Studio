@@ -76,6 +76,7 @@ Every `register_*` method has a matching `unregister_*` method.
 | Project tree | `register_project_tree_provider`, `register_component_tree_provider`, `register_component_menu_provider` | `ProjectTreeNodeContribution`, `ComponentTreeNodeContribution`, `ComponentMenuItemContribution` |
 | Analyses | `register_solver`, `add_solver_config`, `run_solver`, `get_solver_results` | `AbstractSolver`, `SolverConfig` |
 | Project data | `project`, `edit_component`, `edit_project`, `transaction`, `undo`, `redo` | — |
+| Appearance | `component_color`, `set_component_color` | — |
 | Events | `subscribe`, `publish`, `on_project_changed`, `on_selection_changed`, `set_selection` | `StudioEvents` |
 | Feedback | `show_status`, `report_progress`, `tasks.submit` | — |
 
@@ -113,6 +114,14 @@ Register it in `activate` with
 is shown next to the solver's analyses in the Project Explorer. Add a toolbar
 item in the `"analysis"` group whose callback calls `api.add_solver_config`
 with a `SolverConfig` for the solver.
+
+## Component colors
+
+Each component's color is part of the project (`"color": "#RRGGBB"`, gray when
+absent), and the 3D Viewer paints the surfaces of every scene object drawing a
+component in that color. A plugin therefore builds its scene objects with the
+right `component_id` and does not choose colors for component geometry. Rings,
+lines and overlays keep their own colors, for markers and other visual aids.
 
 ## Icons
 

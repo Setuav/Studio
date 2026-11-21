@@ -16,6 +16,8 @@ from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeyEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
+from setuav_studio.model.appearance import component_color, hex_to_rgb
+
 from .constants import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -71,6 +73,7 @@ class ViewportRenderer(Protocol):
 
     def update_theme_style(self) -> None: ...
     def set_scene_objects(self, objects: dict[str, SceneObject]) -> None: ...
+    def set_component_colors(self, colors: dict[str, tuple[float, float, float]]) -> None: ...
     def set_overlays(
         self,
         overlay_id: str,
@@ -267,8 +270,21 @@ class StudioViewport(QWidget):
         api.on_project_changed(lambda _doc: self._on_project_content_changed())
 
     def _on_project_content_changed(self) -> None:
+        self.update_component_colors()
         self.update_component_cg()
         self.update_aircraft_cg()
+
+    def update_component_colors(self) -> None:
+        """Give the renderer the color of every component of the project."""
+        project = self._api.project if self._api is not None else None
+        components = project.data.get("components", []) if project is not None else []
+        by_id = {str(c["id"]): c for c in components if isinstance(c, dict) and c.get("id")}
+        self._renderer.set_component_colors(
+            {
+                component_id: hex_to_rgb(component_color(component, by_id))
+                for component_id, component in by_id.items()
+            }
+        )
 
     # ------------------------------------------------------------------
     # Layer management

@@ -3,7 +3,6 @@ import math
 from typing import Any
 
 from .data import LoftGeometry, Section
-from .palettes import segment_colors
 from .transforms import number_field, section_transform, transform_point
 
 SECTION_SAMPLES = 128
@@ -22,9 +21,8 @@ def build_fuselage_geometry(
         return ()
 
     component_id = str(component["id"])
-    colors = segment_colors()
     lofts: list[LoftGeometry] = []
-    for index, segment in enumerate(segments):
+    for segment in segments:
         if not isinstance(segment, dict):
             continue
         values = segment.get("sections")
@@ -42,7 +40,6 @@ def build_fuselage_geometry(
                 component_id=component_id,
                 owner_id=component_id,
                 sections=sections,
-                color=colors[index % len(colors)],
                 interpolation="linear" if loft.get("method") == "ruled" else "smooth",
                 station_spacing=10.0,
             )

@@ -1,4 +1,4 @@
-"""Unit and integration tests for 3D scene building, meshes, widgets, and palettes."""
+"""Unit and integration tests for 3D scene building, meshes and widgets."""
 
 from __future__ import annotations
 
@@ -24,21 +24,6 @@ class GeometrySceneTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
-
-    def test_palettes_are_complete(self) -> None:
-        from plugins.geometry.engine.palettes import (
-            lifting_surface_color,
-            palette_names,
-            segment_colors,
-        )
-
-        self.assertEqual(len(palette_names()), 3)
-        for name in palette_names():
-            with self.subTest(palette=name):
-                self.assertEqual(len(segment_colors(name)), 5)
-                self.assertEqual(len(lifting_surface_color(name)), 3)
-                for color in (*segment_colors(name), lifting_surface_color(name)):
-                    self.assertTrue(all(0.0 <= channel <= 1.0 for channel in color))
 
     def test_solid_mesh_contains_triangle_vertices(self) -> None:
         loft = LoftPrimitive(

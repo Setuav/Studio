@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QColorDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
@@ -20,6 +23,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
+from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio.utilities.transform import attached_component_ids, components_by_id
@@ -73,6 +77,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
         self._create_reference_section()
         self._create_transform_section()
+        self._create_appearance_section()
         self._content_layout.addStretch(1)
 
         if self._component is not None:
@@ -174,6 +179,47 @@ class TransformEditor(PropertyTableMixin, QWidget):
         }
         layout.addWidget(self.transform_table)
 
+    def _create_appearance_section(self) -> None:
+        layout = self._create_section("Appearance", "view_colored")
+        self.appearance_table = self._property_table([("color", "Color")])
+        cell = QWidget(self.appearance_table)
+        cell_layout = QHBoxLayout(cell)
+        cell_layout.setContentsMargins(2, 1, 2, 1)
+        cell_layout.setSpacing(4)
+        self.color_button = QPushButton(cell)
+        self.color_button.setToolTip("Choose the color the component is drawn in")
+        self.color_button.clicked.connect(self._choose_color)
+        self.default_color_button = QPushButton("Default", cell)
+        set_native_button(self.default_color_button)
+        self.default_color_button.setToolTip("Draw the component in the default gray")
+        self.default_color_button.clicked.connect(self._reset_color)
+        cell_layout.addWidget(self.color_button, 1)
+        cell_layout.addWidget(self.default_color_button)
+        self.appearance_table.setCellWidget(0, 1, cell)
+        layout.addWidget(self.appearance_table)
+
+    def _load_color(self, component: dict[str, Any]) -> None:
+        color = self._api.component_color(str(component["id"]))
+        self.color_button.setText(color)
+        # The button shows the color itself, with text that stays readable on it.
+        red, green, blue = (int(color[i : i + 2], 16) for i in (1, 3, 5))
+        text = "#000000" if 0.299 * red + 0.587 * green + 0.114 * blue > 140 else "#FFFFFF"
+        self.color_button.setStyleSheet(f"background-color: {color}; color: {text};")
+        self.default_color_button.setEnabled("color" in component)
+
+    def _choose_color(self) -> None:
+        component = self._component
+        if component is None:
+            return
+        current = QColor(self._api.component_color(str(component["id"])))
+        chosen = QColorDialog.getColor(current, self, "Component Color")
+        if chosen.isValid():
+            self._api.set_component_color(str(component["id"]), chosen.name().upper())
+
+    def _reset_color(self) -> None:
+        if self._component is not None:
+            self._api.set_component_color(str(self._component["id"]), None)
+
     def _transform(self) -> dict[str, Any]:
         if self._component is None:
             return {}
@@ -245,6 +291,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             self._load_attach_to(component)
+            self._load_color(component)
 
             pos = self._position()
             rot = self._rotation()
@@ -346,6 +393,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
     def _set_enabled(self, enabled: bool) -> None:
         self.reference_table.setEnabled(enabled)
         self.transform_table.setEnabled(enabled)
+        self.appearance_table.setEnabled(enabled)
 
 
 def _number(value: object) -> float:

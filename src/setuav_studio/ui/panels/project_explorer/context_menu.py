@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPoint
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QMenu, QTreeWidgetItem
+from PySide6.QtGui import QColor, QIcon
+from PySide6.QtWidgets import QColorDialog, QMenu, QTreeWidgetItem
 
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.ui.style.icons import get_icon
@@ -173,6 +173,20 @@ class ProjectExplorerContextMenu:
             if contributions:
                 menu.addSeparator()
 
+        if component is not None:
+            component_id = str(component["id"])
+            color_action = menu.addAction(get_icon("view_colored"), "Set Color…")
+            color_action.setEnabled(can_edit)
+            color_action.triggered.connect(
+                lambda _checked=False: self._choose_component_color(component_id)
+            )
+            reset_action = menu.addAction("Reset Color")
+            reset_action.setEnabled(can_edit and "color" in component)
+            reset_action.triggered.connect(
+                lambda _checked=False: self._api.set_component_color(component_id, None)
+            )
+            menu.addSeparator()
+
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)
         rename_action.triggered.connect(lambda _checked=False: self._tree.editItem(item, 0))
@@ -180,6 +194,12 @@ class ProjectExplorerContextMenu:
         delete_action.setEnabled(can_edit)
         delete_action.triggered.connect(lambda _checked=False: self._ops.delete_item(item))
         return menu
+
+    def _choose_component_color(self, component_id: str) -> None:
+        current = QColor(self._api.component_color(component_id))
+        chosen = QColorDialog.getColor(current, self._tree, "Component Color")
+        if chosen.isValid():
+            self._api.set_component_color(component_id, chosen.name().upper())
 
     @staticmethod
     def _add_contributed_item(menu: QMenu, contribution: ComponentMenuItemContribution) -> None:

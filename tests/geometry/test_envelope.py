@@ -630,7 +630,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
             component_id="test-fuse",
             layer="airframe",
             name="Fuselage",
-            primitives=[LoftPrimitive(sections=sections_pts, color=loft.color)],
+            primitives=[LoftPrimitive(sections=sections_pts)],
             envelope=env,
         )
         viewport.add_object(obj)

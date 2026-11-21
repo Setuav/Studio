@@ -14,7 +14,6 @@ from .lifting_surface_math import (
     rotate_section_around_axis,
     sample_structured_airfoil_round,
 )
-from .palettes import control_surface_color, lifting_surface_color
 from .transforms import section_transform, transform_point
 
 
@@ -266,7 +265,6 @@ def build_uncut_segment(
         component_id=comp_id,
         owner_id=comp_id,
         sections=tuple(sections),
-        color=lifting_surface_color(),
         interpolation=interpolation,
         station_spacing=15.0,
         closed_ends=True,
@@ -326,7 +324,6 @@ def build_control_segment(
             component_id=comp_id,
             owner_id=comp_id,
             sections=tuple(main_sections),
-            color=lifting_surface_color(),
             interpolation=interpolation,
             station_spacing=15.0,
             closed_ends=True,
@@ -335,7 +332,6 @@ def build_control_segment(
             component_id=f"{comp_id}:{control['id']}",
             owner_id=control["id"],
             sections=tuple(flap_sections),
-            color=control_surface_color(),
             interpolation=interpolation,
             station_spacing=15.0,
             closed_ends=True,

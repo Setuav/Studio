@@ -8,6 +8,7 @@ from typing import Any
 from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 
 from setuav_studio.api import ComponentMenuItemContribution, StudioAPI
+from setuav_studio.model.appearance import DEFAULT_COMPONENT_COLOR
 from setuav_studio.project import open_project
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from setuav_studio.ui.panels.project_explorer.tree_builder import VEHICLE_SELECTION
@@ -109,7 +110,8 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
         menu = self._menu("main-wing")
         actions = menu.actions()
         self.assertEqual(
-            [action.text() for action in actions], ["Add Feature", "", "Rename", "Delete"]
+            [action.text() for action in actions],
+            ["Add Feature", "", "Set Color…", "Reset Color", "", "Rename", "Delete"],
         )
         submenu = actions[0].menu()
         assert isinstance(submenu, QMenu)
@@ -120,9 +122,22 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
         spar.trigger()
         self.assertEqual(self.chosen, ["spar"])
 
-    def test_components_without_contributions_show_only_rename_and_delete(self) -> None:
+    def test_components_without_contributions_show_color_rename_and_delete(self) -> None:
         menu = self._menu("fuselage")
-        self.assertEqual([action.text() for action in menu.actions()], ["Rename", "Delete"])
+        self.assertEqual(
+            [action.text() for action in menu.actions()],
+            ["Set Color…", "Reset Color", "", "Rename", "Delete"],
+        )
+
+    def test_reset_color_restores_the_default_in_one_edit(self) -> None:
+        self.api.set_component_color("fuselage", "#ff0000")
+        self.assertEqual(self.api.component_color("fuselage"), "#FF0000")
+        reset = next(a for a in self._menu("fuselage").actions() if a.text() == "Reset Color")
+        self.assertTrue(reset.isEnabled())
+        reset.trigger()
+        self.assertEqual(self.api.component_color("fuselage"), DEFAULT_COMPONENT_COLOR)
+        self.api.undo()
+        self.assertEqual(self.api.component_color("fuselage"), "#FF0000")
 
     def test_delete_removes_the_component_with_its_subparts_in_one_edit(self) -> None:
         self.explorer._ops.confirm_delete = lambda *_args, **_kwargs: True

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .primitives import (
-    ColorRGB,
     FeatureWire,
     Point3D,
     VisualPrimitive,
@@ -36,7 +35,6 @@ class LoftGeometry:
     sections: tuple[Section, ...]
     owner_id: str = ""
     feature_wire: FeatureWire = "sections"
-    color: ColorRGB = (0.50, 0.77, 0.82)
     interpolation: Literal["linear", "smooth"] = "smooth"
     station_spacing: float = 10.0
     closed_ends: bool = True
