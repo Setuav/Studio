@@ -7,6 +7,7 @@ configuration parameters whenever global parameters or configurations change.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -203,13 +204,16 @@ def _evaluate_numeric_expression(
     expr_str: str,
     scope: dict[str, Any],
 ) -> float:
-    """Evaluate a stored formula and require a numeric result."""
+    """Evaluate a stored formula and require a finite numeric result."""
     res = evaluator.evaluate(expr_str, scope)
     if isinstance(res, bool) or not isinstance(res, (int, float)):
         raise ExpressionEvaluationError(
             f"Expression '{expr_str}' did not evaluate to a numeric value"
         )
-    return float(res)
+    num = float(res)
+    if not math.isfinite(num):
+        raise ExpressionEvaluationError(f"Expression '{expr_str}' evaluated to a non-finite value")
+    return num
 
 
 __all__ = [

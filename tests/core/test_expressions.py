@@ -720,3 +720,25 @@ def test_recompute_settles_long_chain_within_one_component(tmp_path: Path) -> No
     assert recompute_project_expressions(proj) == []
     position = proj.data["components"][0]["transform"]["position"]
     assert (position["x"], position["y"]) == (3.0, 2.0)
+
+
+def test_recompute_rejects_non_finite_expression_without_false_cycle(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "nonfinite.json",
+        "json",
+        {
+            "parameters": {},
+            "components": [
+                {
+                    "id": "a",
+                    "type": "x",
+                    "mass": 5.0,
+                    "_expressions": {"mass": "= 1e308 * 10"},
+                }
+            ],
+        },
+    )
+    diagnostics = recompute_project_expressions(proj)
+    assert len(diagnostics) == 1
+    assert "finite" in diagnostics[0]["message"].lower()
+    assert proj.data["components"][0]["mass"] == 5.0
