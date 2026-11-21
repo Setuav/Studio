@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.model.expression import ExpressionEvaluator, normalize_equation_input
 from setuav_studio.model.parameter import ParameterResolution, ParameterResolver
 from setuav_studio.ui.style.icons import set_label_icon
@@ -57,6 +58,19 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         self._create_general_section()
         self._content_layout.addStretch()
         self._load_data()
+        if self._api is not None:
+            self._api.on_project_content_changed(self._on_project_content_changed)
+            unsub = self._api.subscribe(
+                StudioEvents.UNITS_CHANGED, self._on_project_content_changed
+            )
+            self.destroyed.connect(lambda *_: unsub())
+
+    def _on_project_content_changed(self, _payload: Any = None) -> None:
+        if self._loading:
+            return
+        data = self._get_project_data()
+        if data and self._param_key in data.get("parameters", {}):
+            self._load_data()
 
     def _create_section(
         self,
@@ -320,6 +334,12 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         if key == "name":
             clean_name = val_text.strip()
             if clean_name and clean_name != self._param_key:
+                if clean_name in raw_params:
+                    self._api.show_status(
+                        f"Parameter '{clean_name}' already exists.", "warning", 3000
+                    )
+                    self._load_data()
+                    return
                 old_key = self._param_key
 
                 def _apply() -> None:
