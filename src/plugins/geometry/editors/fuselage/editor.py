@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -50,6 +51,7 @@ class FuselageEditor(
         self._segment_index = -1
         self._section_index = -1
         self._loading = False
+        self._suppress_content_reload = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -74,7 +76,26 @@ class FuselageEditor(
 
         get_unit_manager().units_changed.connect(self._on_units_changed)
 
+        self_ref = weakref.ref(self)
+
+        def _on_content_changed(_project: Any = None) -> None:
+            editor = self_ref()
+            if editor is not None:
+                editor._on_project_content_changed()
+
+        self._api.on_project_content_changed(_on_content_changed)
+        self.destroyed.connect(
+            lambda _obj=None, a=self._api, fn=_on_content_changed: (
+                a.remove_project_content_listener(fn)
+            )
+        )
+
         self._load_component()
+
+    def _on_project_content_changed(self) -> None:
+        if self._loading or self._suppress_content_reload:
+            return
+        self._load_component(preserve_selection=True)
 
     def _on_units_changed(self) -> None:
         if not hasattr(self, "sections_table"):
@@ -125,7 +146,9 @@ class FuselageEditor(
         button.clicked.connect(callback)
         return button
 
-    def _load_component(self) -> None:
+    def _load_component(self, *, preserve_selection: bool = False) -> None:
+        prev_seg = self._segment_index if preserve_selection else 0
+        prev_sec = self._section_index if preserve_selection else 0
         self._loading = True
         self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
         self._set_property_value(
@@ -137,15 +160,26 @@ class FuselageEditor(
         self._populate_segments()
         self._loading = False
 
-        if self._segments():
-            self.segments_table.selectRow(0)
-            self._load_segment(0)
+        segments = self._segments()
+        if segments:
+            seg_idx = min(max(prev_seg, 0), len(segments) - 1)
+            self.segments_table.selectRow(seg_idx)
+            self._load_segment(seg_idx)
+            sections = self._sections()
+            if sections and preserve_selection and prev_sec >= 0:
+                sec_idx = min(prev_sec, len(sections) - 1)
+                self.sections_table.selectRow(sec_idx)
+                self._load_section(sec_idx)
         else:
             self._update_section_actions()
         self._update_segment_actions()
 
     def _edit_component(self, description: str, change_fn: Callable[[], Any]) -> None:
-        self._api.edit_component(self._component, description, change_fn)
+        self._suppress_content_reload = True
+        try:
+            self._api.edit_component(self._component, description, change_fn)
+        finally:
+            self._suppress_content_reload = False
 
     def _parameters(self) -> dict[str, Any]:
         return self._object(self._component, "parameters")

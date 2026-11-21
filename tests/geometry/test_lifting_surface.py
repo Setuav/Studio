@@ -1072,6 +1072,35 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown tip treatment type 'bevel'"):
             build_lifting_surface_geometry(self._winglet_wing({"type": "bevel"}))
 
+    def test_lifting_surface_editor_refreshes_on_undo_redo(self) -> None:
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+
+        wing_comp = self._winglet_wing({"type": "round", "length": 30.0, "offset_x": 0.0})
+        api = StudioAPI()
+        doc = ProjectDocument(
+            Path("/tmp/test_undo_refresh.json"), "json", {"components": [wing_comp]}
+        )
+        api._host.set_project(doc)
+
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        self.addCleanup(editor.deleteLater)
+
+        length_row = self._tip_caps_rows(editor)["length"]
+        self.assertAlmostEqual(
+            cell_widget(editor.tip_caps_table, length_row, 1, ExpressionPropertyCell).value(),
+            30.0,
+        )
+
+        cell_widget(editor.tip_caps_table, length_row, 1, ExpressionPropertyCell).setValue(45.0)
+        self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 45.0)
+
+        api.undo()
+        self.assertAlmostEqual(
+            cell_widget(editor.tip_caps_table, length_row, 1, ExpressionPropertyCell).value(),
+            30.0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
