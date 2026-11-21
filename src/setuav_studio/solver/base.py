@@ -75,7 +75,7 @@ class AbstractSolver(ABC):
     def check_parameter_ranges(self) -> None:
         """Raise ValueError for a numeric parameter outside its declared range."""
         for spec in self.PARAMETER_FIELDS:
-            value = self.config.parameters[spec.key]
+            value = self.config.parameters.get(spec.key, spec.default)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 continue
             low = -math.inf if spec.min_value is None else spec.min_value

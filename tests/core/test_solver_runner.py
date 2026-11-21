@@ -124,6 +124,12 @@ def test_execute_solver_rejects_parameters_outside_their_range() -> None:
     assert not RangedSolver.ran
 
 
+def test_check_parameter_ranges_falls_back_to_default_for_missing_key() -> None:
+    config = SolverConfig(solver_id="org.test:aero", name="Partial Config", parameters={})
+    solver = RangedSolver(config)
+    solver.check_parameter_ranges()
+
+
 def test_execute_solver_cancellation() -> None:
     config = SolverConfig(solver_id="org.test:aero", name="Aero Cancel")
     solver = CancelableSolver(config)
