@@ -46,7 +46,7 @@ Desktop builds for Windows, macOS and Linux are attached to each
 
 The [documentation](https://setuav.github.io/Studio/) covers installation, a
 first design, every modeling and analysis page, and a guide to writing
-plugins.
+plugins. Changes between releases are listed in the [changelog](CHANGELOG.md).
 
 ## Development
 
