@@ -1,22 +1,27 @@
-/* Text at 75 % of Material's size: its root size, scaled for wide screens. */
-html {
-  font-size: 93.75%;
-}
-
+/* Material grows its root size on wide screens; keep the 20 px root there too,
+   and set smaller text: body 15 px, navigation 13 px, tables 14 px. */
 @media screen and (min-width: 100em) {
   html {
-    font-size: 103.125%;
+    font-size: 125%;
   }
 }
 
 @media screen and (min-width: 125em) {
   html {
-    font-size: 112.5%;
+    font-size: 125%;
   }
 }
 
+.md-typeset {
+  font-size: 0.75rem;
+}
+
+.md-nav {
+  font-size: 0.65rem;
+}
+
 .md-typeset table:not([class]) {
-  font-size: 0.78rem;
+  font-size: 0.7rem;
 }
 
 .md-typeset h1 {
