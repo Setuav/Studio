@@ -191,7 +191,7 @@ class StatusBarManager:
         self.status_label.setObjectName("studioStatusMessage")
         status_bar.addWidget(self.status_label, 1)
 
-        # 2. Right side permanent widgets (Progress -> Cancel -> Command Palette -> Tasks -> Log en sağda)
+        # 2. Right side permanent widgets: Progress, Cancel, Command Palette, Tasks, and Log rightmost
         self.progress_bar = QProgressBar(self._window)
         self.progress_bar.setObjectName("studioStatusProgress")
         self.progress_bar.setFixedWidth(260)

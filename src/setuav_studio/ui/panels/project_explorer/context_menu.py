@@ -275,7 +275,7 @@ class ProjectExplorerContextMenu:
         elem = element or self._tree._element_map.get(item)
         menu = QMenu(self._tree)
         open_all_act = menu.addAction(get_icon("fa6s.chart-line"), "Open All Plots")
-        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Add to View")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_all_act:
@@ -298,7 +298,7 @@ class ProjectExplorerContextMenu:
         elem = element or self._tree._element_map.get(item)
         menu = QMenu(self._tree)
         open_all_act = menu.addAction(get_icon("fa6s.table"), "Open All Tables")
-        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Add to View")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_all_act:
@@ -320,7 +320,7 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.table-cells"), "Open Table")
-        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Add to View")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
@@ -340,7 +340,7 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.chart-simple"), "Open Chart")
-        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Add to View")
         del_act = menu.addAction(get_icon("remove"), "Delete Plot")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
