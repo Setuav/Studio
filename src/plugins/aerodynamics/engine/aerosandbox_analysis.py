@@ -77,7 +77,8 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     ) -> AeroResult:
         if not HAS_AEROSANDBOX:
             raise RuntimeError(
-                "AeroSandbox library is not installed. Please install it using 'pip install aerosandbox'."
+                "AeroSandbox is not installed. Install the aerodynamics extra "
+                "(uv sync --locked --extra aerodynamics)."
             )
 
         method = method if isinstance(method, AnalysisMethod) else AnalysisMethod.from_value(method)

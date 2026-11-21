@@ -1157,6 +1157,15 @@ class AeroReferenceTests(unittest.TestCase):
         )
 
 
+class MissingAeroSandboxTests(unittest.TestCase):
+    def test_error_names_the_install_command(self) -> None:
+        with (
+            patch("plugins.aerodynamics.engine.aerosandbox_analysis.HAS_AEROSANDBOX", False),
+            self.assertRaisesRegex(RuntimeError, r"uv sync --locked --extra aerodynamics"),
+        ):
+            AeroSandboxEngine().analyze(_sample_components(), FlightCondition())
+
+
 class AirfoilResolutionTests(unittest.TestCase):
     def test_naca_5_digit_sections_use_studio_coordinates_in_selig_order(self) -> None:
         engine = AeroSandboxEngine()

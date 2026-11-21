@@ -534,8 +534,8 @@ removes AeroSandbox again.
 Without AeroSandbox the plugin still loads, and the analyses still appear on
 the toolbar:
 
-- Running an analysis fails, and the status bar reports that the AeroSandbox
-  library is not installed.
+- Running an analysis fails, and the status bar reports that AeroSandbox is
+  not installed, with the command that installs the extra.
 - **Airfoil Analysis** shows an **AeroSandbox Missing** message: "Install the
   aerodynamics extra before running airfoil analysis."
 
