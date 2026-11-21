@@ -78,19 +78,19 @@ nav:
       - Interface: user-guide/interface.md
       - Parametric Model: user-guide/parametric-model.md
       - Plugin Manager: user-guide/plugins.md
-  - Modeling:
-      - Placement and Attachment: modeling/placement.md
-      - Fuselage: modeling/fuselage.md
-      - Lifting Surface: modeling/lifting-surface.md
-      - Control Surface: modeling/control-surface.md
-      - Airfoils: modeling/airfoils.md
-      - Propulsion Components: modeling/propulsion-components.md
-      - Mass and Balance: modeling/mass-balance.md
-  - Analyses:
-      - Overview: analyses/index.md
-      - Aerodynamics: analyses/aerodynamics.md
-      - Propulsion: analyses/propulsion.md
-      - Flight Performance: analyses/flight-performance.md
+      - Modeling:
+          - Placement and Attachment: modeling/placement.md
+          - Fuselage: modeling/fuselage.md
+          - Lifting Surface: modeling/lifting-surface.md
+          - Control Surface: modeling/control-surface.md
+          - Airfoils: modeling/airfoils.md
+          - Propulsion Components: modeling/propulsion-components.md
+          - Mass and Balance: modeling/mass-balance.md
+      - Analyses:
+          - Overview: analyses/index.md
+          - Aerodynamics: analyses/aerodynamics.md
+          - Propulsion: analyses/propulsion.md
+          - Flight Performance: analyses/flight-performance.md
   - Developer Guide:
       - Overview: developer/index.md
       - Writing a Plugin: developer/writing-a-plugin.md

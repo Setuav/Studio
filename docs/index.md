@@ -30,7 +30,7 @@ powertrain and flight performance. Plugins extend every part of it.
     [Interface](user-guide/interface.md) ·
     [Parametric Model](user-guide/parametric-model.md)
 
--   **Modeling**
+-   **User Guide: Modeling**
 
     ---
 
@@ -41,7 +41,7 @@ powertrain and flight performance. Plugins extend every part of it.
     [Lifting Surface](modeling/lifting-surface.md) ·
     [Mass and Balance](modeling/mass-balance.md)
 
--   **Analyses**
+-   **User Guide: Analyses**
 
     ---
 

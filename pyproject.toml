@@ -59,6 +59,12 @@ exclude = ["src/setuav_studio/assets/icons/tools"]
 setuav-pythrust = "pythrust"
 qt-themes = "qt_themes"
 
+[tool.deptry.per_rule_ignores]
+# rarfile is optional: RAR plugin archives fall back to the unrar, 7z or bsdtar tools.
+DEP001 = ["rarfile"]
+# AeroSandbox is imported on first use through importlib, which deptry does not see.
+DEP002 = ["aerosandbox"]
+
 [tool.pip-licenses]
 from = "mixed"
 format = "markdown"
