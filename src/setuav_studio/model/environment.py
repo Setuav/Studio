@@ -5,16 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-# Standard physical constants
-_T0 = 288.15  # Sea-level standard temperature (K)
-_P0 = 101325.0  # Sea-level standard pressure (Pa)
-_RHO0 = 1.225  # Sea-level standard air density (kg/m^3)
-_G0 = 9.80665  # Gravitational acceleration (m/s^2)
-_R_AIR = 287.05287  # Specific gas constant for dry air (J/(kg*K))
-_GAMMA = 1.4  # Specific heat ratio of air
-_LAPSE_RATE = 0.0065  # Temperature lapse rate in troposphere (K/m)
-_MU0 = 1.789e-5  # Dynamic viscosity at sea level (Pa*s)
-_S_SUTHERLAND = 110.4  # Sutherland's empirical constant (K)
+from setuav_studio.model.atmosphere import A0, G0, MU0, P0, RHO0, T0
 
 
 @dataclass
@@ -22,12 +13,12 @@ class Environment:
     """Atmospheric and physical environmental state."""
 
     altitude_m: float = 0.0
-    temperature_k: float = _T0
-    pressure_pa: float = _P0
-    density_kg_m3: float = _RHO0
-    speed_of_sound_mps: float = 340.29
-    dynamic_viscosity: float = _MU0
-    gravity_mps2: float = _G0
+    temperature_k: float = T0
+    pressure_pa: float = P0
+    density_kg_m3: float = RHO0
+    speed_of_sound_mps: float = A0
+    dynamic_viscosity: float = MU0
+    gravity_mps2: float = G0
     wind_vector_mps: tuple[float, float, float] = (0.0, 0.0, 0.0)
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -64,15 +55,20 @@ class Environment:
     def from_dict(cls, data: dict[str, Any]) -> Environment:
         """Deserialize environment properties from dictionary."""
         wind = data.get("wind_vector_mps", (0.0, 0.0, 0.0))
+        wind_vec = (
+            (float(wind[0]), float(wind[1]), float(wind[2]))
+            if isinstance(wind, (list, tuple)) and len(wind) == 3
+            else (0.0, 0.0, 0.0)
+        )
         return cls(
             altitude_m=float(data.get("altitude_m", 0.0)),
-            temperature_k=float(data.get("temperature_k", _T0)),
-            pressure_pa=float(data.get("pressure_pa", _P0)),
-            density_kg_m3=float(data.get("density_kg_m3", _RHO0)),
-            speed_of_sound_mps=float(data.get("speed_of_sound_mps", 340.29)),
-            dynamic_viscosity=float(data.get("dynamic_viscosity", _MU0)),
-            gravity_mps2=float(data.get("gravity_mps2", _G0)),
-            wind_vector_mps=tuple(wind) if isinstance(wind, (list, tuple)) else (0.0, 0.0, 0.0),
+            temperature_k=float(data.get("temperature_k", T0)),
+            pressure_pa=float(data.get("pressure_pa", P0)),
+            density_kg_m3=float(data.get("density_kg_m3", RHO0)),
+            speed_of_sound_mps=float(data.get("speed_of_sound_mps", A0)),
+            dynamic_viscosity=float(data.get("dynamic_viscosity", MU0)),
+            gravity_mps2=float(data.get("gravity_mps2", G0)),
+            wind_vector_mps=wind_vec,
             extra=dict(data.get("extra", {})),
         )
 

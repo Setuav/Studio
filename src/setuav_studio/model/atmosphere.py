@@ -39,12 +39,11 @@ S_SUTHERLAND: float = 110.4  # Sutherland's temperature constant (K)
 
 @dataclass(frozen=True)
 class Atmosphere:
-    """Independent ISA atmosphere model with flight condition calculations.
+    """Independent ISA atmosphere model for atmospheric state calculations.
 
-    Provides exact analytical solutions for atmospheric properties from sea level
-    (or below) up to 32 km, including arbitrary ISA temperature deviations (delta ISA).
-    Includes methods for dynamic pressure, Reynolds number, Mach number, and
-    compressible/incompressible airspeed conversions (TAS, EAS, CAS).
+    Provides analytical solutions for atmospheric properties from sea level
+    (or below) up to 32 km and isothermal extrapolation above, including arbitrary
+    ISA temperature deviations (delta ISA).
     """
 
     altitude_m: float = 0.0
@@ -171,15 +170,22 @@ class Atmosphere:
     def from_dict(cls, data: dict[str, Any]) -> Atmosphere:
         """Deserialize atmosphere state from dictionary or create from altitude."""
         if "density_kg_m3" in data and "temperature_k" in data and "pressure_pa" in data:
+            temp_k = float(data["temperature_k"])
+            density = float(data["density_kg_m3"])
+            mu = float(data.get("dynamic_viscosity_pa_s", MU0))
             return cls(
                 altitude_m=float(data.get("altitude_m", 0.0)),
                 temperature_offset_k=float(data.get("temperature_offset_k", 0.0)),
-                temperature_k=float(data["temperature_k"]),
+                temperature_k=temp_k,
                 pressure_pa=float(data["pressure_pa"]),
-                density_kg_m3=float(data["density_kg_m3"]),
-                speed_of_sound_mps=float(data.get("speed_of_sound_mps", A0)),
-                dynamic_viscosity_pa_s=float(data.get("dynamic_viscosity_pa_s", MU0)),
-                kinematic_viscosity_m2_s=float(data.get("kinematic_viscosity_m2_s", MU0 / RHO0)),
+                density_kg_m3=density,
+                speed_of_sound_mps=float(
+                    data.get("speed_of_sound_mps", math.sqrt(GAMMA * R_AIR * max(temp_k, 1.0)))
+                ),
+                dynamic_viscosity_pa_s=mu,
+                kinematic_viscosity_m2_s=float(
+                    data.get("kinematic_viscosity_m2_s", mu / max(density, 1e-6))
+                ),
                 gravity_mps2=float(data.get("gravity_mps2", G0)),
             )
         return cls.isa(
