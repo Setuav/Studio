@@ -32,15 +32,23 @@ def component_color(component: Mapping[str, Any], components: Mapping[str, Any])
 
     ``components`` maps component IDs to components, for an instance's source.
     """
-    if component.get("kind") == "instance":
-        source = components.get(str(component.get("source") or ""))
-        if isinstance(source, Mapping) and source is not component:
-            return component_color(source, components)
-    color = component.get("color")
+    current: Mapping[str, Any] = component
+    seen: set[int] = {id(current)}
+    while current.get("kind") == "instance":
+        source = components.get(str(current.get("source") or ""))
+        if not isinstance(source, Mapping):
+            break
+        if id(source) in seen:
+            raise ValueError(
+                f"Component {component.get('id')!r} has a cyclic instance source reference"
+            )
+        seen.add(id(source))
+        current = source
+    color = current.get("color")
     if color is None:
         return DEFAULT_COMPONENT_COLOR
     if not is_hex_color(color):
-        raise ValueError(f"Component {component.get('id')!r} has an invalid color {color!r}")
+        raise ValueError(f"Component {current.get('id')!r} has an invalid color {color!r}")
     return str(color).upper()
 
 
