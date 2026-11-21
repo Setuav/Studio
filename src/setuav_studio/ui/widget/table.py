@@ -484,6 +484,7 @@ class ExpressionPropertyCell(QWidget):
         decimals: int | None = None,
         quantity: str | None = None,
         unit: str | None = None,
+        allow_empty: bool = False,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -498,6 +499,8 @@ class ExpressionPropertyCell(QWidget):
         self._api = api
         self._label = label
         self._raw_expression = str(initial_value)
+        self._allow_empty = allow_empty
+        self._edit_start_text: str | None = None
         self._is_focused = False
         self._has_error = False
         self._read_only = False
@@ -700,6 +703,7 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.setText(self._raw_expression)
             self.line_edit.setStyleSheet("")
         self.line_edit.blockSignals(False)
+        self._edit_start_text = self.line_edit.text().strip()
         self.line_edit.selectAll()
 
     def _convert_input_to_raw_storage(self, text: str) -> str:
@@ -730,8 +734,17 @@ class ExpressionPropertyCell(QWidget):
         if self._read_only or (not self._is_focused and not force):
             return
         new_text = self.line_edit.text().strip()
-        if not new_text:
+        if self._edit_start_text is not None and new_text == self._edit_start_text:
             self._refresh_display()
+            return
+        if not new_text:
+            if self._allow_empty:
+                if self._raw_expression:
+                    self.clear_error()
+                    self._raw_expression = ""
+                    self._call_on_changed("")
+            else:
+                self._refresh_display()
             return
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:
@@ -743,6 +756,7 @@ class ExpressionPropertyCell(QWidget):
         if not self._is_focused:
             return
         self._commit_line_edit()
+        self._edit_start_text = None
         self._is_focused = False
         self._refresh_display()
         QTimer.singleShot(400, self._maybe_clear_focus_tracker)
@@ -777,6 +791,7 @@ class ExpressionPropertyCell(QWidget):
 
     def _on_return_pressed(self) -> None:
         self._commit_line_edit(force=True)
+        self._edit_start_text = None
         self._is_focused = False
         self._refresh_display()
         self.line_edit.clearFocus()
@@ -1069,6 +1084,7 @@ class PropertyTableMixin:
         on_changed: Callable[[Any], Any] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
         raw_callback: bool = False,
+        allow_empty: bool = False,
         api: Any | None = None,
         label: str = "",
         read_only: bool = False,
@@ -1106,6 +1122,7 @@ class PropertyTableMixin:
                 on_changed=on_changed,
                 on_open_assistant=on_open_assistant,
                 raw_callback=raw_callback,
+                allow_empty=allow_empty,
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
             )
@@ -1157,6 +1174,7 @@ class PropertyTableMixin:
                 target_data=target_data,
                 on_changed=None if read_only else number_changed,
                 raw_callback=True,
+                allow_empty=f.optional,
                 api=resolved_api,
                 label=f.label,
                 read_only=read_only,
