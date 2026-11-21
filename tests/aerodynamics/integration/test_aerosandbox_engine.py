@@ -1179,6 +1179,40 @@ class AeroReferenceTests(unittest.TestCase):
             places=9,
         )
 
+    def test_vlm_zero_lift_symmetric_wing_handles_zero_drag(self) -> None:
+        sym_wing = {
+            "id": "sym-wing",
+            "name": "Symmetric Wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "mirror": True,
+                    "profiles": [
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                    ],
+                }
+            },
+        }
+        result = AeroSandboxEngine().analyze(
+            [sym_wing],
+            FlightCondition(velocity=20.0, alpha=0.0, sweep_steps=1),
+            method=AnalysisMethod.VLM,
+            include_stability=False,
+        )
+        self.assertEqual(len(result.polar_points), 1)
+        point = result.polar_points[0]
+        self.assertTrue(point.converged)
+        self.assertAlmostEqual(point.cl_over_cd, 0.0, places=6)
+
 
 class MirroredSurfaceTests(unittest.TestCase):
     """A mirrored surface stays one AeroSandbox wing whenever AeroSandbox can mirror it."""

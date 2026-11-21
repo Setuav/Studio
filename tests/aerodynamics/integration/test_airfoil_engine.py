@@ -78,6 +78,12 @@ class TestAirfoilModels(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no converged points"):
             _ = _polar("empty", []).summary
 
+    def test_zero_drag_point_handles_cl_over_cd_safely(self) -> None:
+        pt = AirfoilPolarPoint(alpha=0.0, cl=0.0, cd=0.0, cm=0.0)
+        self.assertEqual(pt.cl_over_cd, 0.0)
+        summary = _polar("inviscid", [pt]).summary
+        self.assertEqual(summary.ld_max, 0.0)
+
 
 class TestAirfoilCache(unittest.TestCase):
     """Test deterministic key generation and thread-safe LRU caching."""

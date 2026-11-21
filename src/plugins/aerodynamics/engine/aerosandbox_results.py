@@ -59,7 +59,7 @@ class AeroSandboxResultMixin:
             cm=coefficients["cm"],
             cd_induced=cd_induced,
             cd_profile=cd_profile,
-            cl_over_cd=cl / cd,
+            cl_over_cd=cl / cd if abs(cd) > 1e-9 else 0.0,
             cx=self._coefficient_from_vector(vectors["F_b"], 0, context["qs"]),
             cy=coefficients["cy"],
             cz=self._coefficient_from_vector(vectors["F_b"], 2, context["qs"]),
