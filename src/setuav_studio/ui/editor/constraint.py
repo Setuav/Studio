@@ -135,6 +135,12 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
         self._create_general_section()
         self._content_layout.addStretch()
         self._load_data()
+        if self._api is not None:
+            self._api.on_project_content_changed(self._on_project_content_changed)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if not self._loading:
+            self._load_data()
 
     def _create_section(
         self,

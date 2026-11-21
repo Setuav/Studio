@@ -742,3 +742,61 @@ def test_recompute_rejects_non_finite_expression_without_false_cycle(tmp_path: P
     assert len(diagnostics) == 1
     assert "finite" in diagnostics[0]["message"].lower()
     assert proj.data["components"][0]["mass"] == 5.0
+
+
+def test_parameter_and_constraint_editors_follow_undo(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.editor.constraint import (
+        ConstraintExpressionCell,
+        ConstraintPropertyEditor,
+    )
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from tests._common import get_qapp
+
+    get_qapp()
+    proj = ProjectDocument(
+        tmp_path / "undo_editors.json",
+        "json",
+        {
+            "parameters": {"k": 10.0, "other": 20.0},
+            "constraints": [
+                {
+                    "id": "c1",
+                    "name": "Min K",
+                    "expression": "k >= 5",
+                    "severity": "warning",
+                    "enabled": True,
+                }
+            ],
+            "components": [],
+        },
+    )
+    api = StudioAPI()
+    api._host.set_project(proj)
+
+    param_editor = ParameterPropertyEditor(api, {"key": "k"})
+    param_editor._on_value_expression_changed("25.0")
+    assert proj.data["parameters"]["k"] == 25.0
+    api.undo()
+    assert proj.data["parameters"]["k"] == 10.0
+    val_cell = param_editor._property_cell(param_editor.general_table, "value")
+    assert val_cell is not None
+    assert val_cell.value() == 10.0
+
+    # Renaming onto an existing key must not overwrite it.
+    name_item = param_editor.general_table.item(0, 1)
+    assert name_item is not None
+    name_item.setText("other")
+    assert proj.data["parameters"]["other"] == 20.0
+    assert "k" in proj.data["parameters"]
+    param_editor.deleteLater()
+
+    const_editor = ConstraintPropertyEditor(api, {"id": "c1"})
+    const_editor._on_expression_changed("k >= 15")
+    assert proj.data["constraints"][0]["expression"] == "k >= 15"
+    api.undo()
+    assert proj.data["constraints"][0]["expression"] == "k >= 5"
+    expr_widget = const_editor.general_table.cellWidget(1, 1)
+    assert isinstance(expr_widget, ConstraintExpressionCell)
+    assert expr_widget.text() == "k >= 5"
+    const_editor.deleteLater()
