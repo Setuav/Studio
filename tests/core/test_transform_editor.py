@@ -90,6 +90,59 @@ class TransformEditorTests(unittest.TestCase):
         )
         self.assertNotIsInstance(editor.reference_table.cellWidget(row, 1), QComboBox)
 
+    def test_attach_reloads_once_and_non_numeric_values_coerce_and_follow_live_component(
+        self,
+    ) -> None:
+        propulsor, editor = self._editor("propulsor-cruise")
+        load_calls = 0
+        orig_load = editor._load_component
+
+        def counting_load(component: dict[str, Any]) -> None:
+            nonlocal load_calls
+            load_calls += 1
+            orig_load(component)
+
+        editor._load_component = counting_load  # type: ignore[method-assign]
+        combo = self._attach_combo(editor)
+        combo.setCurrentIndex(combo.findData("main-wing"))
+        self.assertEqual(load_calls, 1)
+
+        # Replacing the component dictionary in project data updates the editor from live data.
+        idx = next(
+            i
+            for i, c in enumerate(self.project.data["components"])
+            if c["id"] == "propulsor-cruise"
+        )
+        self.project.data["components"][idx] = {
+            **propulsor,
+            "transform": {
+                "position": {"x": "15.0", "z": 12.5},
+                "rotation": {"pitch": 0.0, "yaw": "5.0"},
+            },
+        }
+        self.api.notify_project_content_changed()
+        self.assertEqual(editor.position_spins["x"].value(), 15.0)
+        self.assertEqual(editor.position_spins["y"].value(), 0.0)
+        self.assertEqual(editor.position_spins["z"].value(), 12.5)
+        self.assertEqual(editor.rotation_spins["roll"].value(), 0.0)
+        self.assertEqual(editor.rotation_spins["yaw"].value(), 5.0)
+
+        # Direct load coerces None and non-numeric strings via _number without error.
+        editor._load_component(
+            {
+                **propulsor,
+                "transform": {
+                    "position": {"x": None, "y": "bad", "z": 2.0},
+                    "rotation": {"roll": None, "pitch": 0.0, "yaw": 0.0},
+                },
+            }
+        )
+        self.assertEqual(editor.position_spins["x"].value(), 0.0)
+        self.assertFalse(editor.position_spins["x"]._has_error)
+        self.assertEqual(editor.position_spins["y"].value(), 0.0)
+        self.assertFalse(editor.position_spins["y"]._has_error)
+        self.assertEqual(editor.rotation_spins["roll"].value(), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
