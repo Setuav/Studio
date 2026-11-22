@@ -205,7 +205,9 @@ def test_mass_properties() -> None:
                     "name": "Main Wing",
                     "type": "org.setuav.core:generic",
                     "mass": 2500.0,
-                    "cg": [1.0, 0.0, 0.2],
+                    "transform": {"position": {"x": 400.0, "y": 0.0, "z": 100.0}},
+                    "local_cg_mm": {"x": 100.0, "y": 0.0, "z": 50.0},
+                    "inertia_kg_m2": {"ixx": 0.1, "iyy": 0.2, "izz": 0.3},
                 }
             ]
         },
@@ -213,6 +215,12 @@ def test_mass_properties() -> None:
     mass_props = doc.mass_properties
     assert mass_props is not None
     assert math.isclose(mass_props.mass_kg, 2.5)
+    assert math.isclose(mass_props.cg_body_m[0], 0.5)
+    assert math.isclose(mass_props.cg_body_m[1], 0.0)
+    assert math.isclose(mass_props.cg_body_m[2], 0.15)
+    assert math.isclose(mass_props.inertia_cg_kg_m2.ixx, 0.1)
+    assert math.isclose(mass_props.inertia_cg_kg_m2.iyy, 0.2)
+    assert math.isclose(mass_props.inertia_cg_kg_m2.izz, 0.3)
 
 
 def test_save_records_the_format_and_studio_version(tmp_path: Path) -> None:
