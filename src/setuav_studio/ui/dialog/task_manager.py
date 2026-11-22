@@ -206,8 +206,17 @@ class TaskManagerDialog(QDialog):
                 cancel_btn = QToolButton()
                 cancel_btn.setIcon(get_icon("cancel"))
                 cancel_btn.setToolTip("Cancel task")
-                cancel_btn.clicked.connect(lambda _=None, tid=handle.id: self._tm.cancel(tid))
+                cancel_btn.clicked.connect(self._on_cancel_row_clicked)
                 self._active_table.setCellWidget(row, 4, cancel_btn)
+            cancel_btn.setProperty("task_id", handle.id)
+
+    def _on_cancel_row_clicked(self) -> None:
+        sender = self.sender()
+        if sender is None:
+            return
+        task_id = sender.property("task_id")
+        if isinstance(task_id, str) and task_id:
+            self._tm.cancel(task_id)
 
     def _refresh_history_table(self) -> None:
         recent = self._tm.recent_tasks()
