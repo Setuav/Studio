@@ -1142,3 +1142,26 @@ class TestStudioViewport(unittest.TestCase):
         box = BoxPrimitive(center=center, size=(20.0, 10.0, 6.0), rotation=(15.0, 20.0, 45.0))
         hit = _ray_primitive_intersection((10.0, 50.0, 50.0), (0.0, 0.0, -1.0), box)
         self.assertIsNotNone(hit)
+
+    def test_deleted_viewport_detaches_project_listeners(self) -> None:
+        from pathlib import Path
+
+        from PySide6.QtCore import QCoreApplication, QEvent
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        app = QApplication.instance() or QApplication([])
+        api = StudioAPI()
+        vp = StudioViewport(api=api)
+        self.assertGreater(len(api._project_listeners), 0)
+        self.assertGreater(len(api._project_content_listeners), 0)
+
+        vp.deleteLater()
+        QCoreApplication.sendPostedEvents(vp, QEvent.Type.DeferredDelete)
+        app.processEvents()
+        self.assertEqual(api._project_listeners, [])
+        self.assertEqual(api._project_content_listeners, [])
+
+        # Setting a new project after viewport destruction must not invoke deleted listeners.
+        api._host.set_project(ProjectDocument(Path("p.json"), "json", {"components": []}))

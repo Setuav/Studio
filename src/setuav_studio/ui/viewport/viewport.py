@@ -265,11 +265,11 @@ class StudioViewport(QWidget):
         api.on_section_selection_changed(self._on_api_section_selection_changed)
         self.component_picked.connect(self._on_component_picked_to_api)
         self.layer_visibility_changed.connect(lambda _layer, _visible: api.refresh_toolbar_states())
-        api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
+        api.on_project_content_changed(self._on_project_content_changed)
         # A newly opened project has no content change yet; its markers are built here.
-        api.on_project_changed(lambda _doc: self._on_project_content_changed())
+        api.on_project_changed(self._on_project_content_changed)
 
-    def _on_project_content_changed(self) -> None:
+    def _on_project_content_changed(self, _project: Any = None) -> None:
         self.update_component_colors()
         self.update_component_cg()
         self.update_aircraft_cg()
