@@ -875,6 +875,17 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     }
 
 
+def _is_mirrored_control_surface(geometry: dict[str, Any], surface: dict[str, Any]) -> bool:
+    """Whether the control surface has a mirrored half on its mirrored lifting surface."""
+    if str(geometry.get("symmetry_mode") or "auto").lower() == "none":
+        return False
+    surface_parameters = surface.get("parameters")
+    surface_geometry = (
+        surface_parameters.get("geometry") if isinstance(surface_parameters, dict) else None
+    )
+    return isinstance(surface_geometry, dict) and bool(surface_geometry.get("mirror"))
+
+
 def _compute_control_surface_envelope(
     component: dict[str, Any],
     surface: dict[str, Any] | None = None,
@@ -882,7 +893,9 @@ def _compute_control_surface_envelope(
     """Envelope of a control surface cut from the lifting surface it attaches to.
 
     A control surface not attached to a lifting surface, or whose span does not cut it,
-    has no geometry and so no envelope.
+    has no geometry and so no envelope. The box, centroid and volume describe the half
+    on the lifting surface; on a mirrored lifting surface the unit inertia covers both
+    halves about their common CG in the mirror plane.
     """
     if surface is None or surface.get("type") != _LIFTING_SURFACE_TYPE:
         return None
@@ -1012,6 +1025,8 @@ def _compute_control_surface_envelope(
     unit_inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0}
     if panels:
         total_vol, centroid, unit_inertia = _combine_panels(panels, mirror=False)
+        if _is_mirrored_control_surface(geometry, surface):
+            _, _, unit_inertia = _combine_panels(panels, mirror=True)
         offset_x = round(centroid[0], 1)
         offset_y = round(centroid[1], 1)
         offset_z = round(centroid[2], 1)
