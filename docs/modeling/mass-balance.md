@@ -104,7 +104,9 @@ plane it is mirrored in: the XZ plane of the component it is attached to, or
 of the vehicle, which is \(r_{i,y} = 0\) for a part on the center line. The
 same holds for a control surface on a mirrored lifting surface, unless its
 **Symmetry Mode** is **None (Single)**. The mass is not doubled, so the mass of
-a mirrored surface is the mass of both halves.
+a mirrored surface is the mass of both halves. Its inertia tensor is taken
+about that CG and covers both halves, so their distance from the mirror plane
+adds to IXX and IZZ, and IXY and IYZ are zero.
 
 ### Total mass and CG
 

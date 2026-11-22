@@ -253,6 +253,31 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertEqual(len(env["sections"]), 2)
         self.assertIn("corners_3d", env["sections"][0])
 
+    def test_mirrored_control_surface_inertia_covers_both_halves(self) -> None:
+        wing = _sample_wing(mirror=True)
+        single = _sample_control_surface()
+        single["parameters"]["geometry"]["symmetry_mode"] = "none"
+        one_side = compute_geometry_envelope(single, wing)
+        pair = compute_geometry_envelope(_sample_control_surface(), wing)
+        assert one_side is not None and pair is not None
+        half = one_side["unit_inertia"]
+        both = pair["unit_inertia"]
+
+        # The halves mirror in y = 0: their y offset adds to ixx and izz by the
+        # parallel axis theorem, and the ixy and iyz products cancel.
+        slices = one_side["slices"]
+        cg_y = sum(sl["volume_mm3"] * sl["centroid_mm"]["y"] for sl in slices) / sum(
+            sl["volume_mm3"] for sl in slices
+        )
+        cg_y_sq = (cg_y / 1000.0) ** 2
+        # Slice centroids are rounded to 0.01 mm: 2 * 0.33 m * 5e-6 m is about 3.3e-6.
+        self.assertAlmostEqual(both["ixx"], half["ixx"] + cg_y_sq, delta=4e-6)
+        self.assertAlmostEqual(both["izz"], half["izz"] + cg_y_sq, delta=4e-6)
+        self.assertAlmostEqual(both["iyy"], half["iyy"], places=7)
+        self.assertAlmostEqual(both["ixz"], half["ixz"], places=7)
+        self.assertEqual(both["ixy"], 0.0)
+        self.assertEqual(both["iyz"], 0.0)
+
     def test_control_surface_mass_properties_follow_its_section(self) -> None:
         wing = {
             "id": "rect-wing",
