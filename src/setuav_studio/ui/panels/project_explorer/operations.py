@@ -192,10 +192,14 @@ class ProjectExplorerOperations:
         if not self.confirm_delete(f"Analysis '{name}'", details):
             return
 
-        for r_id in matching_results:
-            project.remove_solver_result(r_id)
+        def _apply_delete() -> None:
+            for r_id in matching_results:
+                project.remove_solver_result(r_id)
+            project.remove_solver_config(config_id)
 
-        self._api.remove_solver_config(config_id)
+        self._api.edit_project(f"Delete analysis '{name}'", _apply_delete)
+        if self._api.current_solver_config_id == config_id:
+            self._api.set_current_solver_config(None)
         self._api.set_selection(None)
         self._api.show_status(f"Deleted analysis '{name}'", "info", 3000)
 
