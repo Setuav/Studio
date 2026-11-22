@@ -21,8 +21,7 @@ its nose at X = 0.
 The project stores lengths in millimeters, angles in degrees, and areas in
 square decimeters. The Properties panel shows values in the units chosen under
 **Edit → Settings → Units**. The default preset, **Metric (SI Standard)**, uses
-mm, dm², and degrees. The **End Caps** fields of a lifting surface are always in
-mm and degrees.
+mm, dm², and degrees.
 
 ## Placing and attaching parts
 
