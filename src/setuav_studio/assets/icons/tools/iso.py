@@ -219,7 +219,6 @@ def airfoil(c0, c1, n=14):
     cs = [c0 + (c1 - c0) * (1 - math.cos(math.pi * i / n)) / 2 for i in range(n + 1)]
     top = [(c, thick(c)) for c in cs]
     bot = [(c, -thick(c)) for c in reversed(cs)]
-    top + bot[1:-1] if True else top + bot
     return top + bot
 
 
@@ -239,7 +238,6 @@ def wing_piece(sc, s0, s1, c0, c1, color="n", z_off=0.0, dz=0.0, station=None):
         rings.append(
             [(le + c * ch, y, (t + z_off) * ch + dz * (c - c0) * ch) for c, t in airfoil(c0, c1)]
         )
-    len(rings[0])
     sc.loft(rings, color)
 
 
