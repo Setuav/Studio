@@ -130,6 +130,9 @@ def build_lifting_surface_geometry(
             le_sweep_slope=le_sweep_slope,
             te_sweep_slope=te_sweep_slope,
             twist_location=twist_location,
+            te_thickness=te_thickness,
+            thickness_scale=thickness_scale,
+            camber_scale=camber_scale,
         )
         if tip_cap is not None:
             lofts_list.append(tip_cap)

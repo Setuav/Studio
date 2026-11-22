@@ -193,6 +193,9 @@ def build_tip_cap_loft(
     le_sweep_slope: float,
     te_sweep_slope: float,
     twist_location: float,
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
 ) -> LoftGeometry | None:
     """Generate a smooth, aerodynamic G1-conformal bullnose or beveled edge cap mesh."""
     if tip_type not in ("round", "sharp") or cap.length <= 0.0:
@@ -205,6 +208,12 @@ def build_tip_cap_loft(
         return None
 
     coords = sample_airfoil_points(tip_profile.get("airfoil"))
+    coords = apply_airfoil_shaping(
+        coords,
+        te_thickness=te_thickness,
+        thickness_scale=thickness_scale,
+        camber_scale=camber_scale,
+    )
     upper_b, lower_b = split_airfoil_upper_lower(coords)
     matrix = section_transform(tip_profile, chord=chord, twist_location=twist_location)
 
