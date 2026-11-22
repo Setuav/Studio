@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api import StudioEvents
 from setuav_studio.solver.results import SolverResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -56,6 +57,10 @@ class AnalysisTablePropertyEditor(PropertyTableMixin, QWidget):
         self._create_actions_section()
         self._content_layout.addStretch()
 
+        self._load_data()
+        self._api.subscribe(str(StudioEvents.UNITS_CHANGED), self._on_units_changed)
+
+    def _on_units_changed(self, _payload: object = None) -> None:
         self._load_data()
 
     def _get_result_and_table(self) -> tuple[SolverResult | None, TableDefinition | None]:

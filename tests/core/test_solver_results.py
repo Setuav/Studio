@@ -20,6 +20,7 @@ from setuav_studio.solver.results import (
     TableDefinition,
 )
 from setuav_studio.ui.editor.analysis_plot import AnalysisPlotPropertyEditor
+from setuav_studio.ui.editor.analysis_table import AnalysisTablePropertyEditor
 from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.panels.results import (
     AnalysisChartPanel,
@@ -625,6 +626,48 @@ def test_chart_panel_reload_syncs_x_combo_and_units() -> None:
         panel.reload_plot()
         assert panel._x_combo.currentData() == "alpha"
         panel.deleteLater()
+    finally:
+        units.set_active_preset("si")
+        units.units_changed.emit()
+
+
+def test_analysis_table_editor_updates_headers_on_units_changed(tmp_path: Path) -> None:
+    from setuav_studio.units import get_unit_manager
+
+    units = get_unit_manager()
+    units.set_active_preset("si")
+    try:
+        api = StudioAPI()
+        project = create_project(tmp_path / "project.json")
+        api._host.set_project(project)
+        table = TableDefinition(
+            id="sweep",
+            columns=[TableColumn(key="speed", label="Speed", unit="m/s", quantity_id="velocity")],
+            data={"speed": [10.0, 20.0]},
+        )
+        result = SolverResult(
+            solver_id="org.setuav.aero",
+            config=SolverConfig(solver_id="org.setuav.aero"),
+            tables={"sweep": table},
+        )
+        project.add_solver_result(result)
+
+        editor = AnalysisTablePropertyEditor(
+            api,
+            {"kind": "analysis_table", "result_id": result.id, "table_id": "sweep"},
+        )
+        try:
+            speed_label = editor.columns_table.item(0, 0)
+            assert speed_label is not None
+            assert "m/s" in speed_label.text()
+
+            units.set_display_unit("velocity", "kts")
+            units.units_changed.emit()
+            speed_label = editor.columns_table.item(0, 0)
+            assert speed_label is not None
+            assert "kts" in speed_label.text()
+        finally:
+            editor.deleteLater()
     finally:
         units.set_active_preset("si")
         units.units_changed.emit()
