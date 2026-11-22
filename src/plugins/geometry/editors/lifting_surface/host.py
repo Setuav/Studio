@@ -80,5 +80,8 @@ if TYPE_CHECKING:
         # ControlSurfacesSectionMixin
         def _refresh_control_surfaces(self) -> None: ...
 
+        # TipCapsSectionMixin
+        def _refresh_tip_caps_units(self) -> None: ...
+
 else:
     LiftingSurfaceEditorHost = object

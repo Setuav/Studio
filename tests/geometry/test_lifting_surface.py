@@ -797,6 +797,20 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 0))
         self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 1))
 
+        # Switching length units must convert and refresh the projected winglet metrics
+        from setuav_studio.units import get_unit_manager
+
+        units = get_unit_manager()
+        units.set_active_preset("si")
+        try:
+            units.set_display_unit("length", "in")
+            units.units_changed.emit()
+            self.assertIn("in", editor.metric_height_val.text())
+            self.assertIn("in", editor.metric_span_val.text())
+        finally:
+            units.set_active_preset("si")
+            units.units_changed.emit()
+
     @staticmethod
     def _tip_caps_rows(editor: Any) -> dict[str, int]:
         table = editor.tip_caps_table
