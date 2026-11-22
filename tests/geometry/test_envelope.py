@@ -518,6 +518,54 @@ class EnvelopeEditorUiTests(unittest.TestCase):
             editor.dimension_spins["x"].value(), fuse["envelope"]["size_mm"]["x"], places=3
         )
 
+    def test_envelope_editor_displays_and_edits_active_length_unit(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+        from setuav_studio.units import get_unit_manager
+
+        units = get_unit_manager()
+        units.set_active_preset("si")
+        try:
+            api = StudioAPI()
+            battery = {
+                "id": "battery",
+                "type": "org.setuav.core:battery",
+                "envelope": {
+                    "shape": "box",
+                    "size_mm": {"x": 254.0, "y": 50.8, "z": 25.4},
+                    "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+                },
+            }
+            doc = ProjectDocument(Path("test.json"), "json", {"components": [battery]})
+            api._host.set_project(doc)
+
+            editor = EnvelopeEditor(api, battery)
+            self.addCleanup(editor.deleteLater)
+            units.set_display_unit("length", "in")
+            units.units_changed.emit()
+            self.assertEqual(editor.dimension_spins["x"].suffix().strip(), "in")
+            self.assertAlmostEqual(
+                float(editor.dimension_spins["x"].line_edit.text()), 10.0, places=3
+            )
+
+            cell = editor.dimension_spins["x"]
+            cell._on_focus_in()
+            cell.line_edit.setText("2")
+            cell._on_return_pressed()
+            self.assertAlmostEqual(battery["envelope"]["size_mm"]["x"], 50.8, places=6)
+
+            fuse = _sample_fuselage()
+            sync_component_envelope(fuse)
+            doc_fuse = ProjectDocument(Path("fuse.json"), "json", {"components": [fuse]})
+            api._host.set_project(doc_fuse)
+            fuse_editor = EnvelopeEditor(api, fuse)
+            self.addCleanup(fuse_editor.deleteLater)
+            self.assertIn("in", table_item(fuse_editor.sections_table, 0, 0).text())
+        finally:
+            units.set_active_preset("si")
+
     def test_build_project_geometry_includes_envelopes(self) -> None:
         from pathlib import Path
 

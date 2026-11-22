@@ -18,10 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.units import get_unit_manager
 from setuav_studio.utilities.envelope import (
     is_geometry_envelope,
     resolve_component_envelope,
@@ -87,6 +88,11 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self._set_enabled(False)
 
         self._api.on_project_content_changed(self._on_project_content_changed)
+        self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
+
+    def _on_units_changed(self, _payload: Any = None) -> None:
+        if not self._loading and self._component is not None:
+            self._load_component(self._component)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if self._loading or not self._component_id:
@@ -101,6 +107,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def closeEvent(self, event: Any) -> None:
         self._api.remove_project_content_listener(self._on_project_content_changed)
+        self._api.unsubscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
         super().closeEvent(event)
 
     def update_theme_style(self) -> None:
@@ -256,6 +263,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             max_val=1_000_000_000.0,
             step=1.0,
             decimals=3,
+            quantity="length",
             suffix="mm",
             raw_callback=True,
             on_changed=lambda raw: self._on_vector_changed(cell, raw),
@@ -320,21 +328,29 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self.sections_table.setFixedHeight(23 + len(sections) * 23 + 2)
             from PySide6.QtWidgets import QTableWidgetItem
 
+            units = get_unit_manager()
+            unit_sym = units.get_unit_symbol("length")
             for row, sec in enumerate(sections):
                 if not isinstance(sec, dict):
                     continue
-                st = _number(sec.get("station_x_mm", sec.get("span_y_mm", 0.0)))
-                w = _number(sec.get("width_mm", sec.get("chord_mm", 0.0)))
-                h = _number(sec.get("height_mm", sec.get("thickness_mm", 0.0)))
+                st = units.to_display(
+                    _number(sec.get("station_x_mm", sec.get("span_y_mm", 0.0))), "length"
+                )
+                w = units.to_display(
+                    _number(sec.get("width_mm", sec.get("chord_mm", 0.0))), "length"
+                )
+                h = units.to_display(
+                    _number(sec.get("height_mm", sec.get("thickness_mm", 0.0))), "length"
+                )
                 pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
-                z = _number(pos.get("z", 0.0))
+                z = units.to_display(_number(pos.get("z", 0.0)), "length")
                 sh = sec.get("shape", "box")
                 for col, val in enumerate(
                     (
-                        f"{st:.1f} mm",
-                        f"{w:.1f} mm",
-                        f"{h:.1f} mm",
-                        f"{z:.1f} mm",
+                        f"{st:.1f} {unit_sym}",
+                        f"{w:.1f} {unit_sym}",
+                        f"{h:.1f} {unit_sym}",
+                        f"{z:.1f} {unit_sym}",
                         str(sh).capitalize(),
                     )
                 ):
@@ -410,7 +426,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _load_vector(spins: dict[str, ExpressionPropertyCell], value: object) -> None:
         values = value if isinstance(value, dict) else {}
         for axis, spin in spins.items():
-            spin.setValue(_number(values.get(axis)))
+            spin.setText(str(_number(values.get(axis))))
 
     @staticmethod
     def _find_combo(table: QTableWidget, key: str) -> QComboBox | None:
