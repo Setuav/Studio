@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -50,8 +51,15 @@ class SolverRunner:
     """Manages asynchronous solver execution, progress callbacks, and project document updates."""
 
     def __init__(self, api: StudioAPI) -> None:
-        self._api = api
+        self._api_ref = weakref.ref(api)
         self._registry: dict[str, type[AbstractSolver]] = {}
+
+    @property
+    def _api(self) -> StudioAPI:
+        api = self._api_ref()
+        if api is None:
+            raise RuntimeError("StudioAPI is no longer alive.")
+        return api
 
     def register_solver(self, solver_id: str, solver_cls: type[AbstractSolver]) -> None:
         """Register a solver class by solver ID."""

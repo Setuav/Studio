@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +29,14 @@ class _StudioHost:
     """
 
     def __init__(self, api: StudioAPI) -> None:
-        self._api = api
+        self._api_ref = weakref.ref(api)
+
+    @property
+    def _api(self) -> StudioAPI:
+        api = self._api_ref()
+        if api is None:
+            raise RuntimeError("StudioAPI is no longer alive.")
+        return api
 
     @property
     def undo_stack(self) -> QUndoStack:

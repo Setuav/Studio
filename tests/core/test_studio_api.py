@@ -629,3 +629,22 @@ def test_solver_icons_follow_their_registration() -> None:
     assert studio_api.solver_icon("demo") == "demo_icon"
     studio_api.unregister_solver("demo")
     assert studio_api.solver_icon("demo") == "fa6s.chart-line"
+
+
+def test_studio_api_not_retained_by_unit_manager_after_deletion() -> None:
+    import gc
+    import weakref
+
+    received: list[object] = []
+    studio_api = StudioAPI()
+    studio_api.subscribe(StudioEvents.UNITS_CHANGED, received.append)
+    studio_api.units.units_changed.emit()
+    assert len(received) == 1
+
+    ref = weakref.ref(studio_api)
+    units = studio_api.units
+    del studio_api
+    gc.collect()
+    assert ref() is None
+    units.units_changed.emit()
+    assert len(received) == 1
