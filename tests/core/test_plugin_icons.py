@@ -29,6 +29,10 @@ def test_a_folder_without_svg_icons_is_rejected(tmp_path: Path) -> None:
         register_plugin_icons("org.test.empty", tmp_path)
 
 
+def test_unregister_unknown_plugin_is_a_noop() -> None:
+    unregister_plugin_icons("org.test.never_registered")
+
+
 def test_core_icons_are_the_svgs_of_the_icon_folder() -> None:
     get_qapp()
     icon_dir = Path(__file__).resolve().parents[2] / "src" / "setuav_studio" / "assets" / "icons"

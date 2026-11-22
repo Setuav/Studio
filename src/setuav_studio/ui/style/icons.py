@@ -107,7 +107,7 @@ def register_plugin_icons(plugin_id: str, assets_dir: Path | str) -> None:
 
 def unregister_plugin_icons(plugin_id: str) -> None:
     """Remove the icons :func:`register_plugin_icons` registered for ``plugin_id``."""
-    for name in _PLUGIN_ICON_NAMES.pop(plugin_id):
+    for name in _PLUGIN_ICON_NAMES.pop(plugin_id, ()):
         _PLUGIN_ICON_MAP.pop(name, None)
 
 
