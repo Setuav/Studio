@@ -322,6 +322,9 @@ class DebugPanel(PropertyTableMixin, QWidget):
         self._unsubscribes.append(self._api.on_project_changed(refresh_inspector))
         self._unsubscribes.append(self._api.on_project_content_changed(refresh_inspector))
         self._unsubscribes.append(self._api.on_modified_changed(refresh_inspector))
+        self._unsubscribes.append(
+            self._api.subscribe(StudioEvents.UNITS_CHANGED, refresh_inspector)
+        )
 
         # Event Bus Subscriptions
         events_to_track = (
@@ -505,7 +508,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
             # Units
             units = self._api.units
             u_len = units.get_display_unit("length")
-            u_spd = units.get_display_unit("speed")
+            u_spd = units.get_display_unit("velocity")
             u_mass = units.get_display_unit("mass")
             units_summary = f"length={u_len}, speed={u_spd}, mass={u_mass}"
 

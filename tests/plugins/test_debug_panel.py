@@ -138,3 +138,23 @@ class TestDebugPanel(unittest.TestCase):
 
         self.assertIsNone(panel_ref())
         self.api.set_selection(None)
+
+    def test_inspector_units_summary_shows_velocity_and_refreshes_on_units_changed(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        units = get_unit_manager()
+        units.set_active_preset("si")
+        try:
+            panel = DebugPanel(self.api)
+            panel._refresh_inspector()
+            units_val = panel._property_value(panel.project_table, "units")
+            self.assertIn("speed=m/s", units_val)
+
+            units.set_display_unit("velocity", "kts")
+            units.units_changed.emit()
+            units_val = panel._property_value(panel.project_table, "units")
+            self.assertIn("speed=kts", units_val)
+            panel.close()
+        finally:
+            units.set_active_preset("si")
+            units.units_changed.emit()
