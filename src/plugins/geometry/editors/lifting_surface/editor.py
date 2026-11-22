@@ -117,6 +117,7 @@ class LiftingSurfaceEditor(
             self._load_control_surface(self._control_surface_index)
         if self._section_index >= 0:
             self._load_section(self._section_index)
+        self._refresh_tip_caps_units()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._api.set_section_selection(None)

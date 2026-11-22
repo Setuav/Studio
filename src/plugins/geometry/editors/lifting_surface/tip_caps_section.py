@@ -214,6 +214,11 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         self.tip_caps_table.setCellWidget(metrics_row, 0, self.metric_height_widget)
         self.tip_caps_table.setCellWidget(metrics_row, 1, self.metric_span_widget)
 
+    def _refresh_tip_caps_units(self) -> None:
+        geom = self._geometry()
+        if tip_treatment_type(geom) == "winglet":
+            self._update_winglet_projected_display(winglet_parameters(geom))
+
     def _update_winglet_projected_display(self, winglet: WingletParameters) -> None:
         height_label = getattr(self, "metric_height_val", None)
         span_label = getattr(self, "metric_span_val", None)
@@ -224,9 +229,19 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
             or not isValid(span_label)
         ):
             return
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        sym = um.get_unit_symbol("length")
         h_proj, s_proj = compute_winglet_projected_dimensions(winglet)
-        height_label.setText(f"{h_proj:.1f} mm")
-        span_label.setText(f"{s_proj:.1f} mm")
+        h_disp = um.to_display(h_proj, "length")
+        s_disp = um.to_display(s_proj, "length")
+        height_label.setText(
+            f"{h_disp:.2f} {sym}" if sym == "in" or abs(h_disp) < 10 else f"{h_disp:.1f} {sym}"
+        )
+        span_label.setText(
+            f"{s_disp:.2f} {sym}" if sym == "in" or abs(s_disp) < 10 else f"{s_disp:.1f} {sym}"
+        )
 
     def _on_tip_cap_type_changed(self, new_type: str) -> None:
         if self._loading:
