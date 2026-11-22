@@ -44,12 +44,11 @@ def build_component_models(components: Any, api: Any | None = None) -> list[Comp
 def build_evaluation_context(
     project_data: dict[str, Any],
     api: Any | None = None,
-    config_id: str | None = None,
 ) -> dict[str, Any]:
     """Build complete evaluation context containing resolved parameters and live domain model objects."""
     from setuav_studio.model.scope import build_universal_scope
 
-    return build_universal_scope(project_data, api=api, config_id=config_id)
+    return build_universal_scope(project_data, api=api)
 
 
 def get_available_symbols_metadata(  # noqa: C901
