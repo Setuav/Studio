@@ -413,6 +413,42 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(comp["parameters"]["series"], "3S1P")
         self.assertFalse(api._host.undo_stack.canUndo())
 
+    def test_altitude_is_stored_in_meters_and_shown_in_the_altitude_unit(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test-altitude.json"),
+            kind="json",
+            data={
+                "components": [
+                    {"id": "c-1", "type": "test:c", "name": "C", "parameters": {"altitude": 1000.0}}
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        fields = [
+            ParameterField(
+                key="altitude", label="Altitude", unit="m", quantity="altitude", decimals=0
+            )
+        ]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+        cell = _cell(editor.parameters_table, "altitude")
+        self.assertEqual(cell.line_edit.text(), "1000")
+        self.assertEqual(cell.unit_label.text(), "m")
+
+        units = get_unit_manager()
+        units.set_display_unit("altitude", "ft")
+        units.units_changed.emit()
+        self.assertEqual(cell.line_edit.text(), "3281")
+        self.assertEqual(cell.unit_label.text(), "ft")
+
+        cell.line_edit.setText("500")
+        cell._on_return_pressed()
+        self.assertAlmostEqual(comp["parameters"]["altitude"], 152.4)
+
     def test_table_parameter_field_in_editor(self) -> None:
         api = StudioAPI()
         doc = ProjectDocument(

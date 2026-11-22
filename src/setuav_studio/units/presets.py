@@ -6,6 +6,7 @@ PRESETS: dict[str, dict[str, str]] = {
     "si": {
         "name": "Metric (SI Standard)",
         "length": "mm",
+        "altitude": "m",
         "area": "dm2",
         "volume": "dm3",
         "mass": "g",
@@ -29,6 +30,7 @@ PRESETS: dict[str, dict[str, str]] = {
     "aviation": {
         "name": "Aviation Standard",
         "length": "mm",
+        "altitude": "ft",
         "area": "dm2",
         "volume": "l",
         "mass": "g",
@@ -52,6 +54,7 @@ PRESETS: dict[str, dict[str, str]] = {
     "imperial": {
         "name": "Imperial (US Customary)",
         "length": "in",
+        "altitude": "ft",
         "area": "ft2",
         "volume": "in3",
         "mass": "lb",

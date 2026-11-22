@@ -147,8 +147,10 @@ def test_quantities_registry_consistency_and_precision() -> None:
             # Roundtrip every unit through base unit
             back = u_def.from_base_value(u_def.to_base_value(12.345))
             assert math.isclose(back, 12.345, rel_tol=1e-12), f"{q_id}.{u_id} roundtrip failed"
-            assert get_quantity_for_unit(u_id) == q_id, f"missing lookup for id {u_id}"
-            assert get_quantity_for_unit(u_def.symbol) == q_id, (
+            # Altitude reuses the length units; its fields name the quantity.
+            owner = "length" if q_id == "altitude" else q_id
+            assert get_quantity_for_unit(u_id) == owner, f"missing lookup for id {u_id}"
+            assert get_quantity_for_unit(u_def.symbol) == owner, (
                 f"missing lookup for symbol {u_def.symbol}"
             )
 

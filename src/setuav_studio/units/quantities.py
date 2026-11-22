@@ -98,6 +98,19 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             ),
         },
     ),
+    "altitude": QuantityDefinition(
+        id="altitude",
+        name="Altitude",
+        base_unit_id="m",
+        default_decimals=0,
+        dimension=LENGTH,
+        units={
+            "m": UnitDefinition("m", "m", "Meter (m)", 1.0, 1.0, decimals=0, dimension=LENGTH),
+            "ft": UnitDefinition(
+                "ft", "ft", "Foot (ft)", 0.3048, 1.0 / 0.3048, decimals=0, dimension=LENGTH
+            ),
+        },
+    ),
     "area": QuantityDefinition(
         id="area",
         name="Area",

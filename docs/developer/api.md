@@ -54,7 +54,7 @@ from setuav_studio.solver import AbstractSolver, SolverResult
 
 class HoverSolver(AbstractSolver):
     PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
-        ParameterField(key="altitude", label="Altitude", unit="m", quantity="length"),
+        ParameterField(key="altitude", label="Altitude", unit="m", quantity="altitude"),
     ]
 
     def run(self) -> SolverResult:

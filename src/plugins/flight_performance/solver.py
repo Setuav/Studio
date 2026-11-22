@@ -61,7 +61,7 @@ class FlightPerformanceSolver(AbstractSolver):
             key="altitude",
             label="Altitude",
             unit="m",
-            quantity="length",
+            quantity="altitude",
             field_type=float,
             default=0.0,
             min_value=-500.0,
