@@ -161,17 +161,7 @@ class AnalysisChartPanel(QWidget):
         self._active_x_column = plot.x_column
 
         self._title_label.setText(plot.title or plot.id)
-
-        # Populate X combo
-        self._x_combo.blockSignals(True)
-        self._x_combo.clear()
-        for col in table.columns:
-            self._x_combo.addItem(col.header_text(use_display_units=True), col.key)
-        # Select active X
-        idx = self._x_combo.findData(self._active_x_column)
-        if idx >= 0:
-            self._x_combo.setCurrentIndex(idx)
-        self._x_combo.blockSignals(False)
+        self._sync_x_combo()
 
         self._render_chart()
         if self._show_toolbar:
@@ -180,12 +170,25 @@ class AnalysisChartPanel(QWidget):
             self._toolbar.setVisible(False)
         self._stack.setCurrentWidget(self._chart_widget)
 
+    def _sync_x_combo(self) -> None:
+        if self._current_table is None:
+            return
+        self._x_combo.blockSignals(True)
+        self._x_combo.clear()
+        for col in self._current_table.columns:
+            self._x_combo.addItem(col.header_text(use_display_units=True), col.key)
+        idx = self._x_combo.findData(self._active_x_column)
+        if idx >= 0:
+            self._x_combo.setCurrentIndex(idx)
+        self._x_combo.blockSignals(False)
+
     def reload_plot(self) -> None:
         """Re-render the active plot using updated definition/series."""
         self._chart_widget.chart.zoomReset()
         if self._current_plot is not None:
             self._active_x_column = self._current_plot.x_column
             self._title_label.setText(self._current_plot.title or self._current_plot.id)
+        self._sync_x_combo()
         self._render_chart()
 
     def reset_view(self) -> None:
