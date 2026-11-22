@@ -131,6 +131,7 @@ independent of the display units chosen in **Edit → Settings**:
 | Quantity | Base unit |
 |---|---|
 | Length | mm |
+| Altitude | m |
 | Area | dm² |
 | Volume | dm³ |
 | Mass | g |
