@@ -180,6 +180,9 @@ class DriverPlanformTable(QTableWidget):
                     font.setBold(is_driver)
                     label_item.setFont(font)
 
+                dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
+                q_id = get_quantity_for_unit(unit)
+
                 if is_driver:
                     # Clear underlying item text to prevent ghosting behind the cell widget
                     item = self.item(row, 2)
@@ -189,18 +192,14 @@ class DriverPlanformTable(QTableWidget):
                         self.setItem(row, 2, QTableWidgetItem(""))
 
                     raw_expr = self._driver_expressions.get(key)
-                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
                     if raw_expr:
                         init_str = raw_expr
                     else:
                         from setuav_studio.ui.widget.table import format_engineering_value
 
-                        q_id = get_quantity_for_unit(unit)
-                        disp_val = um.to_display(val, q_id) if q_id else val
-                        init_str = format_engineering_value(disp_val, dec)
+                        init_str = format_engineering_value(val, dec)
 
                     label_name = PLANFORM_PARAM_LABELS[key]
-                    q_id = get_quantity_for_unit(unit)
                     cell = ExpressionPropertyCell(
                         initial_value=init_str,
                         on_changed=lambda s, k=key: self._on_expression_cell_changed(k, s),
@@ -214,8 +213,6 @@ class DriverPlanformTable(QTableWidget):
                     self.setCellWidget(row, 2, cell)
                 else:
                     self.removeCellWidget(row, 2)
-                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
-                    q_id = get_quantity_for_unit(unit)
                     if q_id:
                         disp_val = um.to_display(val, q_id)
                         sym = um.get_unit_symbol(q_id)

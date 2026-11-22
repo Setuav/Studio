@@ -168,6 +168,28 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         finally:
             um.set_display_unit("length", length_unit)
 
+    def test_planform_driver_cell_does_not_double_convert_display_units(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        _api, editor, _wing = self._fixture_wing_editor()
+        um = get_unit_manager()
+        length_unit = um.get_display_unit("length")
+        try:
+            span_row = PLANFORM_PARAM_KEYS.index("span")
+            span_mm = cell_widget(
+                editor.planform_table, span_row, 2, ExpressionPropertyCell
+            ).value()
+
+            um.set_display_unit("length", "in")
+            um.units_changed.emit()
+
+            span_cell = cell_widget(editor.planform_table, span_row, 2, ExpressionPropertyCell)
+            self.assertAlmostEqual(float(span_cell.line_edit.text()), span_mm / 25.4, delta=0.05)
+            self.assertAlmostEqual(span_cell.value(), span_mm, delta=0.1)
+        finally:
+            um.set_display_unit("length", length_unit)
+            um.units_changed.emit()
+
     def test_section_formulas_are_kept_and_follow_project_parameters(self) -> None:
         api, editor, wing = self._fixture_wing_editor()
         geometry = wing["parameters"]["geometry"]
