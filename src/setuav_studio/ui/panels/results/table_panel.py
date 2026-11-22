@@ -448,6 +448,7 @@ class AnalysisTablePanel(QWidget):
     def _on_units_changed(self, _payload: Any = None) -> None:
         if self._model is not None:
             self._model.set_use_display_units(self._use_display_units)
+            self._table_view.auto_fit_columns()
 
     def _export_csv(self) -> None:
         if not self._current_table:

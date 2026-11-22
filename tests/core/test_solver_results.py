@@ -586,3 +586,45 @@ def test_analysis_plot_editor_updates_default_label_when_y_column_changes() -> N
             assert plot.series[idx].label == expected_label
     finally:
         editor.deleteLater()
+
+
+def test_chart_panel_reload_syncs_x_combo_and_units() -> None:
+    from setuav_studio.units import get_unit_manager
+
+    units = get_unit_manager()
+    units.set_active_preset("si")
+    try:
+        api = StudioAPI()
+        config = SolverConfig(solver_id="org.setuav.aero", name="Sweep")
+        result = SolverResult(solver_id=config.solver_id, config=config)
+        table = TableDefinition(
+            id="sweep",
+            columns=[
+                TableColumn(key="speed", label="Speed", unit="m/s", quantity_id="velocity"),
+                TableColumn(key="alpha", label="AoA", unit="deg", quantity_id="angle"),
+                TableColumn(key="cl", label="CL"),
+            ],
+            data={"speed": [10.0, 20.0], "alpha": [0.0, 5.0], "cl": [0.2, 0.7]},
+        )
+        plot = PlotDefinition(
+            id="curve",
+            table_id="sweep",
+            x_column="speed",
+            series=[PlotSeriesDef(y_column="cl")],
+        )
+        panel = AnalysisChartPanel(api)
+        panel.load_plot(plot, table, result)
+        assert panel._x_combo.currentData() == "speed"
+        assert "m/s" in panel._x_combo.itemText(0)
+
+        units.set_display_unit("velocity", "kts")
+        units.units_changed.emit()
+        assert "kts" in panel._x_combo.itemText(0)
+
+        plot.x_column = "alpha"
+        panel.reload_plot()
+        assert panel._x_combo.currentData() == "alpha"
+        panel.deleteLater()
+    finally:
+        units.set_active_preset("si")
+        units.units_changed.emit()
