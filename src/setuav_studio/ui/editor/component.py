@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from setuav_studio.api import ParameterField, TableParameterField
+from setuav_studio.api import ParameterField, StudioEvents, TableParameterField
 from setuav_studio.model.expression import (
     ExpressionEvaluator,
     get_expression,
@@ -40,6 +40,7 @@ from setuav_studio.ui.widget.table import (
     FocusAwareLineEdit,
     PropertyTableMixin,
 )
+from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -173,12 +174,20 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _column_quantity(col_field: ParameterField) -> str | None:
+    return col_field.quantity or get_quantity_for_unit(col_field.unit)
+
+
 def _format_table_cell_value(val: Any, col_field: ParameterField) -> str:
     """Display text of a stored table cell value."""
-    if col_field.field_type is float and _is_number(val):
-        return f"{float(val):.{col_field.decimals}f}"
-    if col_field.field_type is int and _is_number(val):
-        return str(int(val))
+    if col_field.field_type in (float, int) and _is_number(val):
+        quantity = _column_quantity(col_field)
+        num = float(val)
+        if quantity:
+            num = get_unit_manager().to_display(num, quantity)
+        if col_field.field_type is float:
+            return f"{num:.{col_field.decimals}f}"
+        return str(round(num))
     return str(val if val is not None else "")
 
 
@@ -237,6 +246,22 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._load_component()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_external_content_changed)
+            if self._table_fields:
+                unsub_units = self._api.subscribe(
+                    StudioEvents.UNITS_CHANGED, self._refresh_table_units
+                )
+                self.destroyed.connect(lambda *_: unsub_units())
+
+    def _refresh_table_units(self, _payload: Any = None) -> None:
+        if self._loading or not self._table_fields:
+            return
+        params = self._component.get("parameters", {})
+        if not isinstance(params, dict):
+            return
+        for tf in self._table_fields:
+            rows = params.get(tf.key)
+            if isinstance(rows, list):
+                self._populate_table_widget(tf, rows)
 
     def closeEvent(self, event: Any) -> None:
         if self._api is not None:
@@ -439,8 +464,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             )
             table.setItem(0, 0, unit_hdr)
 
+            um = get_unit_manager()
             for c_idx, col_field in enumerate(tf.columns):
-                u = col_field.unit
+                quantity = _column_quantity(col_field)
+                u = um.get_unit_symbol(quantity) if quantity else col_field.unit
                 unit_text = f"[{u}]" if u else "[-]"
                 u_item = QTableWidgetItem(unit_text)
                 u_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -556,18 +583,33 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         value: Any = raw_text
         expression: str | None = None
         if col_field.field_type in (float, int):
-            parsed = evaluate_table_cell_input(
-                raw_text,
-                self._api,
-                label=f"{tf.label} {col_field.label}",
-                min_val=col_field.min_value,
-                max_val=col_field.max_value,
-            )
+            quantity = _column_quantity(col_field)
+            is_formula = ExpressionEvaluator.is_expression(raw_text)
+            if quantity and not is_formula:
+                parsed = evaluate_table_cell_input(
+                    raw_text,
+                    self._api,
+                    label=f"{tf.label} {col_field.label}",
+                )
+            else:
+                parsed = evaluate_table_cell_input(
+                    raw_text,
+                    self._api,
+                    label=f"{tf.label} {col_field.label}",
+                    min_val=col_field.min_value,
+                    max_val=col_field.max_value,
+                )
             if parsed is None:
                 # Put the stored value back; the status bar names the error.
                 self._populate_table_widget(tf, rows)
                 return
             value, expression = parsed
+            if quantity and not is_formula:
+                value = get_unit_manager().to_base(value, quantity)
+                if col_field.min_value is not None:
+                    value = max(col_field.min_value, value)
+                if col_field.max_value is not None:
+                    value = min(col_field.max_value, value)
             if col_field.field_type is int:
                 value = round(value)
         if row_data.get(col_field.key) == value and (

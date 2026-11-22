@@ -651,6 +651,85 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(comp["mass"], 0.0)
         self.assertEqual(cell.value(), 0.0)
 
+    def test_table_parameter_field_converts_active_display_units(self) -> None:
+        from setuav_studio.api import StudioEvents, TableParameterField
+        from setuav_studio.units import get_unit_manager
+
+        units = get_unit_manager()
+        units.set_active_preset("si")
+        try:
+            api = StudioAPI()
+            doc = ProjectDocument(
+                Path("/tmp/test-table-units.json"),
+                "json",
+                {
+                    "parameters": {"SPAN": 1016.0},
+                    "components": [
+                        {
+                            "id": "wing-u",
+                            "type": "test:wing",
+                            "name": "Wing",
+                            "parameters": {
+                                "sections": [
+                                    {"offset": 0.0, "chord": 254.0},
+                                    {"offset": 508.0, "chord": 127.0},
+                                ]
+                            },
+                        }
+                    ],
+                },
+            )
+            api._host.set_project(doc)
+            comp = doc.data["components"][0]
+            fields = [
+                TableParameterField(
+                    key="sections",
+                    label="Stations",
+                    columns=(
+                        ParameterField(key="offset", label="Offset", unit="mm", field_type=float),
+                        ParameterField(key="chord", label="Chord", unit="mm", field_type=float),
+                    ),
+                )
+            ]
+            units.set_display_unit("length", "in")
+            editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+            self.addCleanup(editor.deleteLater)
+
+            table = editor._table_widgets["sections"]
+            unit_item = table.item(0, 2)
+            val_item = table.item(1, 2)
+            assert unit_item is not None and val_item is not None
+            self.assertEqual(unit_item.text(), "[in]")
+            self.assertEqual(val_item.text(), "10.00")
+
+            # Live unit change updates headers and formatted cell values.
+            units.set_display_unit("length", "cm")
+            api.publish(StudioEvents.UNITS_CHANGED, None)
+            unit_item = table.item(0, 2)
+            val_item = table.item(1, 2)
+            assert unit_item is not None and val_item is not None
+            self.assertEqual(unit_item.text(), "[cm]")
+            self.assertEqual(val_item.text(), "25.40")
+
+            # Numeric edit converts display unit -> base unit (mm).
+            units.set_display_unit("length", "in")
+            api.publish(StudioEvents.UNITS_CHANGED, None)
+            edit_item = table.item(2, 2)
+            assert edit_item is not None
+            edit_item.setText("2.0")
+            self.assertAlmostEqual(comp["parameters"]["sections"][1]["chord"], 50.8, places=6)
+
+            # Formula edit evaluates in base units and displays in active display unit.
+            formula_item = table.item(2, 2)
+            assert formula_item is not None
+            formula_item.setText("=SPAN / 2")
+            self.assertAlmostEqual(comp["parameters"]["sections"][1]["chord"], 508.0, places=6)
+            displayed = table.item(2, 2)
+            assert displayed is not None
+            self.assertEqual(displayed.text(), "20.00")
+        finally:
+            units.set_active_preset("si")
+
 
 if __name__ == "__main__":
     unittest.main()
