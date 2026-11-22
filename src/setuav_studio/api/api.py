@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import weakref
 from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager
 from copy import deepcopy
@@ -123,13 +124,35 @@ class StudioAPI:
         from setuav_studio.solver import SolverRunner
 
         self._solver_runner = SolverRunner(self)
+        api_ref = weakref.ref(self)
         self._undo_stack = QUndoStack()
-        self._undo_stack.cleanChanged.connect(self._on_clean_changed)
+
+        def _on_clean(clean: bool) -> None:
+            if (api := api_ref()) is not None:
+                api._on_clean_changed(clean)
+
+        def _notify_content() -> None:
+            if (api := api_ref()) is not None:
+                api._notify_project_content_changed()
+
+        # Keep Qt-owned undo commands and signals off a strong reference cycle to self
+        # so PySide6's cyclic GC never tears down QUndoStack/QUndoCommand out of order.
+        self._weak_notify_content: Callable[[], None] = _notify_content
+        self._undo_stack.cleanChanged.connect(_on_clean)
         self._host = _StudioHost(self)
         self._viewport: Any | None = None
         from setuav_studio.units import get_unit_manager
 
-        get_unit_manager().units_changed.connect(lambda: self.publish(StudioEvents.UNITS_CHANGED))
+        unit_manager = get_unit_manager()
+
+        def _on_units_changed() -> None:
+            api = api_ref()
+            if api is None:
+                unit_manager.units_changed.disconnect(_on_units_changed)
+                return
+            api.publish(StudioEvents.UNITS_CHANGED)
+
+        unit_manager.units_changed.connect(_on_units_changed)
 
     @property
     def units(self) -> UnitManager:
@@ -424,7 +447,7 @@ class StudioAPI:
                 target,
                 diffs,
                 description,
-                self._notify_project_content_changed,
+                self._weak_notify_content,
                 source=component if target is not component else None,
             )
         )
@@ -490,7 +513,7 @@ class StudioAPI:
                 self._project,
                 diffs,
                 description,
-                self._notify_project_content_changed,
+                self._weak_notify_content,
             )
         )
 

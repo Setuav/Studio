@@ -6,6 +6,7 @@ import logging
 import threading
 import time
 import uuid
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
@@ -199,7 +200,7 @@ class TaskManager(QObject):
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self._api = api
+        self._api_ref = weakref.ref(api) if api is not None else None
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self._handles: dict[str, TaskHandleImpl[Any]] = {}
         self._tokens: dict[str, _TaskCancellationToken] = {}
@@ -207,6 +208,10 @@ class TaskManager(QObject):
         self._callbacks: dict[str, dict[str, Any]] = {}
         self._history_order: list[str] = []
         self._lock = threading.Lock()
+
+    @property
+    def _api(self) -> StudioAPI | None:
+        return self._api_ref() if self._api_ref is not None else None
 
     @property
     def thread_pool(self) -> QThreadPool:
