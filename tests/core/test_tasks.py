@@ -171,6 +171,40 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn(handle.id, [h.id for h in recent])
         dlg.close()
 
+    def test_task_manager_dialog_cancel_button_tracks_shifted_rows(self) -> None:
+        import threading
+
+        from PySide6.QtWidgets import QToolButton
+
+        gate_first = threading.Event()
+        gate_second = threading.Event()
+
+        def wait_second(token: CancellationToken) -> None:
+            while not gate_second.wait(0.02):
+                token.check_cancelled()
+
+        try:
+            first = self.tm.submit(name="First Task", target=lambda _t: gate_first.wait(5.0))
+            second = self.tm.submit(name="Second Task", target=wait_second)
+            dlg = TaskManagerDialog(self.api)
+            dlg._refresh_all()
+            self.assertEqual(dlg._active_table.rowCount(), 2)
+
+            # Finish first task so second task shifts into row 0.
+            gate_first.set()
+            _wait_for_task(first)
+            dlg._refresh_all()
+            self.assertEqual(dlg._active_table.rowCount(), 1)
+
+            btn = dlg._active_table.cellWidget(0, 4)
+            assert isinstance(btn, QToolButton)
+            btn.click()
+            self.assertTrue(second.is_cancelled)
+            dlg.close()
+        finally:
+            gate_first.set()
+            gate_second.set()
+
     def test_task_events_published_to_bus(self) -> None:
         events = []
         self.api.subscribe(
