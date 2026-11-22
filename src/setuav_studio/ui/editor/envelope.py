@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio.units import get_unit_manager
 from setuav_studio.utilities.envelope import (
@@ -274,11 +274,34 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _on_vector_changed(self, cell: ExpressionPropertyCell, raw: str) -> None:
         if self._loading:
             return
+        dim_axis = next((a for a, s in self.dimension_spins.items() if s is cell), None)
+        is_dimension = dim_axis is not None
+        axis = dim_axis or next((a for a, s in self.offset_spins.items() if s is cell), None)
         # The envelope's volume and inertia are derived when it is set, so its sizes
         # take numbers only; a formula would not update them.
-        if raw.startswith("="):
-            cell.set_error("Envelope sizes take numbers, not formulas.")
+        if raw.strip().startswith("="):
+            msg = "Envelope sizes take numbers, not formulas."
+            if self._component is not None and axis is not None:
+                vec_key = "size_mm" if is_dimension else "offset_mm"
+                vec = self._envelope(self._component).get(vec_key)
+                if isinstance(vec, dict):
+                    cell.setText(str(_number(vec.get(axis))))
+            cell.set_error(msg)
+            self._api.show_status(msg, "error")
             return
+        min_val = 0.0 if is_dimension else -1_000_000_000.0
+        parsed = evaluate_table_cell_input(
+            raw,
+            self._api,
+            cell=cell,
+            label="Envelope dimension" if is_dimension else "Envelope offset",
+            min_val=min_val,
+            max_val=1_000_000_000.0,
+        )
+        if parsed is None:
+            return
+        if parsed[0] != cell.value():
+            cell.setText(str(parsed[0]))
         self._update_envelope()
 
     def _load_component(self, component: dict[str, Any]) -> None:

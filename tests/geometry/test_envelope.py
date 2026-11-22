@@ -473,6 +473,50 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         editor.shape_combo.setCurrentIndex(editor.shape_combo.findData("sphere"))
         self.assertAlmostEqual(editor.volume_value(), box_volume * math.pi / 6.0, delta=1.0)
 
+    def test_envelope_editor_rejects_invalid_and_clamps_negative_dimensions(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        battery = {
+            "id": "battery",
+            "type": "org.setuav.core:battery",
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": 140.0, "y": 45.0, "z": 30.0},
+                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+        }
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [battery]})
+        api._host.set_project(doc)
+
+        editor = EnvelopeEditor(api, battery)
+        self.addCleanup(editor.deleteLater)
+        cell = editor.dimension_spins["x"]
+
+        cell._on_focus_in()
+        cell.line_edit.setText("abc")
+        cell._on_return_pressed()
+        self.assertTrue(cell._has_error)
+        self.assertEqual(battery["envelope"]["size_mm"]["x"], 140.0)
+        self.assertFalse(api.can_undo)
+
+        cell._on_focus_in()
+        cell.line_edit.setText(" = 10 + 5")
+        cell._on_return_pressed()
+        self.assertTrue(cell._has_error)
+        self.assertEqual(battery["envelope"]["size_mm"]["x"], 140.0)
+        self.assertFalse(api.can_undo)
+
+        cell._on_focus_in()
+        cell.line_edit.setText("-50")
+        cell._on_return_pressed()
+        self.assertFalse(cell._has_error)
+        self.assertEqual(battery["envelope"]["size_mm"]["x"], 0.0)
+        self.assertEqual(cell.value(), 0.0)
+
     def test_envelope_editor_populates_sections_table(self) -> None:
         from pathlib import Path
 
