@@ -678,6 +678,20 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(min(all_sharp_y), 500.0, places=2)
         self.assertAlmostEqual(max(all_sharp_y), 515.0, places=2)
 
+        # 4. Round/sharp tip caps must honor airfoil_shaping to stay flush with tip section
+        wing_shaped = deepcopy(wing_round)
+        wing_shaped["parameters"]["geometry"]["airfoil_shaping"] = {
+            "thickness_scale": 2.0,
+            "camber_scale": 1.0,
+            "te_thickness": 0.0,
+        }
+        lofts_shaped = build_lifting_surface_geometry(wing_shaped)
+        wing_tip_zs = [p[2] for p in lofts_shaped[0].sections[-1].points]
+        cap_upper_zs = [p[2] for p in lofts_shaped[1].sections[0].points]
+        cap_lower_zs = [p[2] for p in lofts_shaped[1].sections[-1].points]
+        self.assertAlmostEqual(max(cap_upper_zs), max(wing_tip_zs), places=2)
+        self.assertAlmostEqual(min(cap_lower_zs), min(wing_tip_zs), places=2)
+
     def test_lifting_surface_editor_tip_caps_ui(self) -> None:
         """Verify LiftingSurfaceEditor tip caps table interactions and project mutation."""
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
