@@ -666,10 +666,13 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._api,
             cell=cell,
             label="Mass",
+            min_val=0.0,
         )
         if parsed is None:
             return
         num_val, new_expr = parsed
+        if cell is not None and new_expr is None:
+            cell.setText(str(num_val))
         if (
             self._component.get("mass") == num_val
             and get_expression(self._component, "mass") == new_expr

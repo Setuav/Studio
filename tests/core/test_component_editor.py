@@ -592,6 +592,29 @@ class TestComponentEditor(unittest.TestCase):
         cell._on_return_pressed()
         self.assertIsNone(comp["parameters"]["limit"])
 
+    def test_base_component_editor_clamps_negative_mass(self) -> None:
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test-mass-clamp.json"),
+            kind="json",
+            data={
+                "components": [
+                    {"id": "pm-1", "type": "test:pm", "name": "PM", "mass": 25.0, "parameters": {}}
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        editor = BaseComponentEditor(api, comp)
+        self.addCleanup(editor.deleteLater)
+
+        cell = _cell(editor.general_table, "mass")
+        cell._on_focus_in()
+        cell.line_edit.setText("-50")
+        cell._on_return_pressed()
+        self.assertEqual(comp["mass"], 0.0)
+        self.assertEqual(cell.value(), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
