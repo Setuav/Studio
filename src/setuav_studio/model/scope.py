@@ -74,7 +74,6 @@ def to_dot_dict(val: Any) -> Any:
 def build_universal_scope(  # noqa: C901
     project_data: dict[str, Any] | Any,
     api: Any | None = None,
-    config_id: str | None = None,
 ) -> dict[str, Any]:
     """Build the universal evaluation scope containing resolved parameters, models, and extensions."""
     from setuav_studio.model.parameter import ParameterResolver

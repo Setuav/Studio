@@ -173,11 +173,11 @@ class ProjectDocument:
 
         return resolve_aircraft_mass_properties(self)
 
-    def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
+    def get_scope(self, api: Any | None = None) -> dict[str, Any]:
         """Return the complete runtime evaluation scope containing resolved parameters and live component models."""
         from setuav_studio.model.scope import build_universal_scope
 
-        return build_universal_scope(self.data, api=api, config_id=config_id)
+        return build_universal_scope(self.data, api=api)
 
 
 #: Version of the project file layout as (major, minor). Raise the minor when fields

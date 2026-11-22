@@ -74,12 +74,11 @@ class ConstraintChecker:
         self,
         project_data: dict[str, Any],
         api: Any | None = None,
-        config_id: str | None = None,
     ) -> dict[str, Any]:
         """Build evaluation context containing resolved parameters and component values."""
         from setuav_studio.model.symbol import build_evaluation_context
 
-        return build_evaluation_context(project_data, api=api, config_id=config_id)
+        return build_evaluation_context(project_data, api=api)
 
     def check_constraint(
         self,
@@ -87,7 +86,6 @@ class ConstraintChecker:
         project_data: dict[str, Any],
         context: dict[str, Any] | None = None,
         api: Any | None = None,
-        config_id: str | None = None,
     ) -> ConstraintResult:
         """Evaluate a single constraint against the project context."""
         cid = str(constraint.get("id") or "")
@@ -122,9 +120,7 @@ class ConstraintChecker:
             )
 
         eval_ctx = dict(
-            context
-            if context is not None
-            else self.extract_context(project_data, api=api, config_id=config_id)
+            context if context is not None else self.extract_context(project_data, api=api)
         )
 
         var_mappings = constraint.get("variables")
@@ -172,7 +168,6 @@ class ConstraintChecker:
     def check_all(
         self,
         project_data: dict[str, Any],
-        config_id: str | None = None,
         api: Any | None = None,
     ) -> list[ConstraintResult]:
         """Evaluate all constraints defined in project."""
@@ -180,11 +175,9 @@ class ConstraintChecker:
         if not isinstance(constraints, list):
             return []
 
-        context = self.extract_context(project_data, api=api, config_id=config_id)
+        context = self.extract_context(project_data, api=api)
         results: list[ConstraintResult] = []
         for c in constraints:
             if isinstance(c, dict):
-                results.append(
-                    self.check_constraint(c, project_data, context, api=api, config_id=config_id)
-                )
+                results.append(self.check_constraint(c, project_data, context, api=api))
         return results
