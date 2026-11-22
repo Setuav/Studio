@@ -112,6 +112,16 @@ class PropertiesPanel(QWidget):
                 # Same item and still pointing to the active component
                 return
 
+        if kind == "parameter" and isinstance(selection, dict):
+            from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+
+            if (
+                isinstance(self._current_widget, ParameterPropertyEditor)
+                and selection.get("key") == self._current_widget._param_key
+            ):
+                self._current_selection_key = new_key
+                return
+
         self._current_selection_key = new_key
         self._current_component = live_selection if kind in ("", "component") else None
 
