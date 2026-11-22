@@ -213,3 +213,31 @@ def test_component_type_label_comes_from_the_type_contribution() -> None:
 
     assert format_component_type(surface, [surface, box], api) == "Surface (flap)"
     assert format_component_type(box, [surface, box], api) == "Box"
+
+
+def test_delete_analysis_config_and_undo_restores_results(tmp_path: Any) -> None:
+    from setuav_studio.project import create_project
+    from setuav_studio.solver import SolverConfig, SolverResult
+
+    get_qapp()
+    api = StudioAPI()
+    project = create_project(tmp_path / "analysis_undo.suav")
+    cfg = SolverConfig(config_id="cfg-1", solver_id="org.test.solver", name="Cruise Polar")
+    result = SolverResult(id="res-1", solver_id="org.test.solver", config=cfg)
+    project.add_solver_config(cfg)
+    project.add_solver_result(result)
+    api._host.set_project(project)
+
+    explorer = ProjectExplorer(api)
+    try:
+        explorer._ops.confirm_delete = lambda *_args, **_kwargs: True  # type: ignore[method-assign]
+        explorer._ops.delete_analysis_config_item({"config_id": "cfg-1", "name": "Cruise Polar"})
+
+        assert project.get_solver_config("cfg-1") is None
+        assert project.get_solver_result("res-1") is None
+
+        api.undo()
+        assert project.get_solver_config("cfg-1") is not None
+        assert project.get_solver_result("res-1") is not None
+    finally:
+        explorer.deleteLater()
