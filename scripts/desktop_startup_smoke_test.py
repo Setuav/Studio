@@ -9,7 +9,6 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-TEST_PROJECT = PROJECT_ROOT / "tests" / "fixtures" / "fixed-wing" / "project.json"
 SMOKE_TEST_TIMEOUT_SECONDS = int(os.environ.get("SETUAV_DESKTOP_SMOKE_TIMEOUT", "60"))
 
 
