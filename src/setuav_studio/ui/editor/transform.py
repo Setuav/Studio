@@ -87,8 +87,14 @@ class TransformEditor(PropertyTableMixin, QWidget):
             self._set_enabled(False)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
-        if not self._loading and self._component is not None:
-            self._load_component(self._component)
+        if self._loading or self._component is None:
+            return
+        comp_id = str(self._component.get("id") or "")
+        if comp_id and self._api.project is not None:
+            live = self._api.project.get_component(comp_id)
+            if live is not None:
+                self._component = live
+        self._load_component(self._component)
 
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:
@@ -282,6 +288,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:
+        self._component = component
         self._loading = True
         try:
             self._set_property_value(
@@ -308,7 +315,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                     target_data=pos,
                     transform_kind="position",
                     axis=axis,
-                    value=pos.get(axis, 0.0),
+                    value=_number(pos.get(axis)),
                     label=f"Position {axis.upper()}",
                 )
             for col, axis in enumerate(("roll", "pitch", "yaw")):
@@ -324,7 +331,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                     target_data=rot,
                     transform_kind="rotation",
                     axis=axis,
-                    value=rot.get(axis, 0.0),
+                    value=_number(rot.get(axis)),
                     label=f"Rotation {axis.title()}",
                 )
         finally:
@@ -385,9 +392,13 @@ class TransformEditor(PropertyTableMixin, QWidget):
             return
         if target_id == str(self._component.get("attach_to") or ""):
             return
-        self._api.attach_component(
-            self._component, target_id or None, preserve_world_transform=True
-        )
+        self._loading = True
+        try:
+            self._api.attach_component(
+                self._component, target_id or None, preserve_world_transform=True
+            )
+        finally:
+            self._loading = False
         self._load_component(self._component)
 
     def _set_enabled(self, enabled: bool) -> None:
