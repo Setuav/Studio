@@ -36,6 +36,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self._api = api
         self._param_key = str(param_item["key"])
+        self._key_history: list[str] = [self._param_key]
         self._resolver = ParameterResolver()
         self._loading = False
         self._current_quantity: str = ""
@@ -65,12 +66,37 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             )
             self.destroyed.connect(lambda *_: unsub())
 
+    def _selection_payload(self, value: Any) -> dict[str, Any]:
+        return {
+            "kind": "parameter",
+            "id": f"param_{self._param_key}",
+            "key": self._param_key,
+            "value": value,
+        }
+
     def _on_project_content_changed(self, _payload: Any = None) -> None:
         if self._loading:
             return
         data = self._get_project_data()
-        if data and self._param_key in data.get("parameters", {}):
+        if not data:
+            return
+        params = data.get("parameters", {})
+        if self._param_key in params:
             self._load_data()
+            return
+        for candidate in reversed(self._key_history):
+            if candidate in params:
+                self._param_key = candidate
+                self._load_data()
+                sel = self._api.current_selection
+                if (
+                    self._api is not None
+                    and isinstance(sel, dict)
+                    and sel.get("kind") == "parameter"
+                    and sel.get("key") in self._key_history
+                ):
+                    self._api.set_selection(self._selection_payload(params.get(candidate)))
+                return
 
     def _create_section(
         self,
@@ -333,7 +359,12 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
 
         if key == "name":
             clean_name = val_text.strip()
-            if clean_name and clean_name != self._param_key:
+            if not clean_name:
+                if self._api is not None:
+                    self._api.show_status("Parameter name cannot be empty.", "warning", 3000)
+                self._load_data()
+                return
+            if clean_name != self._param_key:
                 if clean_name in raw_params:
                     self._api.show_status(
                         f"Parameter '{clean_name}' already exists.", "warning", 3000
@@ -341,6 +372,8 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                     self._load_data()
                     return
                 old_key = self._param_key
+                if clean_name not in self._key_history:
+                    self._key_history.append(clean_name)
 
                 def _apply() -> None:
                     val = raw_params.pop(old_key, 0.0)
@@ -348,3 +381,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
 
                 self._param_key = clean_name
                 self._api.edit_project(f"Rename parameter '{old_key}' to '{clean_name}'", _apply)
+                sel = self._api.current_selection
+                if (
+                    self._api is not None
+                    and isinstance(sel, dict)
+                    and sel.get("kind") == "parameter"
+                    and sel.get("key") == old_key
+                ):
+                    self._api.set_selection(self._selection_payload(raw_params.get(clean_name)))

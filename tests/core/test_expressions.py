@@ -800,3 +800,59 @@ def test_parameter_and_constraint_editors_follow_undo(tmp_path: Path) -> None:
     assert isinstance(expr_widget, ConstraintExpressionCell)
     assert expr_widget.text() == "k >= 5"
     const_editor.deleteLater()
+
+
+def test_parameter_rename_updates_selection_and_follows_undo_redo(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from setuav_studio.ui.panels.properties import PropertiesPanel
+    from setuav_studio.ui.shell.native_registrations import register_native_kind_editors
+    from tests._common import get_qapp
+
+    get_qapp()
+    proj = ProjectDocument(
+        tmp_path / "rename_param.json",
+        "json",
+        {"parameters": {"k": 10.0}, "components": []},
+    )
+    api = StudioAPI()
+    register_native_kind_editors(api)
+    api._host.set_project(proj)
+
+    panel = PropertiesPanel(api)
+    initial_sel = {"kind": "parameter", "id": "param_k", "key": "k", "value": 10.0}
+    api.set_selection(initial_sel)
+    editor = panel._current_widget
+    assert isinstance(editor, ParameterPropertyEditor)
+
+    # Empty name restores original parameter name without modifying project data.
+    name_item = editor.general_table.item(0, 1)
+    assert name_item is not None
+    name_item.setText("   ")
+    assert name_item.text() == "k"
+    assert "k" in proj.data["parameters"]
+
+    # Valid rename updates project data, active selection, and supports undo/redo.
+    name_item.setText("k_renamed")
+    assert "k_renamed" in proj.data["parameters"]
+    assert "k" not in proj.data["parameters"]
+    assert api.current_selection is not None
+    assert api.current_selection.get("id") == "param_k_renamed"
+    assert api.current_selection.get("key") == "k_renamed"
+
+    api.undo()
+    assert "k" in proj.data["parameters"]
+    assert "k_renamed" not in proj.data["parameters"]
+    assert api.current_selection is not None
+    assert api.current_selection.get("key") == "k"
+    current_editor = panel._current_widget
+    assert isinstance(current_editor, ParameterPropertyEditor)
+    restored_name = current_editor.general_table.item(0, 1)
+    assert restored_name is not None
+    assert restored_name.text() == "k"
+
+    api.redo()
+    assert "k_renamed" in proj.data["parameters"]
+    assert api.current_selection is not None
+    assert api.current_selection.get("key") == "k_renamed"
+    panel.deleteLater()
