@@ -7,6 +7,7 @@ from typing import Any, ClassVar, cast
 from unittest.mock import patch
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import QTreeWidgetItem, QWidget
 
 from setuav_studio.api import SettingsPageContribution
@@ -136,6 +137,29 @@ class CoreSettingsTests(unittest.TestCase):
         item.setData(0, Qt.ItemDataRole.UserRole + 1, -1)
         dialog._on_category_changed(item, None)
         self.assertEqual(dialog.page_stack.currentIndex(), 0)
+
+    def test_plugin_pages_accept_qicon_for_page_and_group(self) -> None:
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(QColor("#336699"))
+        icon = QIcon(pixmap)
+        pages = (
+            SettingsPageContribution(
+                "icon_page",
+                "Icon Page",
+                QWidget,
+                icon=icon,
+                group="Custom Icons",
+                group_icon=icon,
+            ),
+        )
+        dialog = SettingsDialog(StudioSettings(), pages=pages)
+        self.addCleanup(dialog.deleteLater)
+
+        group_item = dialog._group_items["Custom Icons"]
+        self.assertFalse(group_item.icon(0).isNull())
+        child_item = group_item.child(0)
+        assert child_item is not None
+        self.assertFalse(child_item.icon(0).isNull())
 
 
 if __name__ == "__main__":

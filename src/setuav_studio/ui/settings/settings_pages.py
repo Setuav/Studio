@@ -234,12 +234,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
                 font.setBold(True)
                 group_item.setFont(0, font)
                 if group_icon:
-                    group_item.setIcon(
-                        0,
-                        get_icon(group_icon)
-                        if isinstance(group_icon, str)
-                        else QIcon(str(group_icon)),
-                    )
+                    group_item.setIcon(0, get_icon(group_icon))
                 elif group_name == "Application":
                     group_item.setIcon(0, get_icon("settings"))
                 else:
@@ -251,7 +246,7 @@ class SettingsDialog(PropertyTableMixin, QDialog):
             item = QTreeWidgetItem(self.category_tree, [title])
 
         if icon:
-            item.setIcon(0, get_icon(icon) if isinstance(icon, str) else QIcon(str(icon)))
+            item.setIcon(0, get_icon(icon))
         item.setData(0, Qt.ItemDataRole.UserRole, page_id)
         item.setData(0, Qt.ItemDataRole.UserRole + 1, page_index)
         if self._first_page_item is None:
