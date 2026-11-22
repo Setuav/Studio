@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
@@ -89,6 +89,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         if self._component is not None:
             self._load_component(self._component)
             api.on_project_content_changed(self._on_project_content_changed)
+            api.subscribe(StudioEvents.UNITS_CHANGED, self._on_project_content_changed)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if self._loading or not self._component_id or self._api.project is None:

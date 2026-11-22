@@ -279,6 +279,42 @@ def test_solver_config_property_editor(tmp_path: Path) -> None:
     editor.deleteLater()
 
 
+def test_solver_config_editor_refreshes_summary_units_when_units_change() -> None:
+    from setuav_studio.units import get_unit_manager
+
+    units = get_unit_manager()
+    units.set_active_preset("si")
+    try:
+        studio_api = StudioAPI()
+        studio_api._host.set_project(ProjectDocument(Path("sc.json"), "json", {"components": []}))
+        config = SolverConfig(solver_id="org.setuav.aero", name="Aero Run 1")
+        studio_api.add_solver_config(config)
+        result = SolverResult(
+            solver_id="org.setuav.aero",
+            config=config,
+            status=SolverStatus.COMPLETED,
+            summary={"x_np": SummaryItem(key="x_np", value=0.25, label="Neutral Point", unit="m")},
+        )
+        studio_api.add_solver_result(result)
+
+        editor = SolverConfigPropertyEditor(
+            studio_api, {"kind": "analysis_config", "config_id": config.config_id}
+        )
+        item = editor.results_table.item(0, 1)
+        assert item is not None
+        assert item.text() == "250.0000 mm"
+
+        units.set_display_unit("length", "m")
+        units.units_changed.emit()
+        item_after = editor.results_table.item(0, 1)
+        assert item_after is not None
+        assert item_after.text() == "0.2500 m"
+        editor.deleteLater()
+    finally:
+        units.set_active_preset("si")
+        units.units_changed.emit()
+
+
 def test_result_panel_and_child_views() -> None:
     studio_api = StudioAPI()
     config = SolverConfig(solver_id="org.setuav.aero", name="Case A")

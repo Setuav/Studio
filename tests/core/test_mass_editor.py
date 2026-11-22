@@ -53,6 +53,20 @@ class MassEditorWithSubpartsTests(unittest.TestCase):
         aircraft_after = resolve_aircraft_mass_properties(self.project).mass_kg
         self.assertAlmostEqual(aircraft_after, aircraft_before, places=9)
 
+    def test_total_mass_refreshes_when_units_change(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        units = get_unit_manager()
+        units.set_active_preset("si")
+        try:
+            self.assertEqual(self._total_mass_text(), "275.000 g")
+            units.set_display_unit("mass", "kg")
+            units.units_changed.emit()
+            self.assertEqual(self._total_mass_text(), "0.275 kg")
+        finally:
+            units.set_active_preset("si")
+            units.units_changed.emit()
+
 
 class MassFormulaTests(unittest.TestCase):
     """The Mass tab keeps formulas like every other numeric field."""

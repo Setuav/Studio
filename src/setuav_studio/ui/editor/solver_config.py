@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api import StudioEvents
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -69,6 +70,7 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
         self._load_data()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_project_content_changed)
+            self._api.subscribe(str(StudioEvents.UNITS_CHANGED), self._on_project_content_changed)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if not self._loading:
