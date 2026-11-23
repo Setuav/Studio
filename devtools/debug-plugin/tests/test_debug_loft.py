@@ -7,14 +7,14 @@ import unittest
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem
-
-from plugins.debug import DebugPlugin
-from plugins.debug.components.common import DEBUG_LAYER
-from plugins.debug.components.loft import (
+from setuav_debug import DebugPlugin
+from setuav_debug.components.common import DEBUG_LAYER
+from setuav_debug.components.loft import (
     LoftComponentEditor,
     add_loft_to_viewport,
     create_loft_component,
 )
+
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 from setuav_studio.ui.viewport import LoftPrimitive, StudioViewport

@@ -10,9 +10,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
+from setuav_debug import DebugPlugin
+from setuav_debug.panel import DebugPanel
 
-from plugins.debug import DebugPlugin
-from plugins.debug.panel import DebugPanel
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 

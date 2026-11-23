@@ -15,6 +15,8 @@ RESOURCE_DIRECTORIES = ("assets", "data")
 SOURCE_ONLY = (Path("assets") / "icons" / "tools",)
 # Packages the plugins import on first use, so startup never touches them.
 FIRST_USE_MODULES = ("aerosandbox", "aerosandbox.numpy", "neuralfoil", "casadi")
+# Development tools installed alongside Studio that must never ship.
+DEVELOPMENT_PACKAGES = ("setuav_debug",)
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -81,6 +83,11 @@ def main() -> int:
     missing.extend(
         f"module {module}" for module in FIRST_USE_MODULES if module not in bundled_modules
     )
+    shipped_tools = sorted(
+        module for module in bundled_modules if module.split(".")[0] in DEVELOPMENT_PACKAGES
+    )
+    if shipped_tools:
+        raise RuntimeError(f"Desktop bundle contains development tools: {', '.join(shipped_tools)}")
     if missing:
         formatted = "\n  - ".join(missing)
         raise RuntimeError(f"Desktop bundle resources are missing:\n  - {formatted}")

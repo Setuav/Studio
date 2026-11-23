@@ -27,6 +27,9 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   plots and a results summary.
 - Flight Performance: the level-flight envelope with power, climb, endurance
   and range.
+- An analysis can be added and run only when the design has what it needs,
+  such as a control surface for Control Deflection, which deflects one chosen
+  control surface.
 - Electric propulsion components: propulsors with motors and propellers from a
   catalog, and batteries built from chemistry profiles.
 - Lifting surfaces edited as a root and sections, with planform drivers and
