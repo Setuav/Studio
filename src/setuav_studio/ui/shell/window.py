@@ -249,6 +249,7 @@ class MainWindow(QMainWindow):
             self._api.publish(StudioEvents.PROJECT_CLOSED, project)
             self.project_controller.project = None
 
+        self._api.tasks.cancel_all()
         self._detach_api_listeners()
         settings = QSettings()
         if not self.isMaximized() and not self.isFullScreen():
