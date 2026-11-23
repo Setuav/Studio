@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import io
+import keyword
 import math
-from collections.abc import Callable
+import tokenize
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from asteval import Interpreter
@@ -230,6 +233,120 @@ def walk_expressions(  # noqa: C901
                 sub_path = f"{path} -> {name_tag}" if path else str(name_tag)
             if isinstance(item, (dict, list)):
                 count += walk_expressions(item, callback, sub_path)
+
+    return count
+
+
+def rewrite_root_identifiers(expression: str, mapping: Mapping[str, str]) -> str:
+    """Replace root identifier tokens in an expression according to ``mapping``.
+
+    Uses Python's tokenizer so attribute names after ``.`` (e.g. ``other.foo``)
+    and string literals are never modified, while preserving whitespace and any
+    leading ``=`` prefix.
+    """
+    if not expression or not mapping:
+        return expression
+
+    stripped = expression.lstrip()
+    leading_ws = expression[: len(expression) - len(stripped)]
+    if stripped.startswith("="):
+        prefix = leading_ws + "="
+        body = stripped[1:]
+    else:
+        prefix = leading_ws
+        body = stripped
+
+    if not body:
+        return expression
+
+    lines = body.splitlines(keepends=True)
+    line_offsets: list[int] = []
+    offset = 0
+    for line in lines:
+        line_offsets.append(offset)
+        offset += len(line)
+
+    replacements: list[tuple[int, int, str]] = []
+    prev_sig_type: int | None = None
+    prev_sig_str: str = ""
+    ignored_types = {
+        tokenize.NL,
+        tokenize.NEWLINE,
+        tokenize.INDENT,
+        tokenize.DEDENT,
+        tokenize.COMMENT,
+        tokenize.ENCODING,
+        tokenize.ENDMARKER,
+    }
+
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(body).readline):
+            tok_type, tok_str, start, end, _ = tok
+            if tok_type in ignored_types:
+                continue
+            if (
+                tok_type == tokenize.NAME
+                and not keyword.iskeyword(tok_str)
+                and not (prev_sig_type == tokenize.OP and prev_sig_str == ".")
+                and tok_str in mapping
+            ):
+                target = mapping[tok_str]
+                if target != tok_str:
+                    start_idx = line_offsets[start[0] - 1] + start[1]
+                    end_idx = line_offsets[end[0] - 1] + end[1]
+                    replacements.append((start_idx, end_idx, target))
+            prev_sig_type = tok_type
+            prev_sig_str = tok_str
+    except (tokenize.TokenError, IndentationError):
+        pass
+
+    if not replacements:
+        return expression
+
+    out: list[str] = []
+    cursor = 0
+    for start_idx, end_idx, target in replacements:
+        out.append(body[cursor:start_idx])
+        out.append(target)
+        cursor = end_idx
+    out.append(body[cursor:])
+    return prefix + "".join(out)
+
+
+def rewrite_project_expression_identifiers(
+    project_data: dict[str, Any],
+    mapping: Mapping[str, str],
+) -> int:
+    """Rewrite root identifier references across project formulas and constraints."""
+    active_map = {k: v for k, v in mapping.items() if k and v and k != v}
+    if not isinstance(project_data, dict) or not active_map:
+        return 0
+
+    def _rewrite(expr: str, _loc: str) -> str | None:
+        updated = rewrite_root_identifiers(expr, active_map)
+        return updated if updated != expr else None
+
+    count = walk_expressions(project_data, _rewrite)
+
+    constraints = project_data.get("constraints")
+    if isinstance(constraints, list):
+        for constraint in constraints:
+            if not isinstance(constraint, dict):
+                continue
+            expr = constraint.get("expression")
+            if not isinstance(expr, str) or not expr.strip():
+                continue
+            local_vars = constraint.get("variables")
+            if isinstance(local_vars, dict) and local_vars:
+                eff_map = {k: v for k, v in active_map.items() if k not in local_vars}
+            else:
+                eff_map = active_map
+            if not eff_map:
+                continue
+            updated = rewrite_root_identifiers(expr, eff_map)
+            if updated != expr:
+                constraint["expression"] = updated
+                count += 1
 
     return count
 
