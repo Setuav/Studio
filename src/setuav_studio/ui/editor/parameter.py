@@ -15,7 +15,11 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api.events import StudioEvents
-from setuav_studio.model.expression import ExpressionEvaluator, normalize_equation_input
+from setuav_studio.model.expression import (
+    ExpressionEvaluator,
+    normalize_equation_input,
+    rewrite_project_expression_identifiers,
+)
 from setuav_studio.model.parameter import ParameterResolution, ParameterResolver
 from setuav_studio.model.scope import build_project_base_scope
 from setuav_studio.ui.style.icons import set_label_icon
@@ -363,6 +367,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 def _apply() -> None:
                     val = raw_params.pop(old_key, 0.0)
                     raw_params[clean_name] = val
+                    rename_map = {
+                        old_key: clean_name,
+                        old_key.replace("-", "_"): clean_name.replace("-", "_"),
+                    }
+                    rewrite_project_expression_identifiers(data, rename_map)
 
                 self._param_key = clean_name
                 self._api.edit_project(f"Rename parameter '{old_key}' to '{clean_name}'", _apply)

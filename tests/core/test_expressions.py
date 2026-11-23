@@ -1168,3 +1168,71 @@ def test_recompute_converges_with_component_derivers_and_detects_deriver_cycles(
     assert any("Circular" in d["message"] for d in diagnostics)
     assert math.isclose(proj.data["components"][0]["parameters"]["cells"], 4.0)
     assert math.isclose(proj.data["components"][0]["mass"], 200.0)
+
+
+def test_parameter_rename_rewrites_formulas_and_constraints_atomically(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.model.expression import rewrite_root_identifiers
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from tests._common import get_qapp
+
+    get_qapp()
+
+    # Tokenizer preserves attribute names after '.' and string literals.
+    assert (
+        rewrite_root_identifiers(
+            "= wing_area + main_wing.wing_area + 'wing_area'", {"wing_area": "s_ref"}
+        )
+        == "= s_ref + main_wing.wing_area + 'wing_area'"
+    )
+
+    proj = ProjectDocument(
+        tmp_path / "rename_refs.json",
+        "json",
+        {
+            "parameters": {
+                "wing_area": 32.0,
+                "double_area": "= wing_area * 2",
+            },
+            "components": [
+                {
+                    "id": "main-wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 0.0,
+                    "_expressions": {"mass": "= wing_area * 10"},
+                }
+            ],
+            "constraints": [
+                {
+                    "id": "c1",
+                    "name": "Min Area",
+                    "expression": "wing_area >= 20",
+                    "enabled": True,
+                }
+            ],
+        },
+    )
+    api = StudioAPI()
+    api._host.set_project(proj)
+
+    editor = ParameterPropertyEditor(api, {"key": "wing_area"})
+    name_item = editor.general_table.item(0, 1)
+    assert name_item is not None
+    name_item.setText("s_ref")
+
+    assert "s_ref" in proj.data["parameters"]
+    assert "wing_area" not in proj.data["parameters"]
+    assert proj.data["parameters"]["double_area"] == "= s_ref * 2"
+    assert proj.data["components"][0]["_expressions"]["mass"] == "= s_ref * 10"
+    assert proj.data["constraints"][0]["expression"] == "s_ref >= 20"
+    assert api.expression_diagnostics == []
+    assert math.isclose(proj.data["components"][0]["mass"], 320.0)
+
+    # Single Undo restores both the parameter key and every formula/constraint reference.
+    api.undo()
+    assert "wing_area" in proj.data["parameters"]
+    assert proj.data["parameters"]["double_area"] == "= wing_area * 2"
+    assert proj.data["components"][0]["_expressions"]["mass"] == "= wing_area * 10"
+    assert proj.data["constraints"][0]["expression"] == "wing_area >= 20"
+    assert api.expression_diagnostics == []
+    editor.deleteLater()
