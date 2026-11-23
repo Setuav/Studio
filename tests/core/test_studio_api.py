@@ -648,3 +648,42 @@ def test_studio_api_not_retained_by_unit_manager_after_deletion() -> None:
     assert ref() is None
     units.units_changed.emit()
     assert len(received) == 1
+
+
+def test_modified_state_stays_dirty_across_undo_when_solver_results_change() -> None:
+    from setuav_studio.solver import SolverConfig, SolverResult, SolverStatus
+
+    studio_api = StudioAPI()
+    project = ProjectDocument(
+        Path("mod.json"), "json", {"parameters": {"k": 1.0}, "components": []}
+    )
+    studio_api._host.set_project(project)
+
+    events: list[bool] = []
+    studio_api.subscribe(StudioEvents.PROJECT_MODIFIED, events.append)
+
+    # Adding a solver result on a clean project marks modified and emits PROJECT_MODIFIED.
+    result = SolverResult(
+        solver_id="demo",
+        config=SolverConfig(solver_id="demo", name="Run 1"),
+        status=SolverStatus.COMPLETED,
+    )
+    studio_api.add_solver_result(result)
+    assert project.modified is True
+    assert events == [True]
+
+    # An undoable edit followed by undo must NOT clear modified while unsaved results exist.
+    studio_api.edit_project("Change k", lambda: project.data["parameters"].update({"k": 2.0}))
+    studio_api.undo()
+    assert project.modified is True
+    assert events == [True]
+
+    # Saving clears both undo stack and outside-undo dirty state.
+    studio_api._host.mark_project_saved()
+    assert project.modified is False
+    assert events[-1] is False
+
+    # Removing a solver result also marks modified and notifies listeners.
+    assert studio_api.remove_solver_result(result.id) is True
+    assert project.modified is True
+    assert events[-1] is True
