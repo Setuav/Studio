@@ -145,7 +145,7 @@ class ProjectController:
         if project.format_warning:
             self._api.show_status(project.format_warning, "warning", 0)
         elif self._api.expression_diagnostics:
-            self._api._show_expression_diagnostics()
+            self._host.show_expression_diagnostics()
         elif project.degraded:
             self._api.show_status(
                 "Degraded mode — " + "; ".join(project.plugin_issues),

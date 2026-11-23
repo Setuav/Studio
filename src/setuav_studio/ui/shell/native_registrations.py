@@ -238,5 +238,5 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         "analysis_table": lambda selection: AnalysisTablePropertyEditor(api, selection),
     }
     for kind, factory in defaults.items():
-        if kind not in api._kind_editors:
+        if not api.has_kind_editor(kind):
             api.register_kind_editor(kind, factory)

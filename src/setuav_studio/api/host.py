@@ -120,6 +120,10 @@ class _StudioHost:
         api._notify_project_content_changed()
         api.publish(StudioEvents.PLUGINS_CHANGED, project)
 
+    def show_expression_diagnostics(self) -> None:
+        """Show the first expression diagnostic in the shell status bar, if any."""
+        self._api._show_expression_diagnostics()
+
     def bind_viewport(self, viewport: Any) -> None:
         """Bind the application viewport onto the API and notify project listeners."""
         api = self._api

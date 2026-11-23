@@ -1098,6 +1098,10 @@ class StudioAPI:
         """Unregister the fallback editor registered for a component kind."""
         self._kind_editors.pop(component_kind, None)
 
+    def has_kind_editor(self, component_kind: str) -> bool:
+        """Return whether a fallback editor is registered for ``component_kind``."""
+        return component_kind in self._kind_editors
+
     def create_component_editor(
         self,
         component: dict[str, Any],
