@@ -94,9 +94,10 @@ class _StudioHost:
         # Opening evaluated the formulas without the plugins' component models;
         # run the convergent evaluate + derive pipeline with plugins active.
         api.recompute_project_expressions()
+        api._dirty_outside_undo = False
         api._undo_stack.clear()
         api._undo_stack.setClean()
-        project.modified = False
+        api._sync_modified_state(force_notify=True)
         api.set_selection(None)
         api.set_section_selection(None)
         from setuav_studio.utilities.listeners import dispatch_listeners
@@ -105,8 +106,9 @@ class _StudioHost:
         api.publish(StudioEvents.PROJECT_OPENED, project)
 
     def mark_project_saved(self) -> None:
+        self._api._dirty_outside_undo = False
         self._api._undo_stack.setClean()
-        self._api._on_clean_changed(True)
+        self._api._sync_modified_state(force_notify=True)
 
     def bind_viewport(self, viewport: Any) -> None:
         """Bind the application viewport onto the API and notify project listeners."""

@@ -100,6 +100,8 @@ class StudioAPI:
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._solver_config_selection_listeners: list[Callable[[SolverConfig | None], None]] = []
         self._is_recomputing_expressions: bool = False
+        self._dirty_outside_undo: bool = False
+        self._last_notified_modified: bool | None = None
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -708,6 +710,8 @@ class StudioAPI:
         if self._project is None:
             return
         self._project.add_solver_result(result)
+        self._dirty_outside_undo = True
+        self._sync_modified_state()
         self._notify_project_content_changed()
 
     def remove_solver_result(self, result_id: str) -> bool:
@@ -716,6 +720,8 @@ class StudioAPI:
             return False
         removed = self._project.remove_solver_result(result_id)
         if removed:
+            self._dirty_outside_undo = True
+            self._sync_modified_state()
             self._notify_project_content_changed()
         return removed
 
@@ -830,12 +836,17 @@ class StudioAPI:
 
         dispatch_listeners(self._project_content_listeners, self._project)
 
-    def _on_clean_changed(self, clean: bool) -> None:
-        modified = not clean
+    def _sync_modified_state(self, *, force_notify: bool = False) -> None:
+        modified = (not self._undo_stack.isClean()) or self._dirty_outside_undo
         if self._project is not None:
             self._project.modified = modified
-        dispatch_listeners(self._modified_listeners, modified)
-        self.publish(StudioEvents.PROJECT_MODIFIED, modified)
+        if force_notify or self._last_notified_modified != modified:
+            self._last_notified_modified = modified
+            dispatch_listeners(self._modified_listeners, modified)
+            self.publish(StudioEvents.PROJECT_MODIFIED, modified)
+
+    def _on_clean_changed(self, _clean: bool) -> None:
+        self._sync_modified_state()
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> UnsubscribeCallable:
         """Subscribe to selection changes and receive the current selection.
