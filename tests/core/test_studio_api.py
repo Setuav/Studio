@@ -623,9 +623,12 @@ def test_new_analyses_with_a_taken_name_are_numbered() -> None:
 
 def test_solver_icons_follow_their_registration() -> None:
     studio_api = StudioAPI()
+    assert not hasattr(studio_api, "solvers")
     studio_api.register_solver("demo", object, icon="demo_icon")
+    assert studio_api.get_solver_class("demo") is object
     assert studio_api.solver_icon("demo") == "demo_icon"
     studio_api.unregister_solver("demo")
+    assert studio_api.get_solver_class("demo") is None
     assert studio_api.solver_icon("demo") == "fa6s.chart-line"
 
 

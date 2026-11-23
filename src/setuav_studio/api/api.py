@@ -34,7 +34,7 @@ from .contributions import (
 from .events import StudioEvents
 
 if TYPE_CHECKING:
-    from setuav_studio.solver.base import SolverConfig
+    from setuav_studio.solver.base import AbstractSolver, SolverConfig
     from setuav_studio.solver.results import SolverResult
     from setuav_studio.task.manager import TaskManager
     from setuav_studio.ui.viewport import StudioViewport
@@ -186,11 +186,6 @@ class StudioAPI:
     def tasks(self) -> TaskManager:
         """Central background task manager for asynchronous jobs."""
         return self._tasks
-
-    @property
-    def solvers(self) -> Any:
-        """Central solver runner and registry."""
-        return self._solver_runner
 
     @property
     def project(self) -> ProjectDocument | None:
@@ -767,6 +762,10 @@ class StudioAPI:
         """Unregister a solver class by solver ID."""
         self._solver_runner.unregister_solver(solver_id)
         self._solver_icons.pop(solver_id, None)
+
+    def get_solver_class(self, solver_id: str) -> type[AbstractSolver] | None:
+        """Return the registered solver class for ``solver_id``, or ``None``."""
+        return self._solver_runner.get_solver_class(solver_id)
 
     def solver_icon(self, solver_id: str) -> str:
         """The icon name of the solver's analyses; a generic chart unless one was registered."""

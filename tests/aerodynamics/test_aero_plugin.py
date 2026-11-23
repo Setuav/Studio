@@ -189,7 +189,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.plugin.activate(self.api)
 
         for solver_id, solver_cls in SOLVER_CLASSES.items():
-            self.assertIs(self.api.solvers.get_solver_class(solver_id), solver_cls)
+            self.assertIs(self.api.get_solver_class(solver_id), solver_cls)
 
         self.assertEqual(
             tuple(item.title for item in self._analysis_buttons()),
@@ -231,7 +231,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.plugin.deactivate(self.api)
 
         for solver_id in SOLVER_CLASSES:
-            self.assertIsNone(self.api.solvers.get_solver_class(solver_id))
+            self.assertIsNone(self.api.get_solver_class(solver_id))
         for toolbar_id in ANALYSIS_TOOLBAR_IDS:
             self.assertIn(toolbar_id, self.removed_toolbar_items)
         self.assertEqual(

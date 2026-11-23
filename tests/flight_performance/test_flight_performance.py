@@ -310,9 +310,7 @@ class FlightPerformancePluginTests(unittest.TestCase):
         api = StudioAPI()
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
-        self.assertIs(
-            api.solvers.get_solver_class(SOLVER_ID_FLIGHT_PERFORMANCE), FlightPerformanceSolver
-        )
+        self.assertIs(api.get_solver_class(SOLVER_ID_FLIGHT_PERFORMANCE), FlightPerformanceSolver)
 
         project = open_project(TEST_PROJECT_PATH)
         api._host.set_project(project)
@@ -326,7 +324,7 @@ class FlightPerformancePluginTests(unittest.TestCase):
         self.assertEqual(configs[0].parameters, FlightPerformanceSolver.default_parameters())
 
         plugin.deactivate(api)
-        self.assertIsNone(api.solvers.get_solver_class(SOLVER_ID_FLIGHT_PERFORMANCE))
+        self.assertIsNone(api.get_solver_class(SOLVER_ID_FLIGHT_PERFORMANCE))
 
 
 if __name__ == "__main__":

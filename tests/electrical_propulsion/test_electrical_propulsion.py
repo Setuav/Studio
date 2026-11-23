@@ -568,7 +568,7 @@ class TestElectricalPropulsion(unittest.TestCase):
             assert config is not None
             self.assertEqual(config.solver_id, solver_id)
             self.assertEqual(config.name, name)
-            self.assertIs(api.solvers.get_solver_class(solver_id), solver_cls)
+            self.assertIs(api.get_solver_class(solver_id), solver_cls)
             self.assertEqual(statuses[-1][:2], (f"Added {name} configuration.", "success"))
         self.assertEqual(len(api.get_solver_configs()), len(expected))
 
@@ -585,7 +585,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         config = api.get_current_solver_config()
         assert config is not None
-        solver_cls = api.solvers.get_solver_class(config.solver_id)
+        solver_cls = api.get_solver_class(config.solver_id)
         assert solver_cls is not None
         completed: list[SolverResult] = []
         api.run_solver(solver_cls(config), on_complete=completed.append)

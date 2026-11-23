@@ -270,7 +270,7 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             self._api.add_solver_config(config)
 
     def _parameter_fields(self, config: SolverConfig) -> Sequence[ParameterField]:
-        solver_cls = self._api.solvers.get_solver_class(config.solver_id)
+        solver_cls = self._api.get_solver_class(config.solver_id)
         return solver_cls.PARAMETER_FIELDS if solver_cls is not None else ()
 
     def _on_parameter_cell_changed(self, row: int, column: int) -> None:
