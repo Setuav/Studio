@@ -65,10 +65,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         self._load_data()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_project_content_changed)
-            unsub = self._api.subscribe(
-                StudioEvents.UNITS_CHANGED, self._on_project_content_changed
-            )
-            self.destroyed.connect(lambda *_: unsub())
+            self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_project_content_changed)
 
     def _selection_payload(self, value: Any) -> dict[str, Any]:
         return {
