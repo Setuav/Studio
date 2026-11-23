@@ -257,6 +257,7 @@ class AdvancedExpressionDialog(QDialog):
         initial_expression: str = "",
         title: str = "Equation Editor",
         is_boolean_constraint: bool = False,
+        result_unit: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -265,6 +266,7 @@ class AdvancedExpressionDialog(QDialog):
 
         self._api = api
         self._is_constraint = is_boolean_constraint
+        self._result_unit = result_unit.strip()
         self._evaluator = ExpressionEvaluator()
         self._checker = ConstraintChecker(self._evaluator)
 
@@ -312,7 +314,7 @@ class AdvancedExpressionDialog(QDialog):
 
         # Tab 1: Component Properties Tree (e.g. main_wing.planform_area)
         self.comp_tree = QTreeWidget(self)
-        self.comp_tree.setHeaderLabels(["Component / Property", "Value", "Expression Tag"])
+        self.comp_tree.setHeaderLabels(["Component / Property", "Value (Base)", "Expression Tag"])
         self.comp_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.comp_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.comp_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -322,7 +324,7 @@ class AdvancedExpressionDialog(QDialog):
 
         # Tab 2: Project Constants
         self.params_table = QTableWidget(0, 3, self)
-        self.params_table.setHorizontalHeaderLabels(["Constant", "Current Value", "Unit"])
+        self.params_table.setHorizontalHeaderLabels(["Constant", "Value (Base)", "Base Unit"])
         self.params_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Interactive
         )
@@ -584,8 +586,9 @@ class AdvancedExpressionDialog(QDialog):
                     )
             else:
                 val_str = f"{val:.6g}" if isinstance(val, (int, float)) else str(val)
+                unit_suffix = f" {self._result_unit}" if self._result_unit else ""
                 self.preview_label.setText(
-                    f"<b>Result:</b> <span style='color: {status_color('success')}; font-weight: bold;'>{val_str}</span>"
+                    f"<b>Result:</b> <span style='color: {status_color('success')}; font-weight: bold;'>{val_str}{unit_suffix}</span>"
                 )
         except ExpressionEvaluationError as exc:
             self.preview_label.setText(
