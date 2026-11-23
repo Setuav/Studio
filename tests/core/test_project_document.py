@@ -262,3 +262,44 @@ def test_open_warns_about_a_newer_minor(tmp_path: Path) -> None:
     project = open_project(path)
     assert project.format_warning is not None
     assert "Setuav Studio 0.3.0" in project.format_warning
+
+
+def test_open_project_respects_recompute_and_api_arguments(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.model.component import Component
+
+    class _WingModel(Component):
+        @property
+        def custom_metric(self) -> float:
+            return 42.0
+
+    path = tmp_path / "project.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format_version": "1.0",
+                "components": [
+                    {"id": "main-wing", "type": "test:wing", "mass": 100.0},
+                    {
+                        "id": "ballast",
+                        "type": "test:mass",
+                        "mass": 99.0,
+                        "_expressions": {"mass": "= main_wing.custom_metric * 2"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Raw read (used by shell open + unsaved-changes diff) does not mutate or produce false errors.
+    raw_doc = open_project(path, recompute=False)
+    assert raw_doc.expression_diagnostics == []
+    assert raw_doc.data["components"][1]["mass"] == 99.0
+
+    # Opening with plugin API evaluates plugin model properties cleanly with zero diagnostics.
+    api = StudioAPI()
+    api.register_component_model("test:wing", _WingModel)
+    hydrated = open_project(path, api=api)
+    assert hydrated.expression_diagnostics == []
+    assert hydrated.data["components"][1]["mass"] == 84.0

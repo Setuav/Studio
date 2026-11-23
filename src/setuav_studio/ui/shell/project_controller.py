@@ -86,7 +86,7 @@ class ProjectController:
 
     def open_project(self, path: str) -> bool:
         try:
-            doc = open_project(path)
+            doc = open_project(path, recompute=False)
         except ProjectOpenError as exc:
             QMessageBox.critical(self._window, "Cannot Open Project", str(exc))
             return False
@@ -205,7 +205,7 @@ class ProjectController:
         disk_data: dict[str, Any] = {}
         if not self.project.untitled and self.project.location.exists():
             try:
-                disk_data = open_project(self.project.location).data
+                disk_data = open_project(self.project.location, recompute=False).data
             except ProjectOpenError as exc:
                 logger.warning("Saved project could not be read for comparison: %s", exc)
                 return changes
