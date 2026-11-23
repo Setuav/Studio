@@ -232,16 +232,9 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
-        sym = um.get_unit_symbol("length")
         h_proj, s_proj = compute_winglet_projected_dimensions(winglet)
-        h_disp = um.to_display(h_proj, "length")
-        s_disp = um.to_display(s_proj, "length")
-        height_label.setText(
-            f"{h_disp:.2f} {sym}" if sym == "in" or abs(h_disp) < 10 else f"{h_disp:.1f} {sym}"
-        )
-        span_label.setText(
-            f"{s_disp:.2f} {sym}" if sym == "in" or abs(s_disp) < 10 else f"{s_disp:.1f} {sym}"
-        )
+        height_label.setText(um.format_value(h_proj, "length", 1))
+        span_label.setText(um.format_value(s_proj, "length", 1))
 
     def _on_tip_cap_type_changed(self, new_type: str) -> None:
         if self._loading:

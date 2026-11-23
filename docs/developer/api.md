@@ -32,7 +32,11 @@ Every `register_*` method has a matching `unregister_*` method.
 
 Numeric editor fields are described with `ParameterField` and
 `TableParameterField`; a field can hold a number or a formula that uses the
-project constants.
+project constants. A field's `decimals` is the precision in its stored unit
+and follows the value into the display unit: one decimal in g shows four in
+kg. To show a stored value outside an editor field, use
+`get_unit_manager().format_value(value, quantity, decimals)`, or
+`format_number` for the number alone, from `setuav_studio.units`.
 
 !!! warning "Keep the interface responsive"
     Run long work through `api.tasks.submit` so the Qt UI thread never blocks.

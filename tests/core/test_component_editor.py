@@ -508,8 +508,8 @@ class TestComponentEditor(unittest.TestCase):
             (0, 2, "[mm]"),
             (0, 3, "[°]"),
             (1, 0, "1"),
-            (1, 2, "200.00"),
-            (2, 2, "100.00"),
+            (1, 2, "200.0"),
+            (2, 2, "100.0"),
         ]:
             it = table.item(r, c)
             assert it is not None
@@ -538,7 +538,7 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(get_expression(station, "chord"), "=SPAN / 2")
         it_formula = table.item(2, 2)
         assert it_formula is not None
-        self.assertEqual(it_formula.text(), "400.00")
+        self.assertEqual(it_formula.text(), "400.0")
         self.assertEqual(it_formula.data(Qt.ItemDataRole.UserRole), "=SPAN / 2")
 
         # An invalid entry is not stored and the cell shows the stored value again
@@ -548,7 +548,7 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(comp["parameters"]["sections"][1]["twist"], 2.0)
         it_bad = table.item(2, 3)
         assert it_bad is not None
-        self.assertEqual(it_bad.text(), "2.00")
+        self.assertEqual(it_bad.text(), "2.0")
 
         # Test Add Row
         editor._on_add_table_row("sections")
@@ -700,7 +700,7 @@ class TestComponentEditor(unittest.TestCase):
             val_item = table.item(1, 2)
             assert unit_item is not None and val_item is not None
             self.assertEqual(unit_item.text(), "[in]")
-            self.assertEqual(val_item.text(), "10.00")
+            self.assertEqual(val_item.text(), "10.0")
 
             # Live unit change updates headers and formatted cell values.
             units.set_display_unit("length", "cm")
@@ -709,7 +709,7 @@ class TestComponentEditor(unittest.TestCase):
             val_item = table.item(1, 2)
             assert unit_item is not None and val_item is not None
             self.assertEqual(unit_item.text(), "[cm]")
-            self.assertEqual(val_item.text(), "25.40")
+            self.assertEqual(val_item.text(), "25.4")
 
             # Numeric edit converts display unit -> base unit (mm).
             units.set_display_unit("length", "in")
@@ -726,7 +726,7 @@ class TestComponentEditor(unittest.TestCase):
             self.assertAlmostEqual(comp["parameters"]["sections"][1]["chord"], 508.0, places=6)
             displayed = table.item(2, 2)
             assert displayed is not None
-            self.assertEqual(displayed.text(), "20.00")
+            self.assertEqual(displayed.text(), "20.0")
         finally:
             units.set_active_preset("si")
 

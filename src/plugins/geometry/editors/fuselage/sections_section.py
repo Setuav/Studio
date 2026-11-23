@@ -120,7 +120,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
-        length_sym = um.get_unit_symbol("length")
         sections = self._sections()
         self.sections_table.setRowCount(len(sections))
         for row, section in enumerate(sections):
@@ -131,12 +130,7 @@ class SectionsSectionMixin(FuselageEditorHost):
             if not isinstance(position, dict):
                 position = {}
             x_raw = float(position.get("x") or 0.0)
-            disp_x = um.to_display(x_raw, "length")
-            disp_x_str = (
-                f"{disp_x:.1f} {length_sym}"
-                if abs(disp_x - round(disp_x)) > 1e-4
-                else f"{disp_x:.0f} {length_sym}"
-            )
+            disp_x_str = um.format_value(x_raw, "length", 1)
             values = (
                 str(row + 1),
                 str(profile.get("type") or ""),
@@ -707,7 +701,6 @@ class SectionsSectionMixin(FuselageEditorHost):
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
-        length_sym = um.get_unit_symbol("length")
         position = section.get("position")
         if not isinstance(position, dict):
             position = {}
@@ -718,12 +711,7 @@ class SectionsSectionMixin(FuselageEditorHost):
         if not hasattr(self, "sections_table") or row < 0 or row >= self.sections_table.rowCount():
             return
         x_raw = float(position.get("x") or 0.0)
-        disp_x = um.to_display(x_raw, "length")
-        disp_x_str = (
-            f"{disp_x:.1f} {length_sym}"
-            if abs(disp_x - round(disp_x)) > 1e-4
-            else f"{disp_x:.0f} {length_sym}"
-        )
+        disp_x_str = um.format_value(x_raw, "length", 1)
         item1 = self.sections_table.item(row, 1)
         if item1 is not None:
             item1.setText(str(profile.get("type") or ""))

@@ -167,11 +167,11 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         """Return the (name, type, deflection) cell texts of a control surface list row."""
         from setuav_studio.units import get_unit_manager
 
-        um = get_unit_manager()
         geom = self._cs_geom(cs)
-        disp_defl = um.to_display(float(geom.get("deflection", 0.0)), "angle")
-        angle_sym = um.get_unit_symbol("angle")
-        defl_str = f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
+        um = get_unit_manager()
+        deflection = um.format_number(float(geom.get("deflection", 0.0)), "angle", 1)
+        sign = "+" if float(deflection) > 0.0 else ""
+        defl_str = f"{sign}{deflection} {um.get_unit_symbol('angle')}"
         name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
         cs_type = str(geom.get("type") or "aileron").capitalize()
         return name_label, cs_type, defl_str

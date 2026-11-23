@@ -143,17 +143,23 @@ class UnitManager(QObject):
             return decimals
         return max(0, decimals + math.ceil(math.log10(base_per_unit) - 1e-9))
 
+    def format_number(
+        self, base_value: float, quantity_or_schema_unit: str | None, decimals: int
+    ) -> str:
+        """``base_value`` as a number in the active display unit, e.g. ``"0.136"`` for 136 g."""
+        if not quantity_or_schema_unit:
+            return format_engineering_value(base_value, decimals)
+        return format_engineering_value(
+            self.to_display(base_value, quantity_or_schema_unit),
+            self.display_decimals(quantity_or_schema_unit, decimals),
+        )
+
     def format_value(
         self, base_value: float, quantity_or_schema_unit: str | None, decimals: int
     ) -> str:
         """``base_value`` in the active display unit with its symbol, e.g. ``"0.136 kg"``."""
-        if not quantity_or_schema_unit:
-            return format_engineering_value(base_value, decimals)
-        number = format_engineering_value(
-            self.to_display(base_value, quantity_or_schema_unit),
-            self.display_decimals(quantity_or_schema_unit, decimals),
-        )
-        symbol = self.get_unit_symbol(quantity_or_schema_unit)
+        number = self.format_number(base_value, quantity_or_schema_unit, decimals)
+        symbol = self.get_unit_symbol(quantity_or_schema_unit) if quantity_or_schema_unit else ""
         return f"{number} {symbol}" if symbol else number
 
     def to_base(self, display_value: float, quantity_or_schema_unit: str) -> float:
