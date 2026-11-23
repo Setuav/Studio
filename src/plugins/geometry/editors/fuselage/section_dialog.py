@@ -69,8 +69,8 @@ class FuselageSectionDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._api = api
-        self._component = component
-        self._original_component = copy.deepcopy(component)
+        self._live_component = component
+        self._component = copy.deepcopy(component)
         self._segment_index = segment_index
         self._section_index = section_index
         self._loading = False
@@ -1126,53 +1126,29 @@ class FuselageSectionDialog(QDialog):
         )
         self._update_metrics_labels()
 
-    def _on_apply_clicked(self) -> None:
-        """Trigger project mutation to update 3D scene while keeping dialog open."""
-        after_data = copy.deepcopy(self._component)
-        self._component.clear()
-        self._component.update(self._original_component)
+    def _commit_draft(self) -> None:
+        """Commit the isolated draft onto the live component in one undoable edit."""
+        draft = copy.deepcopy(self._component)
 
         def apply_change() -> None:
-            self._component.update(after_data)
+            self._live_component.clear()
+            self._live_component.update(draft)
 
         self._api.edit_component(
-            self._component,
+            self._live_component,
             f"Edit fuselage section {self._section_index + 1}",
             apply_change,
         )
-        self._original_component = copy.deepcopy(self._component)
+
+    def _on_apply_clicked(self) -> None:
+        """Trigger project mutation to update 3D scene while keeping dialog open."""
+        self._commit_draft()
 
     def _on_ok_clicked(self) -> None:
         """Apply changes and close dialog."""
-        after_data = copy.deepcopy(self._component)
-        self._component.clear()
-        self._component.update(self._original_component)
-
-        def ok_change() -> None:
-            self._component.update(after_data)
-
-        self._api.edit_component(
-            self._component,
-            f"Edit fuselage section {self._section_index + 1}",
-            ok_change,
-        )
+        self._commit_draft()
         self.accept()
 
     def _on_cancel_clicked(self) -> None:
-        """Discard changes and restore original component state."""
-        orig = copy.deepcopy(self._original_component)
-        if self._component != orig and self._api.project:
-
-            def cancel_change() -> None:
-                self._component.clear()
-                self._component.update(orig)
-
-            self._api.edit_component(
-                self._component,
-                "Cancel fuselage section edit",
-                cancel_change,
-            )
-        else:
-            self._component.clear()
-            self._component.update(orig)
+        """Discard the isolated draft without touching the live project or undo stack."""
         self.reject()
