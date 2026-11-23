@@ -65,6 +65,25 @@ def test_solver_config_serialization_roundtrip() -> None:
     assert restored.parameters == {"alpha": 3.5, "velocity": 22.0}
 
 
+def test_solver_config_shares_no_parameters_with_project_data() -> None:
+    project = ProjectDocument(Path("config.json"), "json", {"components": []})
+    config = SolverConfig(
+        solver_id="org.setuav.vlm",
+        parameters={"alpha": 3.5, "_expressions": {"alpha": "=a"}},
+    )
+    project.add_solver_config(config)
+    stored = project.data["solver_configs"][config.config_id]["parameters"]
+
+    config.parameters["alpha"] = 9.0
+    config.parameters["_expressions"]["alpha"] = "=b"
+    assert stored == {"alpha": 3.5, "_expressions": {"alpha": "=a"}}
+
+    loaded = project.get_solver_config(config.config_id)
+    assert loaded is not None
+    loaded.parameters["_expressions"]["alpha"] = "=c"
+    assert stored["_expressions"] == {"alpha": "=a"}
+
+
 # ==============================================================================
 # 2. SolverResult, Tables, Plots, Summaries
 # ==============================================================================
