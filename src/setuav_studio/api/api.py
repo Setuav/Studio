@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
+import shiboken6
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
 from PySide6.QtWidgets import QWidget
@@ -169,6 +170,13 @@ class StudioAPI:
             api.publish(StudioEvents.UNITS_CHANGED)
 
         unit_manager.units_changed.connect(_on_units_changed)
+
+    def __del__(self, _is_valid: Callable[[object], bool] = shiboken6.isValid) -> None:
+        # Clear QUndoStack before cyclic GC tears down Python-subclassed QUndoCommands
+        # out of order relative to their owning C++ QUndoStack.
+        undo_stack = getattr(self, "_undo_stack", None)
+        if undo_stack is not None and _is_valid(undo_stack):
+            undo_stack.clear()
 
     @property
     def units(self) -> UnitManager:
