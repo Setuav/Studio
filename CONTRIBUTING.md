@@ -11,7 +11,7 @@ small project file helps a lot.
 
 ## Make a change
 
-1. Fork the repository and create a branch from `development`.
+1. Fork the repository and create a branch from `main`.
 2. Install the development environment:
 
    ```bash
@@ -28,7 +28,7 @@ small project file helps a lot.
    uv run --locked pytest
    ```
 
-4. Open a pull request against `development` and describe what it changes
+4. Open a pull request against `main` and describe what it changes
    and why. CI runs the same checks.
 
 Not sure about an approach? Open a draft pull request or an issue early and
