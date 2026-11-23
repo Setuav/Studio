@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import uuid
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -44,7 +45,7 @@ class SolverConfig:
             "config_id": self.config_id,
             "solver_id": self.solver_id,
             "name": self.name,
-            "parameters": self.parameters,
+            "parameters": deepcopy(self.parameters),
         }
 
     @classmethod
@@ -54,7 +55,7 @@ class SolverConfig:
             config_id=str(data["config_id"]),
             solver_id=str(data["solver_id"]),
             name=str(data["name"]),
-            parameters=dict(data["parameters"]),
+            parameters=deepcopy(data["parameters"]),
         )
 
 
