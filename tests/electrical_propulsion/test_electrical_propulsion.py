@@ -21,6 +21,7 @@ from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propu
 from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.plugin import PluginManager
 from setuav_studio.project import ProjectDocument, open_project
+from setuav_studio.units import get_unit_manager
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
@@ -138,7 +139,16 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor = self._page(PropulsorEditor(api, propulsor))
 
         self.assertEqual(editor._property_value(editor.general_table, "name"), propulsor["name"])
-        self.assertEqual(editor._property_value(editor.general_table, "mass"), "136.0")
+        mass = editor._property_cell(editor.general_table, "mass")
+        assert mass is not None
+        self.assertTrue(mass.isReadOnly())
+        self.assertEqual(mass.line_edit.text(), "136.0")
+        self.assertEqual(mass.unit_label.text(), "g")
+        units = get_unit_manager()
+        units.set_display_unit("mass", "oz")
+        units.units_changed.emit()
+        self.assertEqual(mass.line_edit.text(), "4.8")
+        self.assertEqual(mass.unit_label.text(), "oz")
         self.assertEqual(editor._property_value(editor.general_table, "motor"), "X2814 KV900 3-4S")
         self.assertEqual(editor._property_value(editor.general_table, "propeller"), "APC_12x6")
 
@@ -373,7 +383,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         derived_mass = battery_pack(params).mass_g
         self.assertAlmostEqual(derived_mass, 2 * float(opened["mass"]))
         self.assertEqual(battery_comp["mass"], derived_mass)
-        self.assertEqual(editor._property_text(editor.general_table, 2), f"{derived_mass:.1f}")
+        mass = editor._property_cell(editor.general_table, "mass")
+        assert mass is not None
+        self.assertTrue(mass.isReadOnly())
+        self.assertEqual(mass.line_edit.text(), f"{derived_mass:.1f}")
+        self.assertEqual(mass.unit_label.text(), "g")
         nominal = editor._property_cell(editor.pack_table, "nominal_voltage")
         assert nominal is not None
         self.assertTrue(nominal.isReadOnly())

@@ -177,8 +177,15 @@ class PropulsorEditor(_PropulsorPage):
             self._set_property_value(
                 self.general_table, "type", str(component["type"]), editable=False
             )
-            self._set_property_value(
-                self.general_table, "mass", f"{float(component['mass']):.1f}", editable=False
+            self._set_property_spinbox(
+                self.general_table,
+                "mass",
+                float(component["mass"]),
+                quantity="mass",
+                unit="g",
+                decimals=1,
+                label="Mass",
+                read_only=True,
             )
             motor = str(params["motor_model"]) if has_motor(params) else "Not selected"
             propeller = (
