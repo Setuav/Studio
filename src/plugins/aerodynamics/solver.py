@@ -44,9 +44,6 @@ class BaseAerodynamicsSolver(AbstractSolver):
 
     def _extract_components(self) -> list[dict[str, Any]]:
         project = self.project
-        if project is None and self.api is not None:
-            project = self.api.project
-
         if project is None:
             raise RuntimeError("No active project available for aerodynamic analysis.")
 
@@ -105,7 +102,7 @@ class BaseAerodynamicsSolver(AbstractSolver):
 
     def _create_progress_callback(self):
         def progress_cb(current: int, total: int, message: str) -> None:
-            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            if self.is_cancel_requested:
                 self.status = SolverStatus.CANCELLED
                 raise TaskCancelledError("Aerodynamic analysis cancelled by user.")
             if self.token is not None:
@@ -225,7 +222,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
@@ -502,7 +499,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
@@ -763,7 +760,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
@@ -1028,7 +1025,7 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 

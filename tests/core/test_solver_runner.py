@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
 
-from setuav_studio.api import ParameterField, StudioAPI
+from setuav_studio.api import ParameterField, StudioAPI, StudioEvents
 from setuav_studio.project import ProjectDocument
 from setuav_studio.solver import (
     AbstractSolver,
@@ -219,3 +220,158 @@ def test_solver_runner_reports_failure_through_on_error() -> None:
     assert [str(err) for err in errors] == ["Simulation diverged"]
     assert project.solver_results == {}
     assert solver.status == SolverStatus.FAILED
+
+
+def test_solver_runner_isolates_project_and_config_snapshots() -> None:
+    studio_api = StudioAPI()
+    project = ProjectDocument(
+        path=Path("snapshot.json"),
+        kind="json",
+        data={
+            "components": [{"id": "wing-1", "name": "Original Wing", "parameters": {"span": 1000}}]
+        },
+    )
+    studio_api._host.set_project(project)
+
+    started = threading.Event()
+    proceed = threading.Event()
+    observed: dict[str, Any] = {}
+
+    class InspectingSolver(AbstractSolver):
+        def run(self) -> SolverResult:
+            started.set()
+            assert proceed.wait(5.0)
+            assert self.project is not None
+            observed["project_is_live"] = self.project is project
+            observed["read_only"] = self.project.read_only
+            observed["span"] = self.project.data["components"][0]["parameters"]["span"]
+            observed["speed"] = self.config.parameters["speed"]
+            observed["has_api_attr"] = hasattr(self, "api")
+            return SolverResult(
+                solver_id=self.config.solver_id,
+                config=self.config,
+                name=self.config.name,
+                status=SolverStatus.COMPLETED,
+            )
+
+    config = SolverConfig(solver_id="org.test:snap", name="Snap Run", parameters={"speed": 20.0})
+    solver = InspectingSolver(config)
+    completed: list[SolverResult] = []
+
+    studio_api.run_solver(solver, on_complete=completed.append)
+    assert started.wait(5.0)
+
+    # Mutate live project and original config while worker is blocked.
+    project.data["components"][0]["parameters"]["span"] = 9999
+    project.data["components"].clear()
+    config.parameters["speed"] = 999.0
+    proceed.set()
+
+    assert studio_api.tasks.thread_pool.waitForDone(5000)
+    get_qapp().processEvents()
+
+    assert len(completed) == 1
+    assert observed == {
+        "project_is_live": False,
+        "read_only": True,
+        "span": 1000,
+        "speed": 20.0,
+        "has_api_attr": False,
+    }
+    assert completed[0].config.parameters["speed"] == 20.0
+
+
+def test_solver_runner_cancels_and_discards_result_when_project_switches() -> None:
+    studio_api = StudioAPI()
+    project_a = ProjectDocument(path=Path("a.json"), kind="json", data={"components": []})
+    project_b = ProjectDocument(path=Path("b.json"), kind="json", data={"components": []})
+    studio_api._host.set_project(project_a)
+
+    started = threading.Event()
+    proceed = threading.Event()
+
+    class UncooperativeSolver(AbstractSolver):
+        """Completes without checking cancellation to verify stale-project writeback guard."""
+
+        def run(self) -> SolverResult:
+            started.set()
+            assert proceed.wait(5.0)
+            return SolverResult(
+                solver_id=self.config.solver_id,
+                config=self.config,
+                name=self.config.name,
+                status=SolverStatus.COMPLETED,
+            )
+
+    completed: list[SolverResult] = []
+    cancelled: list[bool] = []
+    solver = UncooperativeSolver(SolverConfig(solver_id="org.test:a", name="Run A"))
+    handle = studio_api.run_solver(
+        solver,
+        on_complete=completed.append,
+        on_cancelled=lambda: cancelled.append(True),
+    )
+    assert started.wait(5.0)
+
+    # Switch active project to B while solver for A is still running.
+    studio_api._host.set_project(project_b)
+    assert handle.is_cancelled
+    assert solver.is_cancel_requested
+
+    proceed.set()
+    assert studio_api.tasks.thread_pool.waitForDone(5000)
+    get_qapp().processEvents()
+
+    assert completed == []
+    assert cancelled == [True]
+    assert project_a.solver_results == {}
+    assert project_b.solver_results == {}
+    assert project_b.modified is False
+
+
+def test_solver_runner_cancels_active_solvers_on_project_closed() -> None:
+    studio_api = StudioAPI()
+    project = ProjectDocument(path=Path("close.json"), kind="json", data={"components": []})
+    studio_api._host.set_project(project)
+
+    started = threading.Event()
+    proceed = threading.Event()
+
+    class WaitingSolver(AbstractSolver):
+        def run(self) -> SolverResult:
+            started.set()
+            while not proceed.wait(0.01):
+                if self.is_cancel_requested:
+                    raise TaskCancelledError("Stopped on project close")
+            return SolverResult(
+                solver_id=self.config.solver_id,
+                config=self.config,
+                name=self.config.name,
+                status=SolverStatus.COMPLETED,
+            )
+
+    cancelled: list[bool] = []
+    handle = studio_api.run_solver(
+        WaitingSolver(SolverConfig(solver_id="org.test:close", name="Close Run")),
+        on_cancelled=lambda: cancelled.append(True),
+    )
+    assert started.wait(5.0)
+
+    studio_api.publish(StudioEvents.PROJECT_CLOSED, project)
+    assert handle.is_cancelled
+
+    assert studio_api.tasks.thread_pool.waitForDone(5000)
+    get_qapp().processEvents()
+    proceed.set()
+
+    assert cancelled == [True]
+    assert project.solver_results == {}
+
+
+def test_abstract_solver_is_cancel_requested_reflects_token() -> None:
+    solver = SuccessSolver(SolverConfig(solver_id="org.test:token", name="Token Check"))
+    token = DummyCancellationToken()
+    solver.token = token
+    assert not solver.is_cancel_requested
+    token.cancel()
+    assert solver.is_cancel_requested

@@ -89,7 +89,6 @@ class AbstractSolver(ABC):
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         self.config = config
         self.project = project
-        self.api: Any | None = None
         self.status = SolverStatus.QUEUED
         self.progress: float = 0.0
         self.error_message: str | None = None
@@ -98,8 +97,8 @@ class AbstractSolver(ABC):
 
     @property
     def is_cancel_requested(self) -> bool:
-        """Return whether cancellation was requested."""
-        return self._cancel_requested
+        """Return whether cancellation was requested directly or via the task token."""
+        return self._cancel_requested or (self.token is not None and self.token.is_cancelled)
 
     def cancel(self) -> None:
         """Request cancellation of the solver run."""

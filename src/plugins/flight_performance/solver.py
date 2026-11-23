@@ -204,8 +204,6 @@ class FlightPerformanceSolver(AbstractSolver):
     def run(self) -> SolverResult:
         self._check_cancelled()
         project = self.project
-        if project is None and self.api is not None:
-            project = self.api.project
         if project is None:
             raise RuntimeError("No active project available for flight performance analysis.")
         params = self.config.parameters
@@ -266,7 +264,7 @@ class FlightPerformanceSolver(AbstractSolver):
         )
 
     def _check_cancelled(self) -> None:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Flight performance analysis cancelled.")
 
