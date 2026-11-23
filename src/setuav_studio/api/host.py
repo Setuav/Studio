@@ -110,6 +110,16 @@ class _StudioHost:
         self._api._undo_stack.setClean()
         self._api._sync_modified_state(force_notify=True)
 
+    def refresh_after_plugin_change(self) -> None:
+        """Refresh project requirements, derived state, and editors after plugins change."""
+        api = self._api
+        project = api._project
+        if project is None:
+            return
+        project.plugin_issues = self.check_project_requirements(project.data)
+        api._notify_project_content_changed()
+        api.publish(StudioEvents.PLUGINS_CHANGED, project)
+
     def bind_viewport(self, viewport: Any) -> None:
         """Bind the application viewport onto the API and notify project listeners."""
         api = self._api
