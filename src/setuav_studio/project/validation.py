@@ -26,12 +26,7 @@ def validate_project(
 
     issues: list[Issue] = []
 
-    # 1. Root fields validation
-    units = project.get("units")
-    if units is not None and not isinstance(units, dict):
-        issues.append(Issue("error", "Project units must be an object", "$.units"))
-
-    # 2. Components validation
+    # 1. Components validation
     components = project.get("components", [])
     if not isinstance(components, list):
         issues.append(Issue("error", "'components' field must be an array", "$.components"))
