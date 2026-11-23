@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.ui.panels.project_explorer.context_menu import (
     ProjectExplorerContextMenu,
 )
@@ -93,6 +94,10 @@ class ProjectExplorer(QTreeWidget):
         api.on_project_content_changed(self.refresh_project)
         api.on_selection_changed(self._sync_selection)
         api.on_modified_changed(self._on_modified_changed)
+        api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
+
+    def _on_units_changed(self, _payload: object = None) -> None:
+        self.refresh_project()
 
     def set_project(self, project: ProjectDocument) -> None:
         self._capture_saved_state(project)

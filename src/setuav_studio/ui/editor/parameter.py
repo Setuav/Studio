@@ -40,7 +40,6 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         self._resolver = ParameterResolver()
         self._loading = False
         self._current_quantity: str = ""
-        self._current_unit: str = ""
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -166,16 +165,14 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             curr_val = raw_params.get(self._param_key, "")
             if isinstance(curr_val, dict):
                 val_raw = curr_val.get("value", "")
-                self._current_quantity = str(curr_val.get("quantity", ""))
-                self._current_unit = str(curr_val.get("unit", ""))
-                if not self._current_quantity and self._current_unit:
+                self._current_quantity = str(curr_val.get("quantity") or "")
+                if not self._current_quantity and curr_val.get("unit"):
                     from setuav_studio.units import get_quantity_for_unit
 
-                    self._current_quantity = get_quantity_for_unit(self._current_unit) or ""
+                    self._current_quantity = get_quantity_for_unit(str(curr_val["unit"])) or ""
             else:
                 val_raw = curr_val
                 self._current_quantity = ""
-                self._current_unit = ""
 
             from setuav_studio.units import get_quantity_choices, get_unit_manager
 
@@ -186,7 +183,6 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 "value",
                 str(val_raw) if val_raw is not None else "",
                 quantity=self._current_quantity or None,
-                unit=self._current_unit or None,
                 on_changed=self._on_value_expression_changed,
                 on_open_assistant=self._open_assistant,
                 raw_callback=True,
@@ -201,9 +197,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             )
 
             active_sym = (
-                um.get_unit_symbol(self._current_quantity)
-                if self._current_quantity
-                else (self._current_unit or "—")
+                um.get_unit_symbol(self._current_quantity) if self._current_quantity else "—"
             )
             self._set_property_value(self.general_table, "unit", active_sym, editable=False)
 
@@ -213,14 +207,8 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             res_val = resolution.values.get(self._param_key, "—")
             if error is not None:
                 res_str = f"#ERR! {error}"
-            elif isinstance(res_val, (int, float)):
-                disp_val = (
-                    um.to_display(res_val, self._current_quantity)
-                    if self._current_quantity
-                    else res_val
-                )
-                unit_suffix = f" {active_sym}" if active_sym and active_sym != "—" else ""
-                res_str = f"{disp_val:.4g}{unit_suffix}"
+            elif isinstance(res_val, (int, float)) and not isinstance(res_val, bool):
+                res_str = um.format_value(float(res_val), self._current_quantity or None, 2)
             else:
                 res_str = str(res_val)
 
@@ -299,12 +287,9 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             return
 
         if self._current_quantity:
-            from setuav_studio.units import get_unit_manager
-
             final_val: Any = {
                 "value": parsed,
                 "quantity": self._current_quantity,
-                "unit": get_unit_manager().get_unit_symbol(self._current_quantity),
             }
         else:
             final_val = parsed
@@ -319,10 +304,6 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
         new_q = new_quantity.strip()
-        from setuav_studio.units import get_unit_manager
-
-        um = get_unit_manager()
-        new_u = um.get_unit_symbol(new_q) if new_q else ""
 
         data = self._get_project_data()
         if not data:
@@ -336,13 +317,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 raw_params[self._param_key] = {
                     "value": val,
                     "quantity": new_q,
-                    "unit": new_u,
                 }
             else:
                 raw_params[self._param_key] = val
 
         self._current_quantity = new_q
-        self._current_unit = new_u
         self._api.edit_project(f"Change quantity of '{self._param_key}'", _apply)
         self._load_data()
 

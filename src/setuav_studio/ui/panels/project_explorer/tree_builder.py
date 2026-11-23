@@ -115,12 +115,24 @@ class ProjectTreeBuilder:
             self._tree._parameters_group_item = const_group
             top_level.addChild(const_group)
 
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+
+            um = get_unit_manager()
             for k, v in constants.items():
                 item = QTreeWidgetItem([str(k)])
                 item.setIcon(0, get_icon("constant"))
                 if isinstance(v, dict):
-                    unit_str = f" {v.get('unit')}" if v.get("unit") else ""
-                    val_disp = f"{v.get('value', '')}{unit_str}"
+                    raw_val = v.get("value", "")
+                    qty = str(v.get("quantity") or "")
+                    legacy_unit = str(v.get("unit") or "")
+                    if not qty and legacy_unit:
+                        qty = get_quantity_for_unit(legacy_unit) or ""
+                    if qty and isinstance(raw_val, (int, float)) and not isinstance(raw_val, bool):
+                        val_disp = um.format_value(float(raw_val), qty, 2)
+                    elif legacy_unit:
+                        val_disp = f"{raw_val} {legacy_unit}"
+                    else:
+                        val_disp = str(raw_val)
                 else:
                     val_disp = str(v)
                 item.setToolTip(0, f"Constant: {k}\nValue: {val_disp}")

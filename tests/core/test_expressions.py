@@ -856,3 +856,67 @@ def test_parameter_rename_updates_selection_and_follows_undo_redo(tmp_path: Path
     assert api.current_selection is not None
     assert api.current_selection.get("key") == "k_renamed"
     panel.deleteLater()
+
+
+def test_parameter_stores_quantity_without_display_unit_and_formats_live(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from setuav_studio.ui.panels.project_explorer import ProjectExplorer
+    from setuav_studio.units import get_unit_manager
+    from tests._common import get_qapp
+
+    get_qapp()
+    um = get_unit_manager()
+    um.set_active_preset("imperial")
+    try:
+        proj = ProjectDocument(
+            tmp_path / "param_units.json",
+            "json",
+            {
+                "parameters": {
+                    "span": 254.0,
+                    "legacy_len": {"value": 254.0, "unit": "mm"},
+                },
+                "components": [],
+            },
+        )
+        api = StudioAPI()
+        api._host.set_project(proj)
+
+        editor = ParameterPropertyEditor(api, {"key": "span"})
+        editor._on_quantity_changed("length")
+        assert proj.data["parameters"]["span"] == {"value": 254.0, "quantity": "length"}
+        assert "unit" not in proj.data["parameters"]["span"]
+
+        # Editing in imperial writes base mm and omits the transient display unit symbol.
+        editor._on_value_expression_changed("508.0")
+        assert proj.data["parameters"]["span"] == {"value": 508.0, "quantity": "length"}
+        assert editor._property_text(editor.general_table, 3) == "in"
+        assert editor._property_text(editor.general_table, 4) == "20.0 in"
+        editor.deleteLater()
+
+        # Legacy entries with only "unit" resolve their quantity and show active display units.
+        legacy_editor = ParameterPropertyEditor(api, {"key": "legacy_len"})
+        assert legacy_editor._current_quantity == "length"
+        assert legacy_editor._property_text(legacy_editor.general_table, 3) == "in"
+        assert legacy_editor._property_text(legacy_editor.general_table, 4) == "10.0 in"
+        legacy_editor.deleteLater()
+
+        # Formula metadata exposes base-unit symbol matching the evaluated scope value.
+        meta = get_available_symbols_metadata(proj, api=api)
+        by_key = {c["key"]: c for c in meta["constants"]}
+        assert by_key["span"]["value"] == 508.0
+        assert by_key["span"]["unit"] == "mm"
+        assert by_key["legacy_len"]["unit"] == "mm"
+
+        # Project Explorer tooltip formats constants in the active display unit and tracks changes.
+        tree = ProjectExplorer(api)
+        span_item = tree._item_map["param_span"]
+        assert "20.0 in" in span_item.toolTip(0)
+        um.set_active_preset("si")
+        um.units_changed.emit()
+        span_item = tree._item_map["param_span"]
+        assert "508.0 mm" in span_item.toolTip(0)
+        tree.deleteLater()
+    finally:
+        um.set_active_preset("si")

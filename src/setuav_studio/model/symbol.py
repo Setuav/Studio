@@ -67,16 +67,30 @@ def get_available_symbols_metadata(  # noqa: C901
     components_list: list[dict[str, Any]] = []
 
     # 1. Global Project Parameters
+    from setuav_studio.units import QUANTITIES, get_quantity_for_unit
+
     raw_params = p_dict.get("parameters", {})
     for k, v in raw_params.items():
         curr_val = context.get(k, v)
         if hasattr(curr_val, "unwrap"):
             curr_val = curr_val.unwrap()
-        unit = v.get("unit", "") if isinstance(v, dict) else ""
+        quantity = ""
+        unit = ""
+        if isinstance(v, dict):
+            quantity = str(v.get("quantity") or "")
+            legacy_unit = str(v.get("unit") or "")
+            if not quantity and legacy_unit:
+                quantity = get_quantity_for_unit(legacy_unit) or ""
+            qty_def = QUANTITIES.get(quantity)
+            if qty_def is not None:
+                unit = qty_def.units[qty_def.base_unit_id].symbol
+            else:
+                unit = legacy_unit
         constants_list.append(
             {
                 "key": k,
                 "value": curr_val,
+                "quantity": quantity,
                 "unit": unit,
                 "expression": f"{k}",
             }
