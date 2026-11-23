@@ -132,6 +132,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         )
         from setuav_studio.api import ToolbarContribution
         from setuav_studio.solver import SolverConfig
+        from setuav_studio.solver.launch import analysis_available
 
         api.register_solver(
             SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver, icon="propulsion_throttle_sweep"
@@ -181,22 +182,25 @@ class ElectricalPropulsionPlugin(StudioPlugin):
 
         analyses = (
             (
+                ThrottleSweepSolver,
                 "Add Throttle Sweep Analysis",
                 add_throttle_sweep_analysis,
                 "propulsion_throttle_sweep",
             ),
             (
+                AirspeedSweepSolver,
                 "Add Airspeed Sweep Analysis",
                 add_airspeed_sweep_analysis,
                 "propulsion_airspeed_sweep",
             ),
             (
+                OperatingPointSolver,
                 "Add Propulsion Operating Point Analysis",
                 add_operating_point_analysis,
                 "propulsion_operating_point",
             ),
         )
-        for index, (key, (title, callback, icon)) in enumerate(
+        for index, (key, (solver_cls, title, callback, icon)) in enumerate(
             zip(_ANALYSIS_KEYS, analyses, strict=True)
         ):
             api.register_toolbar_item(
@@ -205,7 +209,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                     title=title,
                     callback=callback,
                     icon=icon,
-                    enabled_when=lambda: api.project is not None,
+                    enabled_when=lambda solver_cls=solver_cls: analysis_available(api, solver_cls),
                     group="analysis",
                     order=210 + index,
                 )

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from setuav_studio.api.contributions import ParameterField
+    from setuav_studio.project.document import ProjectDocument
     from setuav_studio.task.types import CancellationToken
 
     from .results import SolverResult
@@ -72,6 +73,14 @@ class AbstractSolver(ABC):
     def default_parameters(cls) -> dict[str, Any]:
         """Return the default value of every declared parameter."""
         return {field.key: field.default for field in cls.PARAMETER_FIELDS}
+
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        """What the design lacks for this analysis, as a sentence, or None when it can run.
+
+        While a reason is returned, the analysis cannot be added or started.
+        """
+        return None
 
     def check_parameter_ranges(self) -> None:
         """Raise ValueError for a numeric parameter outside its declared range."""

@@ -7,6 +7,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
+    from .base import AbstractSolver
+
+
+def analysis_available(api: StudioAPI, solver_cls: type[AbstractSolver]) -> bool:
+    """Whether an analysis of ``solver_cls`` can be added to the open project and run."""
+    project = api.project
+    return project is not None and solver_cls.unmet_requirement(project) is None
+
 
 def run_analysis(api: StudioAPI, config_id: str | None = None) -> None:
     """Run the analysis ``config_id``, or the current one (the first when none is).
@@ -34,6 +42,11 @@ def run_analysis(api: StudioAPI, config_id: str | None = None) -> None:
         return
 
     name = config.name
+    project = api.project
+    reason = solver_cls.unmet_requirement(project) if project is not None else None
+    if reason is not None:
+        api.show_status(f"Analysis '{name}' cannot run. {reason}", "warning", 5000)
+        return
     api.show_status(f"Starting analysis '{name}'...", "info", 3000)
     api.run_solver(
         solver_cls(config),

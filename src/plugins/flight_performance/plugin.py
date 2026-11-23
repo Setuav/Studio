@@ -6,6 +6,7 @@ from pathlib import Path
 
 from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.solver import SolverConfig
+from setuav_studio.solver.launch import analysis_available
 from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
 from .solver import SOLVER_ID_FLIGHT_PERFORMANCE, FlightPerformanceSolver
@@ -37,7 +38,7 @@ class FlightPerformancePlugin:
                 title="Add Flight Performance Analysis",
                 icon="flight_performance",
                 callback=self._add_analysis,
-                enabled_when=lambda: api.project is not None,
+                enabled_when=lambda: analysis_available(api, FlightPerformanceSolver),
                 group="analysis",
                 order=220,
             )

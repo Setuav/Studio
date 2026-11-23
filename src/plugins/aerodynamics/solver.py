@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from plugins.aerodynamics.engine.aerosandbox_analysis import DEFAULT_SOLVER_SETTINGS
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
@@ -27,12 +27,25 @@ from setuav_studio.solver.results import (
 )
 from setuav_studio.task.types import TaskCancelledError
 
+if TYPE_CHECKING:
+    from setuav_studio.project import ProjectDocument
+
 logger = logging.getLogger(__name__)
 
 SOLVER_ID_ALPHA_SWEEP = "org.setuav.aerodynamics.alpha_sweep"
 SOLVER_ID_BETA_SWEEP = "org.setuav.aerodynamics.beta_sweep"
 SOLVER_ID_CONTROL_DEFLECTION = "org.setuav.aerodynamics.control_deflection"
 SOLVER_ID_OPERATING_POINT = "org.setuav.aerodynamics.operating_point"
+
+
+_LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
+_CONTROL_SURFACE_TYPE = "org.setuav.core:control-surface"
+
+
+def _has_component(project: ProjectDocument, component_type: str) -> bool:
+    return any(
+        isinstance(c, dict) and c.get("type") == component_type for c in project.data["components"]
+    )
 
 
 class BaseAerodynamicsSolver(AbstractSolver):
@@ -42,6 +55,12 @@ class BaseAerodynamicsSolver(AbstractSolver):
         super().__init__(config)
         self.engine = AeroSandboxEngine()
 
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        if not _has_component(project, _LIFTING_SURFACE_TYPE):
+            return "Add a lifting surface to the design first."
+        return None
+
     def _extract_components(self) -> list[dict[str, Any]]:
         project = self.project
         if project is None:
@@ -50,17 +69,9 @@ class BaseAerodynamicsSolver(AbstractSolver):
         components = project.data["components"]
         if not isinstance(components, list):
             raise RuntimeError("Project components collection is invalid.")
-
-        lifting_surfaces = [
-            c
-            for c in components
-            if isinstance(c, dict) and c.get("type") == "org.setuav.core:lifting-surface"
-        ]
-        if not lifting_surfaces:
-            raise RuntimeError(
-                "Project contains no lifting surfaces. Please add at least one wing before running aerodynamic analysis."
-            )
-
+        reason = self.unmet_requirement(project)
+        if reason is not None:
+            raise AeroAnalysisError(reason)
         return components
 
     def _parameter(self, key: str) -> float:
@@ -758,6 +769,13 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             tooltip="Aerodynamic solver calculation method.",
         ),
     ]
+
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        reason = super().unmet_requirement(project)
+        if reason is None and not _has_component(project, _CONTROL_SURFACE_TYPE):
+            return "Add a control surface to the design first."
+        return reason
 
     def run(self) -> SolverResult:
         if self.is_cancel_requested:

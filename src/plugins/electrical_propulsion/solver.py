@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from plugins.electrical_propulsion.powertrain import (
     Powertrain,
     PowertrainError,
+    PowertrainMembers,
     PowertrainPoint,
     build_powertrain,
     find_powertrain_members,
@@ -25,6 +26,9 @@ from setuav_studio.solver.results import (
 )
 from setuav_studio.task.types import TaskCancelledError
 
+if TYPE_CHECKING:
+    from setuav_studio.project import ProjectDocument
+
 logger = logging.getLogger(__name__)
 
 SOLVER_ID_THROTTLE_SWEEP = "org.setuav.propulsion.throttle_sweep"
@@ -34,20 +38,37 @@ SOLVER_ID_OPERATING_POINT = "org.setuav.propulsion.operating_point"
 _ENDURANCE_FINAL_SOC = 0.2
 
 
+_MISSING_POWERTRAIN = "Add a propulsor and a battery to the design first."
+
+
+def _complete_powertrain(project: ProjectDocument) -> PowertrainMembers | None:
+    """The design's propulsors and batteries, or None unless it has at least one of each."""
+    components = [c for c in project.data["components"] if isinstance(c, dict)]
+    members = find_powertrain_members(components)
+    if members is None or not members.propulsors or not members.batteries:
+        return None
+    return members
+
+
 class BasePropulsionSolver(AbstractSolver):
     """Base class for electrical propulsion solvers resolving project powertrain entities."""
 
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         super().__init__(config, project)
 
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        if _complete_powertrain(project) is None:
+            return _MISSING_POWERTRAIN
+        return None
+
     def _powertrain(self) -> Powertrain:
         project = self.project
         if project is None:
             raise RuntimeError("No active project available for propulsion analysis.")
-        components = [c for c in project.data["components"] if isinstance(c, dict)]
-        members = find_powertrain_members(components)
+        members = _complete_powertrain(project)
         if members is None:
-            raise PowertrainError("Propulsion analysis requires propulsors and a battery.")
+            raise PowertrainError(_MISSING_POWERTRAIN)
         return build_powertrain(
             members,
             state_of_charge=float(self.config.parameters["state_of_charge"]) / 100.0,

@@ -21,6 +21,7 @@ from setuav_studio.api import (
     ToolContribution,
 )
 from setuav_studio.solver import SolverConfig
+from setuav_studio.solver.launch import analysis_available
 from setuav_studio.ui.style.icons import register_plugin_icons, unregister_plugin_icons
 
 if TYPE_CHECKING:
@@ -106,30 +107,34 @@ class AerodynamicsPlugin:
         analyses = (
             (
                 "alpha-sweep",
+                AlphaSweepSolver,
                 "Add Alpha Sweep (Polar) Analysis",
                 add_alpha_sweep_analysis,
                 "aero_alpha_sweep",
             ),
             (
                 "beta-sweep",
+                BetaSweepSolver,
                 "Add Beta Sweep (Sideslip) Analysis",
                 add_beta_sweep_analysis,
                 "aero_beta_sweep",
             ),
             (
                 "control-deflection",
+                ControlDeflectionSolver,
                 "Add Control Deflection Analysis",
                 add_control_deflection_analysis,
                 "aero_control_deflection",
             ),
             (
                 "operating-point",
+                OperatingPointSolver,
                 "Add Aero Operating Point Analysis",
                 add_operating_point_analysis,
                 "aero_operating_point",
             ),
         )
-        for index, (key, title, callback, icon) in enumerate(analyses):
+        for index, (key, solver_cls, title, callback, icon) in enumerate(analyses):
             toolbar_id = f"aerodynamics.add-{key}"
             api.register_toolbar_item(
                 ToolbarContribution(
@@ -137,7 +142,7 @@ class AerodynamicsPlugin:
                     title=title,
                     callback=callback,
                     icon=icon,
-                    enabled_when=lambda: api.project is not None,
+                    enabled_when=lambda solver_cls=solver_cls: analysis_available(api, solver_cls),
                     group="analysis",
                     order=200 + index,
                 )
