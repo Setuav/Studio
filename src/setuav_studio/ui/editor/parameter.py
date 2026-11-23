@@ -87,6 +87,15 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         params = data.get("parameters", {})
         if self._param_key in params:
             self._load_data()
+            sel = self._api.current_selection
+            if (
+                self._api is not None
+                and isinstance(sel, dict)
+                and sel.get("kind") == "parameter"
+                and sel.get("key") in self._key_history
+                and sel.get("key") != self._param_key
+            ):
+                self._api.set_selection(self._selection_payload(params.get(self._param_key)))
             return
         for candidate in reversed(self._key_history):
             if candidate in params:
