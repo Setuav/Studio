@@ -74,6 +74,7 @@ ANALYSIS_TITLES = (
 )
 # The analyses are toolbar buttons only; the Tools menu keeps the standalone tool.
 TOOL_TITLES = ("Airfoil Analysis…",)
+_EMPTY_RESULT = AeroResult(method=AnalysisMethod.AERO_BUILDUP, engine_name="test")
 WING = {"id": "wing", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
 
 
@@ -174,7 +175,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             parameters={**solver_cls.default_parameters(), **parameters},
         )
         solver = solver_cls(config)
-        solver.project = _project(components or [WING])
+        solver.project = _project([WING] if components is None else components)
         calls: list[dict[str, Any]] = []
 
         def analyze(**kwargs: Any) -> AeroResult:
@@ -209,6 +210,10 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(self.statuses[-1][1], "warning")
 
         self.api._host.set_project(_project())
+        self.assertFalse(any(_enabled(item) for item in buttons))
+        self.api._host.set_project(_project([WING]))
+        self.assertEqual([_enabled(item) for item in buttons], [True, True, False, True])
+        self.api._host.set_project(_project([WING, _control_surface("aileron", "aileron")]))
         self.assertTrue(all(_enabled(item) for item in buttons))
         for item in buttons:
             _trigger(item)
@@ -225,6 +230,25 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 config.parameters,
                 {field.key: field.default for field in solver_cls.PARAMETER_FIELDS},
             )
+
+    def test_analyses_name_the_part_the_design_lacks(self) -> None:
+        for solver_cls in SOLVER_CLASSES.values():
+            self.assertEqual(
+                solver_cls.unmet_requirement(_project()),
+                "Add a lifting surface to the design first.",
+            )
+            with self.assertRaisesRegex(AeroAnalysisError, "Add a lifting surface"):
+                self._run_solver(solver_cls, {}, _EMPTY_RESULT, components=[])
+        self.assertIsNone(AlphaSweepSolver.unmet_requirement(_project([WING])))
+        self.assertEqual(
+            ControlDeflectionSolver.unmet_requirement(_project([WING])),
+            "Add a control surface to the design first.",
+        )
+        self.assertIsNone(
+            ControlDeflectionSolver.unmet_requirement(
+                _project([WING, _control_surface("aileron", "aileron")])
+            )
+        )
 
     def test_deactivation_cleans_up(self) -> None:
         self.plugin.activate(self.api)
@@ -592,9 +616,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(result.summary["q_inf"].value, 245.0)
         self.assertEqual(result.summary["reynolds"].value, "3.20e+05")
 
-    def test_control_analysis_rejects_channel_missing_on_aircraft(self) -> None:
+    def test_control_analysis_needs_a_control_surface(self) -> None:
         aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
-        with self.assertRaisesRegex(AeroAnalysisError, "no 'aileron' control channel"):
+        with self.assertRaisesRegex(AeroAnalysisError, "Add a control surface"):
             self._run_solver(ControlDeflectionSolver, {"channel": "aileron"}, aero_result)
 
     def test_unknown_solver_method_is_rejected(self) -> None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -34,6 +34,9 @@ from .engine.performance import (
     stall_speed,
     velocity_sweep,
 )
+
+if TYPE_CHECKING:
+    from setuav_studio.project import ProjectDocument
 
 SOLVER_ID_FLIGHT_PERFORMANCE = "org.setuav.flight_performance.level_flight"
 
@@ -201,11 +204,23 @@ class FlightPerformanceSolver(AbstractSolver):
         ),
     ]
 
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        if not any(
+            isinstance(c, dict) and c.get("type") == "org.setuav.core:lifting-surface"
+            for c in project.data["components"]
+        ):
+            return "Add a lifting surface to the design first."
+        return None
+
     def run(self) -> SolverResult:
         self._check_cancelled()
         project = self.project
         if project is None:
             raise RuntimeError("No active project available for flight performance analysis.")
+        reason = self.unmet_requirement(project)
+        if reason is not None:
+            raise ValueError(reason)
         params = self.config.parameters
         components = [c for c in project.data["components"] if isinstance(c, dict)]
 

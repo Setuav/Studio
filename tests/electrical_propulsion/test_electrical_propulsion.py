@@ -980,6 +980,47 @@ class TestElectricalPropulsion(unittest.TestCase):
             float(shown_thrust), um.to_display(float(static_thrust.value), "force")
         )
 
+    def test_propulsion_analyses_need_a_propulsor_and_a_battery(self) -> None:
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from plugins.electrical_propulsion.solver import (
+            AirspeedSweepSolver,
+            OperatingPointSolver,
+            ThrottleSweepSolver,
+        )
+
+        api, buttons, _statuses = self._headless_api()
+        plugin = ElectricalPropulsionPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        titles = (
+            "Add Throttle Sweep Analysis",
+            "Add Airspeed Sweep Analysis",
+            "Add Propulsion Operating Point Analysis",
+        )
+        analysis_buttons = [button for button in buttons if button.title in titles]
+        self.assertEqual(len(analysis_buttons), len(titles))
+
+        def enabled() -> list[bool]:
+            return [
+                bool(button.enabled_when and button.enabled_when()) for button in analysis_buttons
+            ]
+
+        without_propulsors = open_project(TEST_PROJECT_PATH)
+        without_propulsors.data["components"] = [
+            component
+            for component in without_propulsors.data["components"]
+            if component.get("type") != PROPULSOR_TYPE
+        ]
+        api._host.set_project(without_propulsors)
+        self.assertEqual(enabled(), [False, False, False])
+        for solver_cls in (ThrottleSweepSolver, AirspeedSweepSolver, OperatingPointSolver):
+            self.assertEqual(
+                solver_cls.unmet_requirement(api.project),  # type: ignore[arg-type]
+                "Add a propulsor and a battery to the design first.",
+            )
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
+        self.assertEqual(enabled(), [True, True, True])
+
     def _drain_events(self, iterations: int = 15) -> None:
         from PySide6.QtCore import QThreadPool
 

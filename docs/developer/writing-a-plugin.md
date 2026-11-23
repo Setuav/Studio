@@ -50,6 +50,7 @@ import math
 from typing import ClassVar
 
 from setuav_studio.api import ParameterField
+from setuav_studio.project import ProjectDocument
 from setuav_studio.solver import AbstractSolver, SolverResult
 from setuav_studio.solver.results import (
     PlotDefinition,
@@ -105,6 +106,12 @@ class HoverPowerSolver(AbstractSolver):
         ),
     ]
 
+    @classmethod
+    def unmet_requirement(cls, project: ProjectDocument) -> str | None:
+        if project.mass_properties.mass_kg <= 0.0:
+            return "Give the components a mass first."
+        return None
+
     def run(self) -> SolverResult:
         parameters = self.config.parameters
         rotors = int(parameters["rotor_count"])
@@ -156,6 +163,11 @@ class HoverPowerSolver(AbstractSolver):
     the total mass and CG, `self.project.data["components"]` the components,
     and `self.project.get_scope()` the values formulas see.
 
+`unmet_requirement` says what the design lacks for the analysis, as a
+sentence, or returns `None` when it can run. While it returns a reason, the
+toolbar item is disabled and Studio refuses to start the analysis, showing the
+reason in the status bar.
+
 ## The plugin
 
 The plugin registers the solver and a toolbar item in the **analysis** group.
@@ -170,6 +182,7 @@ from __future__ import annotations
 
 from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.solver import SolverConfig
+from setuav_studio.solver.launch import analysis_available
 
 from .solver import SOLVER_ID, HoverPowerSolver
 
@@ -187,7 +200,7 @@ class HoverPowerPlugin:
                 title="Add Hover Power Analysis",
                 icon="fa6s.helicopter",
                 callback=lambda: self._add_analysis(api),
-                enabled_when=lambda: api.project is not None,
+                enabled_when=lambda: analysis_available(api, HoverPowerSolver),
                 group="analysis",
                 order=280,
             )

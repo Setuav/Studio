@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import PropertyMock, patch
@@ -31,7 +32,7 @@ from plugins.flight_performance.solver import (
     SOLVER_ID_FLIGHT_PERFORMANCE,
     FlightPerformanceSolver,
 )
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, ToolbarContribution
 from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.solver import SolverConfig
 from tests._common import TEST_PROJECT_PATH
@@ -325,6 +326,25 @@ class FlightPerformancePluginTests(unittest.TestCase):
 
         plugin.deactivate(api)
         self.assertIsNone(api.get_solver_class(SOLVER_ID_FLIGHT_PERFORMANCE))
+
+    def test_analysis_needs_a_lifting_surface(self) -> None:
+        api = StudioAPI()
+        buttons: list[ToolbarContribution] = []
+        api._host.bind_toolbar_handlers(buttons.append)
+        plugin = FlightPerformancePlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        (button,) = buttons
+        assert button.enabled_when is not None
+
+        api._host.set_project(ProjectDocument(Path("empty.json"), "json", {"components": []}))
+        self.assertFalse(button.enabled_when())
+        self.assertEqual(
+            FlightPerformanceSolver.unmet_requirement(api.project),  # type: ignore[arg-type]
+            "Add a lifting surface to the design first.",
+        )
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
+        self.assertTrue(button.enabled_when())
 
 
 if __name__ == "__main__":
