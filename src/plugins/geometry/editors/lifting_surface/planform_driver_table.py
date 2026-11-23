@@ -192,16 +192,11 @@ class DriverPlanformTable(QTableWidget):
                         self.setItem(row, 2, QTableWidgetItem(""))
 
                     raw_expr = self._driver_expressions.get(key)
-                    if raw_expr:
-                        init_str = raw_expr
-                    else:
-                        from setuav_studio.units import format_engineering_value
-
-                        init_str = format_engineering_value(val, dec)
+                    init_val: float | str = raw_expr if raw_expr else val
 
                     label_name = PLANFORM_PARAM_LABELS[key]
                     cell = ExpressionPropertyCell(
-                        initial_value=init_str,
+                        initial_value=init_val,
                         on_changed=lambda s, k=key: self._on_expression_cell_changed(k, s),
                         api=self._api,
                         label=label_name,
