@@ -582,17 +582,49 @@ class StudioAPI:
         """End the current compound Undo macro."""
         self._undo_stack.endMacro()
 
+    def _resolve_live_selection(self, selection: Any | None) -> Any | None:
+        """Return the live project object for ``selection``, or None if it was deleted."""
+        if selection is None or self._project is None or not isinstance(selection, dict):
+            return selection
+        kind = str(selection.get("kind") or "")
+        if kind in ("", "component"):
+            comp_id = str(selection.get("id") or "")
+            if comp_id:
+                return self._project.get_component(comp_id)
+            return selection
+        if kind == "parameter":
+            key = selection.get("key")
+            params = self._project.data.get("parameters")
+            if isinstance(key, str) and (not isinstance(params, dict) or key not in params):
+                return None
+            return selection
+        if kind == "constraint":
+            cid = str(selection.get("id") or "")
+            constraints = self._project.data.get("constraints")
+            if cid and not (
+                isinstance(constraints, list)
+                and any(isinstance(c, dict) and c.get("id") == cid for c in constraints)
+            ):
+                return None
+            return selection
+        if kind == "analysis_config":
+            cid = str(selection.get("id") or "")
+            if cid and self._project.get_solver_config(cid) is None:
+                return None
+            return selection
+        return selection
+
     def undo(self) -> None:
         """Undo the most recent project or component edit when available."""
         if self._undo_stack.canUndo():
             self._undo_stack.undo()
-            self.set_selection(self.current_selection)
+            self.set_selection(self._resolve_live_selection(self.current_selection))
 
     def redo(self) -> None:
         """Redo the most recently undone edit when available."""
         if self._undo_stack.canRedo():
             self._undo_stack.redo()
-            self.set_selection(self.current_selection)
+            self.set_selection(self._resolve_live_selection(self.current_selection))
 
     @property
     def can_undo(self) -> bool:
@@ -835,9 +867,23 @@ class StudioAPI:
                 self._is_recomputing_expressions = False
 
         dispatch_listeners(self._project_content_listeners, self._project)
+        if (
+            self.current_selection is not None
+            and self._resolve_live_selection(self.current_selection) is None
+        ):
+            self.set_selection(None)
 
-    def _sync_modified_state(self, *, force_notify: bool = False) -> None:
-        modified = (not self._undo_stack.isClean()) or self._dirty_outside_undo
+    def _sync_modified_state(
+        self,
+        *,
+        clean: bool | None = None,
+        force_notify: bool = False,
+    ) -> None:
+        if clean is None:
+            import shiboken6
+
+            clean = self._undo_stack.isClean() if shiboken6.isValid(self._undo_stack) else True
+        modified = (not clean) or self._dirty_outside_undo
         if self._project is not None:
             self._project.modified = modified
         if force_notify or self._last_notified_modified != modified:
@@ -845,8 +891,8 @@ class StudioAPI:
             dispatch_listeners(self._modified_listeners, modified)
             self.publish(StudioEvents.PROJECT_MODIFIED, modified)
 
-    def _on_clean_changed(self, _clean: bool) -> None:
-        self._sync_modified_state()
+    def _on_clean_changed(self, clean: bool) -> None:
+        self._sync_modified_state(clean=clean)
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> UnsubscribeCallable:
         """Subscribe to selection changes and receive the current selection.

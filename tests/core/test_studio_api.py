@@ -687,3 +687,49 @@ def test_modified_state_stays_dirty_across_undo_when_solver_results_change() -> 
     assert studio_api.remove_solver_result(result.id) is True
     assert project.modified is True
     assert events[-1] is True
+
+
+def test_undo_clears_deleted_selection_and_properties_panel_editor() -> None:
+    from PySide6.QtWidgets import QLabel
+
+    from setuav_studio.ui.panels.properties import PropertiesPanel
+
+    studio_api = StudioAPI()
+    project = ProjectDocument(
+        Path("sel.json"),
+        "json",
+        {"parameters": {}, "constraints": [], "components": []},
+    )
+    studio_api._host.set_project(project)
+    panel = PropertiesPanel(studio_api)
+
+    # 1. Add component, select it, then undo -> selection and editor clear cleanly.
+    comp = {"id": "wing-1", "name": "Wing", "type": "org.setuav.core:generic", "mass": 100.0}
+    studio_api.edit_project("Add wing", lambda: project.data["components"].append(comp))
+    studio_api.set_selection(comp)
+    assert studio_api.current_selection is not None
+    assert panel._active_component_id == "wing-1"
+
+    studio_api.undo()
+    assert studio_api.current_selection is None
+    assert panel._active_component_id is None
+    assert isinstance(panel._current_widget, QLabel)
+
+    # 2. Add parameter, select it, then undo -> selection clears cleanly.
+    studio_api.edit_project("Add param", lambda: project.data["parameters"].update({"k": 5.0}))
+    studio_api.set_selection({"kind": "parameter", "id": "param_k", "key": "k", "value": 5.0})
+    assert studio_api.current_selection is not None
+    studio_api.undo()
+    assert studio_api.current_selection is None
+
+    # 3. Add constraint, select it, then undo -> selection clears cleanly.
+    constraint = {"id": "c1", "name": "Rule", "expression": "1 > 0", "enabled": True}
+    studio_api.edit_project(
+        "Add constraint", lambda: project.data["constraints"].append(constraint)
+    )
+    studio_api.set_selection({"kind": "constraint", **constraint})
+    assert studio_api.current_selection is not None
+    studio_api.undo()
+    assert studio_api.current_selection is None
+
+    panel.deleteLater()

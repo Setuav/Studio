@@ -63,13 +63,12 @@ class PropertiesPanel(QWidget):
         if self._current_widget is None or self._current_selection_key is None:
             return
         kind, new_id = self._current_selection_key
-        if kind in ("", "component") and new_id:
+        if kind in ("", "component") and new_id and self._api.project is not None:
             live_comp = self._resolve_live_component(new_id)
-            if (
-                live_comp is not None
-                and self._current_component is not None
-                and self._current_component is not live_comp
-            ):
+            if live_comp is None:
+                self.set_selection(None)
+                return
+            if self._current_component is not None and self._current_component is not live_comp:
                 self._current_selection_key = None
                 self.set_selection(live_comp)
 
@@ -92,10 +91,12 @@ class PropertiesPanel(QWidget):
         new_key = (kind, new_id)
 
         live_selection = selection
-        if kind in ("", "component") and new_id:
+        if kind in ("", "component") and new_id and self._api.project is not None:
             live_comp = self._resolve_live_component(new_id)
-            if live_comp is not None:
-                live_selection = live_comp
+            if live_comp is None:
+                self.set_selection(None)
+                return
+            live_selection = live_comp
 
         if (
             self._current_selection_key is not None
