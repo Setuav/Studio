@@ -309,6 +309,41 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("no converged points", tool.status_label.text())
         tool.close()
 
+    def test_airfoil_analysis_recovers_when_cancelled(self) -> None:
+        import threading
+        from unittest import mock
+
+        from PySide6.QtCore import QDeadlineTimer
+        from PySide6.QtTest import QTest
+
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow_analysis(_request: object) -> dict[str, object]:
+            started.set()
+            release.wait(5.0)
+            return {"airfoil": "NACA 2412", "engine": "mock", "rows": []}
+
+        tool = AirfoilAnalysisToolWindow(self.api)
+        try:
+            with mock.patch(
+                "plugins.aerodynamics.airfoil_analysis_tool.analyze_airfoil_request",
+                side_effect=slow_analysis,
+            ):
+                tool._run_analysis()
+                self.assertTrue(started.wait(5.0))
+                self.api.tasks.cancel_all()
+                release.set()
+                deadline = QDeadlineTimer(5000)
+                while not tool.run_button.isEnabled() and not deadline.hasExpired():
+                    QTest.qWait(10)
+            self.assertTrue(tool.run_button.isEnabled())
+            self.assertFalse(tool._running)
+            self.assertIn("cancelled", tool.status_label.text().lower())
+            self.assertTrue(tool.close())
+        finally:
+            release.set()
+
     def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
         components = [
             WING,

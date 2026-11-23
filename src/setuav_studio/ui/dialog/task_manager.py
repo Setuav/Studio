@@ -97,10 +97,10 @@ class TaskManagerDialog(QDialog):
 
         # Connect TaskManager events
         self._tm.tasks_count_changed.connect(self._on_task_count_changed)
-        self._tm.task_started.connect(lambda _tid, _n: self._refresh_all())
-        self._tm.task_finished.connect(lambda _tid, _r: self._refresh_all())
-        self._tm.task_error.connect(lambda _tid, _e: self._refresh_all())
-        self._tm.task_cancelled.connect(lambda _tid: self._refresh_all())
+        self._tm.task_started.connect(self._on_task_event)
+        self._tm.task_finished.connect(self._on_task_event)
+        self._tm.task_error.connect(self._on_task_event)
+        self._tm.task_cancelled.connect(self._on_task_event)
 
         self._refresh_all()
 
@@ -155,6 +155,9 @@ class TaskManagerDialog(QDialog):
     def _on_task_count_changed(self, count: int) -> None:
         self._tabs.setTabText(0, f"Active Tasks ({count})")
         self._btn_cancel_all.setEnabled(count > 0)
+        self._refresh_all()
+
+    def _on_task_event(self, *_args: object) -> None:
         self._refresh_all()
 
     def _refresh_all(self) -> None:

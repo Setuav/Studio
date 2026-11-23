@@ -398,6 +398,7 @@ class AirfoilAnalysisToolWindow(QDialog):
             lambda _token: analyze_airfoil_request(request),
             on_finished=self._analysis_completed,
             on_error=self._analysis_failed,
+            on_cancelled=self._analysis_cancelled,
         )
 
     def _analysis_completed(self, result: dict[str, Any]) -> None:
@@ -417,6 +418,11 @@ class AirfoilAnalysisToolWindow(QDialog):
         self.status_label.setText(f"Analysis failed: {message}")
         self._api.show_status(f"Airfoil analysis failed: {message}", "error", 5000)
         QMessageBox.critical(self, "Airfoil Analysis", message)
+
+    def _analysis_cancelled(self) -> None:
+        self._analysis_finished()
+        self.status_label.setText("Analysis cancelled.")
+        self._api.show_status("Airfoil analysis cancelled", "warning", 3000)
 
     def _analysis_finished(self) -> None:
         self._running = False

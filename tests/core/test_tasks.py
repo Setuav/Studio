@@ -246,6 +246,46 @@ class TestTaskManager(unittest.TestCase):
         gc.collect()
         self.assertIsNone(ref())
 
+    def test_cancel_before_queued_finished_signal_transitions_to_cancelled(self) -> None:
+        import threading
+
+        finished: list[object] = []
+        cancelled: list[bool] = []
+        done = threading.Event()
+
+        def fast_work(_token: CancellationToken) -> int:
+            done.set()
+            return 99
+
+        handle = self.tm.submit(
+            name="Cancel Race Task",
+            target=fast_work,
+            on_finished=finished.append,
+            on_cancelled=lambda: cancelled.append(True),
+        )
+        # Wait until worker finishes and queues finished signal, without pumping Qt events.
+        self.assertTrue(done.wait(5.0))
+        self.assertTrue(self.tm.thread_pool.waitForDone(5000))
+        # Cancel on UI thread before queued finished slot executes.
+        self.assertTrue(handle.cancel())
+        _wait_for_task(handle)
+
+        self.assertEqual(handle.status, TaskStatus.CANCELLED)
+        self.assertEqual(finished, [])
+        self.assertEqual(cancelled, [True])
+
+    def test_task_manager_dialog_disconnects_signals_on_delete(self) -> None:
+        from PySide6.QtCore import QEvent
+
+        dlg = TaskManagerDialog(self.api)
+        dlg.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QCoreApplication.processEvents()
+
+        handle = self.tm.submit(name="After Dialog Deleted", target=lambda _t: "ok")
+        _wait_for_task(handle)
+        self.assertEqual(handle.status, TaskStatus.SUCCESS)
+
 
 if __name__ == "__main__":
     unittest.main()

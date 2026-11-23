@@ -333,8 +333,10 @@ class TaskManager(QObject):
             self.cancel(tid)
 
     def _report_task_progress(self, task_id: str, current: int, total: int, message: str) -> None:
-        signals = self._signals_map.get(task_id)
-        if signals is not None:
+        with self._lock:
+            token = self._tokens.get(task_id)
+            signals = self._signals_map.get(task_id)
+        if signals is not None and (token is None or not token.is_cancelled):
             signals.progress.emit(task_id, current, total, message)
 
     def _on_task_started(self, task_id: str) -> None:
@@ -390,6 +392,9 @@ class TaskManager(QObject):
             TaskStatus.CANCELLED,
             TaskStatus.ERROR,
         ):
+            if handle.is_cancelled:
+                self._on_task_cancelled(task_id)
+                return
             handle._status = TaskStatus.SUCCESS
             handle._completed_at = time.time()
             handle._result = result
@@ -417,6 +422,9 @@ class TaskManager(QObject):
             TaskStatus.CANCELLED,
             TaskStatus.ERROR,
         ):
+            if handle.is_cancelled:
+                self._on_task_cancelled(task_id)
+                return
             handle._status = TaskStatus.ERROR
             handle._completed_at = time.time()
             handle._error = exc
