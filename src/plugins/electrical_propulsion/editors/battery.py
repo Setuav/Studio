@@ -203,8 +203,15 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self._set_property_value(
             self.general_table, "type", str(component.get("type") or ""), editable=False
         )
-        self._set_property_value(
-            self.general_table, "mass", f"{float(component['mass']):.1f}", editable=False
+        self._set_property_spinbox(
+            self.general_table,
+            "mass",
+            float(component["mass"]),
+            quantity="mass",
+            unit="g",
+            decimals=1,
+            label="Mass",
+            read_only=True,
         )
         for key in ("manufacturer", "model"):
             self._set_property_value(self.general_table, key, str(component.get(key) or ""))
