@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import NoWheelComboBox
@@ -72,9 +72,7 @@ class FuselageEditor(
         self._create_sections_section()
         self._content_layout.addStretch()
 
-        from setuav_studio.units import get_unit_manager
-
-        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
 
         self_ref = weakref.ref(self)
 
@@ -97,7 +95,7 @@ class FuselageEditor(
             return
         self._load_component(preserve_selection=True)
 
-    def _on_units_changed(self) -> None:
+    def _on_units_changed(self, _payload: object = None) -> None:
         if not hasattr(self, "sections_table"):
             return
         self._populate_sections()
