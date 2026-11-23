@@ -9,6 +9,7 @@ class StudioEvents(StrEnum):
     # Project lifecycle
     PROJECT_OPENED = "project.opened"
     PROJECT_CLOSED = "project.closed"
+    PROJECT_CONTENT_CHANGED = "project.content_changed"
     PROJECT_MODIFIED = "project.modified"
 
     # Selection

@@ -51,11 +51,24 @@ from .undo import (
 UnsubscribeCallable: TypeAlias = Callable[[], None]
 
 
-def _bind_qobject_destroyed(callback: Any, cleanup: Callable[[], None]) -> None:
-    """If callback is a bound method on a QObject, automatically invoke cleanup on destruction."""
+def _qobject_callback_key(channel: str, callback: Any) -> tuple[str, int, int] | None:
+    """Return a hashable non-retaining key for a bound method owned by a QObject."""
     owner = getattr(callback, "__self__", None)
-    if isinstance(owner, QObject):
-        owner.destroyed.connect(lambda *_: cleanup())
+    func = getattr(callback, "__func__", None)
+    if isinstance(owner, QObject) and func is not None:
+        return (channel, id(owner), id(func))
+    return None
+
+
+def _remove_callback_by_ids(listeners: list[Any], owner_id: int, func_id: int) -> None:
+    listeners[:] = [
+        cb
+        for cb in listeners
+        if not (
+            id(getattr(cb, "__self__", None)) == owner_id
+            and id(getattr(cb, "__func__", None)) == func_id
+        )
+    ]
 
 
 class StudioAPI:
@@ -120,6 +133,7 @@ class StudioAPI:
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
+        self._destroyed_hooks: dict[tuple[str, int, int], Callable[[], None]] = {}
         from setuav_studio.task.manager import TaskManager
 
         self._tasks = TaskManager(self)
@@ -237,6 +251,52 @@ class StudioAPI:
         """Hide the status-bar progress indicator."""
         self.report_progress(1, 1, "")
 
+    def _bind_destroyed(
+        self,
+        channel: str,
+        callback: Any,
+        get_list: Callable[[StudioAPI], list[Any] | None],
+    ) -> None:
+        key = _qobject_callback_key(channel, callback)
+        if key is None or key in self._destroyed_hooks:
+            return
+        owner = callback.__self__
+        _, owner_id, func_id = key
+        api_ref = weakref.ref(self)
+        owner_ref = weakref.ref(owner)
+
+        def _on_destroyed(*_: Any) -> None:
+            api = api_ref()
+            if api is None:
+                return
+            api._destroyed_hooks.pop(key, None)
+            listeners = get_list(api)
+            if listeners is not None:
+                _remove_callback_by_ids(listeners, owner_id, func_id)
+
+        owner.destroyed.connect(_on_destroyed)
+
+        def _disconnect() -> None:
+            o = owner_ref()
+            if o is not None:
+                import contextlib
+
+                import shiboken6
+
+                if shiboken6.isValid(o):
+                    with contextlib.suppress(RuntimeError, TypeError):
+                        o.destroyed.disconnect(_on_destroyed)
+
+        self._destroyed_hooks[key] = _disconnect
+
+    def _unbind_destroyed(self, channel: str, callback: Any) -> None:
+        key = _qobject_callback_key(channel, callback)
+        if key is None:
+            return
+        disconnect = self._destroyed_hooks.pop(key, None)
+        if disconnect is not None:
+            disconnect()
+
     def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> UnsubscribeCallable:
         """Subscribe a callback handler to a named studio event (Event Bus).
 
@@ -246,7 +306,11 @@ class StudioAPI:
         subscribers = self._event_subscribers.setdefault(event_name, [])
         if handler not in subscribers:
             subscribers.append(handler)
-            _bind_qobject_destroyed(handler, lambda: self.unsubscribe(event_name, handler))
+            self._bind_destroyed(
+                f"event:{event_name}",
+                handler,
+                lambda api, ev=event_name: api._event_subscribers.get(ev),
+            )
         return lambda: self.unsubscribe(event_name, handler)
 
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
@@ -254,6 +318,7 @@ class StudioAPI:
         subscribers = self._event_subscribers.get(event_name, [])
         if handler in subscribers:
             subscribers.remove(handler)
+        self._unbind_destroyed(f"event:{event_name}", handler)
 
     def publish(self, event_name: str, payload: Any = None) -> None:
         """Publish an event to all subscribed listeners; a subscriber's error propagates."""
@@ -335,7 +400,7 @@ class StudioAPI:
         """
         if listener not in self._project_listeners:
             self._project_listeners.append(listener)
-            _bind_qobject_destroyed(listener, lambda: self.remove_project_listener(listener))
+            self._bind_destroyed("project", listener, lambda api: api._project_listeners)
         if self._project is not None:
             listener(self._project)
         return lambda: self.remove_project_listener(listener)
@@ -350,8 +415,8 @@ class StudioAPI:
         """
         if listener not in self._project_content_listeners:
             self._project_content_listeners.append(listener)
-            _bind_qobject_destroyed(
-                listener, lambda: self.remove_project_content_listener(listener)
+            self._bind_destroyed(
+                "project_content", listener, lambda api: api._project_content_listeners
             )
         return lambda: self.remove_project_content_listener(listener)
 
@@ -362,6 +427,7 @@ class StudioAPI:
         """Unsubscribe a project-content listener."""
         if listener in self._project_content_listeners:
             self._project_content_listeners.remove(listener)
+        self._unbind_destroyed("project_content", listener)
 
     def on_modified_changed(self, listener: Callable[[bool], None]) -> UnsubscribeCallable:
         """Subscribe to project modified-state changes and receive current state.
@@ -370,7 +436,7 @@ class StudioAPI:
         """
         if listener not in self._modified_listeners:
             self._modified_listeners.append(listener)
-            _bind_qobject_destroyed(listener, lambda: self.remove_modified_listener(listener))
+            self._bind_destroyed("modified", listener, lambda api: api._modified_listeners)
         listener(bool(self._project and self._project.modified))
         return lambda: self.remove_modified_listener(listener)
 
@@ -378,6 +444,7 @@ class StudioAPI:
         """Unsubscribe a project modified-state listener."""
         if listener in self._modified_listeners:
             self._modified_listeners.remove(listener)
+        self._unbind_destroyed("modified", listener)
 
     def component_color(self, component_id: str) -> str:
         """The ``#RRGGBB`` color component ``component_id`` is drawn in.
@@ -766,8 +833,10 @@ class StudioAPI:
         """
         if listener not in self._solver_config_selection_listeners:
             self._solver_config_selection_listeners.append(listener)
-            _bind_qobject_destroyed(
-                listener, lambda: self.remove_solver_config_selection_listener(listener)
+            self._bind_destroyed(
+                "solver_config_selection",
+                listener,
+                lambda api: api._solver_config_selection_listeners,
             )
         return lambda: self.remove_solver_config_selection_listener(listener)
 
@@ -778,6 +847,7 @@ class StudioAPI:
         """Unsubscribe a solver configuration selection listener."""
         if listener in self._solver_config_selection_listeners:
             self._solver_config_selection_listeners.remove(listener)
+        self._unbind_destroyed("solver_config_selection", listener)
 
     def set_current_solver_config(self, config_id: str | None) -> None:
         """Set the active solver config selection by ID and notify listeners."""
@@ -867,6 +937,7 @@ class StudioAPI:
                 self._is_recomputing_expressions = False
 
         dispatch_listeners(self._project_content_listeners, self._project)
+        self.publish(StudioEvents.PROJECT_CONTENT_CHANGED, self._project)
         if (
             self.current_selection is not None
             and self._resolve_live_selection(self.current_selection) is None
@@ -901,7 +972,7 @@ class StudioAPI:
         """
         if listener not in self._selection_listeners:
             self._selection_listeners.append(listener)
-            _bind_qobject_destroyed(listener, lambda: self.remove_selection_listener(listener))
+            self._bind_destroyed("selection", listener, lambda api: api._selection_listeners)
         listener(self.current_selection)
         return lambda: self.remove_selection_listener(listener)
 
@@ -921,8 +992,8 @@ class StudioAPI:
         """
         if listener not in self._section_selection_listeners:
             self._section_selection_listeners.append(listener)
-            _bind_qobject_destroyed(
-                listener, lambda: self.remove_section_selection_listener(listener)
+            self._bind_destroyed(
+                "section_selection", listener, lambda api: api._section_selection_listeners
             )
         listener(self.current_section_selection)
         return lambda: self.remove_section_selection_listener(listener)
@@ -934,6 +1005,7 @@ class StudioAPI:
         """Unsubscribe a geometry-section selection listener."""
         if listener in self._section_selection_listeners:
             self._section_selection_listeners.remove(listener)
+        self._unbind_destroyed("section_selection", listener)
 
     def set_section_selection(
         self,
@@ -1330,6 +1402,7 @@ class StudioAPI:
         """Unsubscribe a project replacement listener."""
         if listener in self._project_listeners:
             self._project_listeners.remove(listener)
+        self._unbind_destroyed("project", listener)
 
     def remove_selection_listener(
         self,
@@ -1338,6 +1411,7 @@ class StudioAPI:
         """Unsubscribe a selection listener."""
         if listener in self._selection_listeners:
             self._selection_listeners.remove(listener)
+        self._unbind_destroyed("selection", listener)
 
 
 __all__ = ["StudioAPI"]

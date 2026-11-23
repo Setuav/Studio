@@ -733,3 +733,51 @@ def test_undo_clears_deleted_selection_and_properties_panel_editor() -> None:
     assert studio_api.current_selection is None
 
     panel.deleteLater()
+
+
+def test_project_content_changed_event_and_destroyed_hook_cleanup() -> None:
+    import gc
+    import weakref
+
+    from PySide6.QtCore import QCoreApplication, QEvent, QObject
+
+    class _Receiver(QObject):
+        def __init__(self) -> None:
+            super().__init__()
+            self.seen: list[Any] = []
+
+        def on_event(self, payload: Any) -> None:
+            self.seen.append(payload)
+
+    studio_api = StudioAPI()
+    project = ProjectDocument(Path("ev.json"), "json", {"parameters": {"k": 1.0}, "components": []})
+    studio_api._host.set_project(project)
+
+    receiver = _Receiver()
+    unsub = studio_api.subscribe(StudioEvents.PROJECT_CONTENT_CHANGED, receiver.on_event)
+    assert len(studio_api._destroyed_hooks) == 1
+
+    studio_api.edit_project("Change k", lambda: project.data["parameters"].update({"k": 2.0}))
+    assert receiver.seen == [project]
+
+    # Explicit unsubscribe removes both subscriber and destroyed hook cleanly.
+    unsub()
+    del unsub
+    assert studio_api._destroyed_hooks == {}
+
+    # Re-subscribe and delete receiver via Qt -> auto-cleaned on destroyed.
+    studio_api.subscribe(StudioEvents.PROJECT_CONTENT_CHANGED, receiver.on_event)
+    assert len(studio_api._destroyed_hooks) == 1
+    receiver.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert studio_api._destroyed_hooks == {}
+    assert studio_api._event_subscribers.get(StudioEvents.PROJECT_CONTENT_CHANGED) == []
+
+    # Subscribing a live QObject does not pin StudioAPI alive after release.
+    survivor = _Receiver()
+    studio_api.subscribe(StudioEvents.PROJECT_CONTENT_CHANGED, survivor.on_event)
+    api_ref = weakref.ref(studio_api)
+    del studio_api
+    gc.collect()
+    assert api_ref() is None
+    survivor.deleteLater()
