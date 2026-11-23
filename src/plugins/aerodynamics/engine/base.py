@@ -119,7 +119,7 @@ class SweepType(enum.Enum):
 
     ALPHA = "alpha"  # Angle of attack sweep (AoA α)
     BETA = "beta"  # Sideslip angle sweep (Sideslip β)
-    CONTROL_DEFLECTION = "control_deflection"  # Control-channel deflection analysis (δ)
+    CONTROL_DEFLECTION = "control_deflection"  # Control surface deflection analysis (δ)
 
     @classmethod
     def from_variable(cls, variable: str) -> SweepType:
@@ -129,7 +129,7 @@ class SweepType(enum.Enum):
             return cls.ALPHA
         if normalized == "beta":
             return cls.BETA
-        if normalized in CONTROL_CHANNELS:
+        if normalized:
             return cls.CONTROL_DEFLECTION
         raise ValueError(f"Unsupported sweep variable: {variable!r}")
 
@@ -205,7 +205,7 @@ class FlightCondition:
     r: float = 0.0  # rad/s (body yaw rate)
     control_deflections: dict[str, float] = field(default_factory=dict)  # deg per control surface
     # Sweep configuration
-    sweep_variable: str = "alpha"  # Sweep variable name ('alpha', 'beta', or a control channel)
+    sweep_variable: str = "alpha"  # 'alpha', 'beta', or the ID of the control surface to deflect
     sweep_min: float = -10.0  # Range start
     sweep_max: float = 18.0  # Range end
     sweep_steps: int = 29  # Number of evaluation points
@@ -697,10 +697,10 @@ class MultiDimensionalSweepResult:
 
 
 @dataclass(frozen=True)
-class ControlChannelAnalysis:
-    """Control-channel effectiveness fitted from a deflection response sweep."""
+class ControlSurfaceAnalysis:
+    """Control surface effectiveness fitted from a deflection response sweep."""
 
-    channel: str
+    control_surface: str
     sample_count: int
     deflection_min_deg: float
     deflection_max_deg: float
@@ -710,7 +710,7 @@ class ControlChannelAnalysis:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "channel": self.channel,
+            "control_surface": self.control_surface,
             "sample_count": self.sample_count,
             "deflection_min_deg": self.deflection_min_deg,
             "deflection_max_deg": self.deflection_max_deg,
@@ -720,9 +720,9 @@ class ControlChannelAnalysis:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ControlChannelAnalysis:
+    def from_dict(cls, data: dict[str, Any]) -> ControlSurfaceAnalysis:
         return cls(
-            channel=str(data["channel"]),
+            control_surface=str(data["control_surface"]),
             sample_count=int(data["sample_count"]),
             deflection_min_deg=float(data["deflection_min_deg"]),
             deflection_max_deg=float(data["deflection_max_deg"]),
@@ -758,7 +758,7 @@ class AeroResult:
     # Multi-dimensional sweep dataset (if sweep performed)
     sweep_result: MultiDimensionalSweepResult | None = None
     # Control-channel effectiveness fitted from a control response analysis.
-    control_analysis: ControlChannelAnalysis | None = None
+    control_analysis: ControlSurfaceAnalysis | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
     # Limits of the analysis the user should know about, as sentences.
@@ -826,7 +826,7 @@ class AeroResult:
         sweep = None if sweep_data is None else MultiDimensionalSweepResult.from_dict(sweep_data)
         control_data = data["control_analysis"]
         control_analysis = (
-            None if control_data is None else ControlChannelAnalysis.from_dict(control_data)
+            None if control_data is None else ControlSurfaceAnalysis.from_dict(control_data)
         )
         stab_raw = data["stability_derivatives"]
         stab_res = None if stab_raw is None else StabilityDerivatives.from_dict(stab_raw)

@@ -11,7 +11,7 @@ from plugins.aerodynamics.engine.base import (
     AeroState,
     AnalysisMethod,
     AnalysisType,
-    ControlChannelAnalysis,
+    ControlSurfaceAnalysis,
     EngineCapabilities,
     FlightCondition,
     MultiDimensionalSweepResult,
@@ -345,9 +345,9 @@ class AeroEngineBaseTests(unittest.TestCase):
                 grid_shape=(1,),
             )
 
-    def test_control_channel_analysis_serialization(self) -> None:
-        analysis = ControlChannelAnalysis(
-            channel="elevator",
+    def test_control_surface_analysis_serialization(self) -> None:
+        analysis = ControlSurfaceAnalysis(
+            control_surface="elevator-1",
             sample_count=5,
             deflection_min_deg=-10.0,
             deflection_max_deg=10.0,
@@ -362,7 +362,7 @@ class AeroEngineBaseTests(unittest.TestCase):
         restored = AeroResult.from_dict(result.to_dict())
         self.assertIsNotNone(restored.control_analysis)
         assert restored.control_analysis is not None
-        self.assertEqual(restored.control_analysis.channel, "elevator")
+        self.assertEqual(restored.control_analysis.control_surface, "elevator-1")
         self.assertAlmostEqual(restored.control_analysis.derivatives_per_deg["Cm"], -0.02)
 
     def test_dummy_engine_and_aero_result_serialization(self) -> None:

@@ -18,7 +18,7 @@ flowchart LR
 |---|---|---|
 | [Aerodynamics](aerodynamics.md) | Alpha Sweep | Lift, drag and pitching moment over an angle-of-attack range, and the static margin. |
 | | Beta Sweep | Side force, rolling and yawing moments over a sideslip range. |
-| | Control Deflection | Forces and moments over a control channel's deflection range. |
+| | Control Deflection | Forces and moments over a control surface's deflection range. |
 | | Operating Point | All coefficients and stability derivatives at one flight condition. |
 | [Propulsion](propulsion.md) | Throttle Sweep | Thrust, current, power and efficiencies over the throttle range. |
 | | Airspeed Sweep | The same quantities over an airspeed range at one throttle. |
@@ -33,7 +33,12 @@ Propulsion → Component Database** browses the motor and propeller catalog.
 
 1. Click an analysis button in the **Analysis** group of the toolbar. The
    analysis appears under **Analyses** in the Project Explorer, numbered when
-   the name is taken, and becomes the current analysis.
+   the name is taken, and becomes the current analysis. A button is disabled
+   while the design lacks what the analysis needs: a lifting surface for the
+   aerodynamic and flight performance analyses, also a control surface for
+   Control Deflection, and a propulsor and a battery for the propulsion
+   analyses. An analysis whose design no longer has these does not run; the
+   status bar says what is missing.
 2. Set its parameters in the Properties panel. Like other numeric fields they
    accept formulas; see [Parametric Model](../user-guide/parametric-model.md).
 3. Click **Run Analysis** in the toolbar, or right-click the analysis and

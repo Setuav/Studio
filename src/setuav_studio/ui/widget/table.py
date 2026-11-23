@@ -1268,6 +1268,14 @@ class PropertyTableMixin:
                 lambda new_v, k=f.key: on_changed(k, new_v, None),
                 label=f.label,
             )
+        elif f.component_type is not None:
+            self._set_property_combo(
+                table,
+                f.key,
+                str(val),
+                _component_options(resolved_api, f.component_type, str(val)),
+                lambda new_v, k=f.key: on_changed(k, new_v, None),
+            )
         elif f.options:
             self._set_property_combo(
                 table,
@@ -1462,3 +1470,21 @@ class PropertyTableMixin:
 def _completion_value(value: object) -> str:
     """A symbol's value as the completion list shows it."""
     return f"{value:g}" if isinstance(value, (int, float)) else str(value)
+
+
+def _component_options(api: Any, component_type: str, value: str) -> list[tuple[str, str]]:
+    """The project's components of ``component_type`` as (ID, name) choices.
+
+    A value naming no such component shows as an empty choice rather than as
+    the first component.
+    """
+    project = api.project if api is not None else None
+    components = project.data["components"] if project is not None else []
+    options = [
+        (str(c["id"]), str(c.get("name") or c["id"]))
+        for c in components
+        if isinstance(c, dict) and c.get("type") == component_type
+    ]
+    if all(option_id != value for option_id, _name in options):
+        options.insert(0, ("", "—"))
+    return options

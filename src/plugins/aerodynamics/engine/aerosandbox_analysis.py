@@ -19,7 +19,6 @@ from .base import (
     PolarPoint,
     ReferenceValues,
     SweepType,
-    control_channels_for_components,
 )
 from .stability_engine import StabilityAnalysisEngine
 
@@ -184,11 +183,12 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     ) -> None:
         if condition.sweep_type != SweepType.CONTROL_DEFLECTION:
             return
-        channel = str(condition.sweep_variable).strip().lower()
-        if channel not in control_channels_for_components(components):
-            raise ValueError(
-                f"Control channel '{channel}' is not provided by the aircraft geometry"
-            )
+        surface_id = condition.sweep_variable
+        if not any(
+            c.get("type") == "org.setuav.core:control-surface" and c.get("id") == surface_id
+            for c in components
+        ):
+            raise ValueError(f"'{surface_id}' is not a control surface of the aircraft")
 
     def _build_evaluation_states(
         self, condition: FlightCondition

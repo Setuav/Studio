@@ -36,7 +36,9 @@ project constants. A field's `decimals` is the precision in its stored unit
 and follows the value into the display unit: one decimal in g shows four in
 kg. To show a stored value outside an editor field, use
 `get_unit_manager().format_value(value, quantity, decimals)`, or
-`format_number` for the number alone, from `setuav_studio.units`.
+`format_number` for the number alone, from `setuav_studio.units`. A field
+with `component_type` lists the project's components of that type by name and
+stores the chosen component's ID.
 
 !!! warning "Keep the interface responsive"
     Run long work through `api.tasks.submit` so the Qt UI thread never blocks.
