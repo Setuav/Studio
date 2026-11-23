@@ -1560,7 +1560,7 @@ PLUGIN_FOLDERS = (
     ("propulsion_", "src/plugins/electrical_propulsion/assets/icons"),
     ("aero_", "src/plugins/aerodynamics/assets/icons"),
     ("flight_performance", "src/plugins/flight_performance/assets/icons"),
-    ("debug_", "src/plugins/debug/assets/icons"),
+    ("debug_", "devtools/debug-plugin/src/setuav_debug/assets/icons"),
 )
 CORE_FOLDER = "src/setuav_studio/assets/icons"
 

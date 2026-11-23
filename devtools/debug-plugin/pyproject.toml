@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "setuav-debug-plugin"
+version = "0.1.0"
+description = "Development tools for Setuav Studio: debug primitives, an inspector panel and a mock analysis"
+license = "MIT"
+requires-python = ">=3.12"
+
+[project.entry-points."setuav_studio.plugins"]
+"org.setuav.studio.debug" = "setuav_debug:PLUGIN"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/setuav_debug"]

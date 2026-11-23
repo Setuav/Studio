@@ -9,9 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtWidgets import QApplication
-
-from plugins.debug import DebugPlugin
-from plugins.debug.components import (
+from setuav_debug import DebugPlugin
+from setuav_debug.components import (
     TYPE_DEBUG_ARROW,
     TYPE_DEBUG_LINE,
     TYPE_DEBUG_PLANE,
@@ -23,7 +22,8 @@ from plugins.debug.components import (
     create_cylinder_component,
     create_loft_component,
 )
-from plugins.debug.components.common import compute_debug_envelope, parse_color_rgba
+from setuav_debug.components.common import compute_debug_envelope, parse_color_rgba
+
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 from setuav_studio.utilities.envelope import (
