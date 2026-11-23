@@ -6,6 +6,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
 ### Breaking changes
 
 - Project files record a format version (`format_version`, currently `1.0`)
@@ -77,5 +79,6 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 First public release.
 
-[Unreleased]: https://github.com/Setuav/Studio/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Setuav/Studio/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Setuav/Studio/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Setuav/Studio/releases/tag/v0.1.0
