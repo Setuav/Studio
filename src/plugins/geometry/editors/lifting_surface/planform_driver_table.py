@@ -213,16 +213,7 @@ class DriverPlanformTable(QTableWidget):
                     self.setCellWidget(row, 2, cell)
                 else:
                     self.removeCellWidget(row, 2)
-                    if q_id:
-                        disp_val = um.to_display(val, q_id)
-                        sym = um.get_unit_symbol(q_id)
-                    else:
-                        disp_val = val
-                        sym = unit or ""
-
-                    val_str = f"{disp_val:.{dec}f}"
-                    if sym:
-                        val_str += f" {sym}"
+                    val_str = um.format_value(val, unit, dec)
                     val_item = self.item(row, 2)
                     if not val_item:
                         val_item = QTableWidgetItem(val_str)

@@ -461,26 +461,10 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
                 decimals=dec,
             )
         else:
-            from setuav_studio.units import (
-                format_engineering_value,
-                get_quantity_for_unit,
-                get_unit_manager,
-            )
+            from setuav_studio.units import get_unit_manager
 
-            um = get_unit_manager()
             self.cs_properties_table.removeCellWidget(target_row, 1)
-
-            q_id = get_quantity_for_unit(unit)
-            if q_id:
-                disp_val = um.to_display(current_val, q_id)
-                sym = um.get_unit_symbol(q_id)
-            else:
-                disp_val = current_val
-                sym = unit or ""
-
-            val_str = format_engineering_value(disp_val, dec)
-            if sym:
-                val_str += f" {sym}"
+            val_str = get_unit_manager().format_value(current_val, unit, dec)
             val_item = self.cs_properties_table.item(target_row, 1)
             if not val_item:
                 val_item = QTableWidgetItem(val_str)

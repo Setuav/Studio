@@ -318,12 +318,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 total = resolve_component_aggregate_mass_properties(
                     str(component["id"]), self._api.project, self._api.subpart_types
                 )
-                units = get_unit_manager()
-                total_g = units.to_display(total.mass_kg * 1000.0, "mass")
                 self._set_property_value(
                     self.mass_table,
                     "total_mass",
-                    f"{total_g:.3f} {units.get_unit_symbol('mass')}",
+                    get_unit_manager().format_value(total.mass_kg * 1000.0, "mass", 3),
                     editable=False,
                 )
         finally:

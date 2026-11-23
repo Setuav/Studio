@@ -42,7 +42,7 @@ class MassEditorWithSubpartsTests(unittest.TestCase):
     def test_mass_field_shows_the_component_alone(self) -> None:
         self.assertAlmostEqual(self.editor.mass_g.value(), 250.0)
         # Wing 250 g, aileron 25 g and flap 0 g.
-        self.assertEqual(self._total_mass_text(), "275.000 g")
+        self.assertEqual(self._total_mass_text(), "275.0 g")
 
     def test_editing_the_cg_does_not_count_subparts_twice(self) -> None:
         aircraft_before = resolve_aircraft_mass_properties(self.project).mass_kg
@@ -59,10 +59,14 @@ class MassEditorWithSubpartsTests(unittest.TestCase):
         units = get_unit_manager()
         units.set_active_preset("si")
         try:
-            self.assertEqual(self._total_mass_text(), "275.000 g")
+            self.assertEqual(self._total_mass_text(), "275.0 g")
             units.set_display_unit("mass", "kg")
             units.units_changed.emit()
             self.assertEqual(self._total_mass_text(), "0.275 kg")
+            # The 0.001 g precision is five places in oz: 275 g = 9.70034 oz.
+            units.set_display_unit("mass", "oz")
+            units.units_changed.emit()
+            self.assertEqual(self._total_mass_text(), "9.70034 oz")
         finally:
             units.set_active_preset("si")
             units.units_changed.emit()
