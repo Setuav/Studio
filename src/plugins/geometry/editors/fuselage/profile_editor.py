@@ -40,9 +40,7 @@ def format_profile_size(profile: dict[str, Any]) -> str:
 
     def _fmt(val: Any) -> str:
         try:
-            num = float(val or 0.0)
-            disp = um.to_display(num, "length")
-            return f"{disp:.1f}" if abs(disp - round(disp)) > 1e-4 else f"{disp:.0f}"
+            return um.format_number(float(val or 0.0), "length", 1)
         except (ValueError, TypeError):
             return str(val)
 

@@ -182,12 +182,8 @@ def _format_table_cell_value(val: Any, col_field: ParameterField) -> str:
     """Display text of a stored table cell value."""
     if col_field.field_type in (float, int) and _is_number(val):
         quantity = _column_quantity(col_field)
-        num = float(val)
-        if quantity:
-            num = get_unit_manager().to_display(num, quantity)
-        if col_field.field_type is float:
-            return f"{num:.{col_field.decimals}f}"
-        return str(round(num))
+        decimals = col_field.decimals if col_field.field_type is float else 0
+        return get_unit_manager().format_number(float(val), quantity, decimals)
     return str(val if val is not None else "")
 
 

@@ -441,11 +441,9 @@ class FuselageSectionDialog(QDialog):
 
         um = get_unit_manager()
         pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
-        x_val = float(pos.get("x", 0.0))
-        disp_x = um.to_display(x_val, "length")
-        l_sym = um.get_unit_symbol("length")
+        x_text = um.format_value(float(pos.get("x", 0.0)), "length", 1)
         self.section_label.setText(
-            f"Section {self._section_index + 1} of {num_secs} (X = {disp_x:.1f} {l_sym})"
+            f"Section {self._section_index + 1} of {num_secs} (X = {x_text})"
         )
 
         self.prev_btn.setEnabled(self._section_index > 0)
@@ -795,34 +793,34 @@ class FuselageSectionDialog(QDialog):
 
         um = get_unit_manager()
         l_sym = um.get_unit_symbol("length")
-        a_sym = um.get_unit_symbol("area")
 
         m = self.canvas._metrics
         if not m or m.get("area", 0) <= 0:
-            self.lbl_area.setText(f"Area: 0.0 {a_sym}")
-            self.lbl_perim.setText(f"Perimeter: 0.0 {l_sym}")
-            self.lbl_dims.setText(f"Dimensions (W × H): 0.0 × 0.0 {l_sym}")
-            self.lbl_aspect.setText("Aspect Ratio (W/H): 0.00")
-            self.lbl_cg.setText(f"Centroid (Y, Z): (0.0, 0.0) {l_sym}")
-            self.lbl_dh.setText(f"Hydraulic Diameter (Dh): 0.0 {l_sym}")
-            return
+            m = {
+                "area": 0.0,
+                "perimeter": 0.0,
+                "width": 0.0,
+                "height": 0.0,
+                "aspect_ratio": 0.0,
+                "y_cg": 0.0,
+                "z_cg": 0.0,
+                "hydraulic_diam": 0.0,
+            }
 
-        area_mm2 = m["area"]
-        area_dm2 = area_mm2 / 10000.0
-        disp_area = um.to_display(area_dm2, "area")
-        disp_perim = um.to_display(m["perimeter"], "length")
-        disp_w = um.to_display(m["width"], "length")
-        disp_h = um.to_display(m["height"], "length")
-        disp_ycg = um.to_display(m["y_cg"], "length")
-        disp_zcg = um.to_display(m["z_cg"], "length")
-        disp_dh = um.to_display(m["hydraulic_diam"], "length")
+        def length(value: float) -> str:
+            return um.format_number(value, "length", 1)
 
-        self.lbl_area.setText(f"Area: {disp_area:,.3f} {a_sym}")
-        self.lbl_perim.setText(f"Perimeter: {disp_perim:,.1f} {l_sym}")
-        self.lbl_dims.setText(f"Dimensions (W × H): {disp_w:.1f} × {disp_h:.1f} {l_sym}")
+        # The metrics are in mm and mm²; area is stored in dm².
+        self.lbl_area.setText(f"Area: {um.format_value(m['area'] / 10000.0, 'area', 3)}")
+        self.lbl_perim.setText(f"Perimeter: {um.format_value(m['perimeter'], 'length', 1)}")
+        self.lbl_dims.setText(
+            f"Dimensions (W × H): {length(m['width'])} × {length(m['height'])} {l_sym}"
+        )
         self.lbl_aspect.setText(f"Aspect Ratio (W/H): {m['aspect_ratio']:.2f}")
-        self.lbl_cg.setText(f"Centroid (Y, Z): ({disp_ycg:.1f}, {disp_zcg:.1f}) {l_sym}")
-        self.lbl_dh.setText(f"Hydraulic Diameter (Dh): {disp_dh:.1f} {l_sym}")
+        self.lbl_cg.setText(f"Centroid (Y, Z): ({length(m['y_cg'])}, {length(m['z_cg'])}) {l_sym}")
+        self.lbl_dh.setText(
+            f"Hydraulic Diameter (Dh): {um.format_value(m['hydraulic_diam'], 'length', 1)}"
+        )
 
     # -------------------------------------------------------------------------
     # Undo / Redo Internal Application Methods

@@ -352,28 +352,20 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             from PySide6.QtWidgets import QTableWidgetItem
 
             units = get_unit_manager()
-            unit_sym = units.get_unit_symbol("length")
             for row, sec in enumerate(sections):
                 if not isinstance(sec, dict):
                     continue
-                st = units.to_display(
-                    _number(sec.get("station_x_mm", sec.get("span_y_mm", 0.0))), "length"
-                )
-                w = units.to_display(
-                    _number(sec.get("width_mm", sec.get("chord_mm", 0.0))), "length"
-                )
-                h = units.to_display(
-                    _number(sec.get("height_mm", sec.get("thickness_mm", 0.0))), "length"
-                )
                 pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
-                z = units.to_display(_number(pos.get("z", 0.0)), "length")
+                lengths = (
+                    sec.get("station_x_mm", sec.get("span_y_mm", 0.0)),
+                    sec.get("width_mm", sec.get("chord_mm", 0.0)),
+                    sec.get("height_mm", sec.get("thickness_mm", 0.0)),
+                    pos.get("z", 0.0),
+                )
                 sh = sec.get("shape", "box")
                 for col, val in enumerate(
                     (
-                        f"{st:.1f} {unit_sym}",
-                        f"{w:.1f} {unit_sym}",
-                        f"{h:.1f} {unit_sym}",
-                        f"{z:.1f} {unit_sym}",
+                        *(units.format_value(_number(v), "length", 1) for v in lengths),
                         str(sh).capitalize(),
                     )
                 ):
