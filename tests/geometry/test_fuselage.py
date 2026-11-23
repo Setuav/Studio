@@ -303,10 +303,14 @@ class FuselageGeometryTests(unittest.TestCase):
         dlg._on_next_section()
         self.assertEqual(dlg._section_index, 1)
 
-        # Change profile type to ellipse and test Undo/Redo
+        # Change profile type to ellipse and test Undo/Redo on isolated draft
         dlg._on_profile_type_changed("ellipse")
-        sec_1 = fuse_comp["parameters"]["geometry"]["segments"][0]["sections"][1]
+        sec_1 = dlg._component["parameters"]["geometry"]["segments"][0]["sections"][1]
         self.assertEqual(sec_1["profile"]["type"], "ellipse")
+        self.assertEqual(
+            fuse_comp["parameters"]["geometry"]["segments"][0]["sections"][1]["profile"]["type"],
+            "circle",
+        )
         self.assertTrue(dlg.undo_stack.canUndo())
 
         # Edit width property with undo
@@ -377,8 +381,12 @@ class FuselageGeometryTests(unittest.TestCase):
         dlg.cb_prev.setChecked(True)
         self.assertTrue(dlg.canvas.show_previous)
 
-        # Apply & Close
+        # Apply & Close commits the draft onto the live component.
         dlg._on_ok_clicked()
+        self.assertEqual(
+            fuse_comp["parameters"]["geometry"]["segments"][0]["sections"][1]["profile"]["type"],
+            "polygon",
+        )
 
     def test_fuselage_editor_population(self) -> None:
         """Verify FuselageEditor loads general info, segments, sections, and transforms."""
@@ -690,6 +698,30 @@ class FuselageGeometryTests(unittest.TestCase):
         self.addCleanup(dlg.deleteLater)
         v_y_cell = cell_widget(dlg.vertices_table, 0, 0, ExpressionPropertyCell)
         self.assertEqual(v_y_cell._raw_expression, "=-25 * 2")
+
+    def test_fuselage_section_dialog_cancel_leaves_project_and_undo_stack_clean(self) -> None:
+        from pathlib import Path
+
+        from plugins.geometry.editors.fuselage import FuselageSectionDialog
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        doc = ProjectDocument(Path("cancel_test.json"), "json", {"components": [comp]})
+        api._host.set_project(doc)
+
+        dlg = FuselageSectionDialog(api, comp, segment_index=0, section_index=0)
+        self.addCleanup(dlg.deleteLater)
+        dlg._on_profile_type_changed("ellipse")
+        dlg._on_cancel_clicked()
+
+        self.assertEqual(
+            comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]["type"],
+            "circle",
+        )
+        self.assertFalse(api.can_undo)
+        self.assertFalse(doc.modified)
 
 
 if __name__ == "__main__":
