@@ -35,16 +35,24 @@ def clean_qsettings() -> Any:
 
 class DummyMockPlugin:
     def __init__(
-        self, plugin_id: str, priority: int = 100, provides: dict[str, str] | None = None
+        self,
+        plugin_id: str,
+        *,
+        provides: dict[str, str] | None = None,
+        requires: tuple[str, ...] = (),
+        on_activate: list[str] | None = None,
     ) -> None:
         self.id = plugin_id
-        self.priority = priority
         self.provides = provides or {}
+        self.requires = requires
+        self._on_activate = on_activate
         self.activated = False
         self.deactivated = False
 
     def activate(self, api: StudioAPI) -> None:
         self.activated = True
+        if self._on_activate is not None:
+            self._on_activate.append(self.id)
 
     def deactivate(self, api: StudioAPI) -> None:
         self.deactivated = True
@@ -53,7 +61,6 @@ class DummyMockPlugin:
 class FailingMockPlugin:
     def __init__(self, plugin_id: str = "org.test.failing") -> None:
         self.id = plugin_id
-        self.priority = 100
 
     def activate(self, api: StudioAPI) -> None:
         raise RuntimeError("Crash on activation")
@@ -81,7 +88,7 @@ def test_plugin_entry_point_group_is_stable() -> None:
 def test_plugin_activation_and_deactivation() -> None:
     api = StudioAPI()
     manager = PluginManager(api)
-    plugin = DummyMockPlugin("org.test.dummy", priority=50)
+    plugin = DummyMockPlugin("org.test.dummy")
 
     # 1. Activate
     manager.activate(plugin)
@@ -243,3 +250,89 @@ def test_install_archive_rejects_dot_plugin_name(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Invalid plugin name"):
         install_plugin_archive(archive_path, dest_dir)
     assert sentinel.exists()
+
+
+# ==============================================================================
+# 5. Dependency Ordering & Reverse-Dependency Protection
+# ==============================================================================
+
+
+def test_plugin_dependency_order_and_lifecycle_guards() -> None:
+    api = StudioAPI()
+    manager = PluginManager(api)
+    order: list[str] = []
+
+    top = DummyMockPlugin(
+        "org.test.a_top",
+        requires=("org.test.b_mid", "org.test.c_side"),
+        on_activate=order,
+    )
+    mid = DummyMockPlugin("org.test.b_mid", requires=("org.test.z_base",), on_activate=order)
+    side = DummyMockPlugin("org.test.c_side", on_activate=order)
+    base = DummyMockPlugin("org.test.z_base", on_activate=order)
+
+    issues: list[Any] = []
+    manager._activate_candidates(
+        [(top.id, top), (mid.id, mid), (side.id, side), (base.id, base)],
+        issues,
+    )
+    assert issues == []
+    # Base & side activate before mid, and mid & side activate before top.
+    assert order.index("org.test.z_base") < order.index("org.test.b_mid")
+    assert order.index("org.test.b_mid") < order.index("org.test.a_top")
+    assert order.index("org.test.c_side") < order.index("org.test.a_top")
+
+    # Cannot deactivate a plugin while an active dependent requires it.
+    with pytest.raises(ValueError, match=r"required by org\.test\.b_mid"):
+        manager.deactivate("org.test.z_base")
+    with pytest.raises(ValueError, match=r"required by org\.test\.a_top"):
+        manager.deactivate("org.test.b_mid")
+
+    # Deactivating in reverse dependency order succeeds; re-activating out of order rejects.
+    manager.deactivate("org.test.a_top")
+    manager.deactivate("org.test.b_mid")
+    with pytest.raises(ValueError, match="requires active plugin"):
+        manager.activate(top)
+    manager.activate(mid)
+    manager.activate(top)
+    assert manager.is_active("org.test.a_top")
+
+
+def test_plugin_missing_disabled_and_cyclic_dependencies_are_isolated() -> None:
+    api = StudioAPI()
+    manager = PluginManager(api)
+
+    cyc_a = DummyMockPlugin("org.test.cyc_a", requires=("org.test.cyc_b",))
+    cyc_b = DummyMockPlugin("org.test.cyc_b", requires=("org.test.cyc_a",))
+    missing = DummyMockPlugin("org.test.missing", requires=("org.test.nonexistent",))
+    ok = DummyMockPlugin("org.test.ok")
+
+    issues: list[Any] = []
+    manager._activate_candidates(
+        [(cyc_a.id, cyc_a), (cyc_b.id, cyc_b), (missing.id, missing), (ok.id, ok)],
+        issues,
+    )
+    assert manager.is_active("org.test.ok")
+    assert not manager.is_active("org.test.cyc_a")
+    assert not manager.is_active("org.test.cyc_b")
+    assert not manager.is_active("org.test.missing")
+    by_src = {issue.source: issue.message for issue in issues}
+    assert "Circular" in by_src["org.test.cyc_a"]
+    assert "Circular" in by_src["org.test.cyc_b"]
+    assert "Missing required plugin" in by_src["org.test.missing"]
+
+
+def test_bundled_plugins_discover_in_dependency_order_and_protect_deactivate() -> None:
+    api = StudioAPI()
+    manager = PluginManager(api)
+    issues = manager.discover()
+    assert issues == []
+    assert manager.is_active("org.setuav.studio.airframe_design")
+    assert manager.is_active("org.setuav.studio.aerodynamics")
+    assert manager.is_active("org.setuav.studio.electrical_propulsion")
+    assert manager.is_active("org.setuav.studio.flight_performance")
+
+    with pytest.raises(ValueError, match=r"org\.setuav\.studio\.aerodynamics"):
+        manager.deactivate("org.setuav.studio.airframe_design")
+    with pytest.raises(ValueError, match=r"org\.setuav\.studio\.flight_performance"):
+        manager.deactivate("org.setuav.studio.electrical_propulsion")

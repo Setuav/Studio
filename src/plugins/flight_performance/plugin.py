@@ -17,7 +17,10 @@ class FlightPerformancePlugin:
     """Plugin providing the fixed-wing level-flight performance solver."""
 
     id = "org.setuav.studio.flight_performance"
-    priority = 50
+    requires = (
+        "org.setuav.studio.aerodynamics",
+        "org.setuav.studio.electrical_propulsion",
+    )
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

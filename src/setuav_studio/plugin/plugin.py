@@ -9,10 +9,10 @@ Setuav Studio discovers installed plugins from the
 resolve to a plugin class or an already-created plugin object exposing a
 stable ``id`` and an ``activate(api)`` method.
 
-At startup the host loads bundled plugins and installed entry points, sorts
-them by ascending ``priority`` (when provided; otherwise ``100``) and then by
-plugin ID, and activates them in that order. A plugin should register all of
-its contributions and listeners in ``activate`` and release them in
+At startup the host loads bundled plugins and installed entry points, activates
+them in topological dependency order based on ``requires`` (alphabetical by
+plugin ID when independent), and isolates failures. A plugin should register
+all of its contributions and listeners in ``activate`` and release them in
 ``deactivate``.
 
 Loading or activation failures are isolated. The host records a
@@ -36,10 +36,11 @@ __all__ = ["PLUGIN_ENTRY_POINT_GROUP", "StudioPlugin"]
 class StudioPlugin(Protocol):
     """Lifecycle contract implemented by every plugin.
 
-    ``id`` must be a stable reverse-domain identifier. ``priority`` is an
-    optional integer; lower values activate first and omitted values default
-    to ``100``. Register contributions and listeners in ``activate`` and
-    release them in ``deactivate``.
+    ``id`` must be a stable reverse-domain identifier. An optional ``requires``
+    tuple may list plugin IDs that must be active before this plugin activates
+    (and cannot be deactivated while this plugin is active). Register
+    contributions and listeners in ``activate`` and release them in
+    ``deactivate``.
 
     @ingroup lifecycle
     """

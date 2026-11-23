@@ -31,7 +31,7 @@ class AerodynamicsPlugin:
     """Plugin providing aerodynamic analysis solvers, polar sweeps, stability, and airfoil tools."""
 
     id = "org.setuav.studio.aerodynamics"
-    priority = 70
+    requires = ("org.setuav.studio.airframe_design",)
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

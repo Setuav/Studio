@@ -13,7 +13,8 @@ from .installer import get_user_plugins_dir, install_plugin_archive
 from .plugin import StudioPlugin
 from .requirements import (
     PluginLoadIssue,
-    _candidate_sort_key,
+    _order_plugins_by_dependencies,
+    _plugin_requires,
     _plugin_sort_key,
     _version_satisfies,
 )
@@ -45,7 +46,7 @@ class PluginManager:
 
     @property
     def known_plugins(self) -> tuple[StudioPlugin, ...]:
-        """Return discovered plugin candidates ordered by priority and ID."""
+        """Return discovered plugin candidates ordered by plugin ID."""
         return tuple(sorted(self._candidates.values(), key=_plugin_sort_key))
 
     @property
@@ -82,6 +83,15 @@ class PluginManager:
     def activate(self, plugin: StudioPlugin) -> None:
         if plugin.id in self._plugins:
             raise ValueError(f"Plugin is already active: {plugin.id}")
+        missing = [
+            dep
+            for dep in _plugin_requires(plugin)
+            if dep not in self._plugins and dep not in self._providers
+        ]
+        if missing:
+            raise ValueError(
+                f"Cannot activate {plugin.id}: requires active plugin(s): {', '.join(missing)}"
+            )
         was_disabled = plugin.id in self._disabled_plugins
         self._candidates[plugin.id] = plugin
         self._disabled_plugins.discard(plugin.id)
@@ -105,6 +115,14 @@ class PluginManager:
         plugin = self._plugins.get(plugin_id)
         if plugin is None:
             raise ValueError(f"Plugin is not active: {plugin_id}")
+        owned_ids = {plugin_id, *self._plugin_providers.get(plugin_id, ())}
+        dependents = sorted(
+            other_id
+            for other_id, other in self._plugins.items()
+            if other_id != plugin_id and any(dep in owned_ids for dep in _plugin_requires(other))
+        )
+        if dependents:
+            raise ValueError(f"Cannot deactivate {plugin_id}: required by {', '.join(dependents)}")
         logger.info("Deactivating plugin: %s", plugin_id)
         deactivate = getattr(plugin, "deactivate", None)
         if not callable(deactivate):
@@ -126,7 +144,6 @@ class PluginManager:
         candidates = (
             bundled_candidates + entry_point_candidates + user_candidates + custom_candidates
         )
-        candidates.sort(key=lambda item: (item[0], item[1]))
         self._activate_candidates(candidates, issues)
         self._load_issues = issues
         return issues
@@ -155,9 +172,9 @@ class PluginManager:
 
     def _collect_bundled_candidates(
         self,
-    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+    ) -> tuple[list[PluginLoadIssue], list[tuple[str, object]]]:
         issues: list[PluginLoadIssue] = []
-        candidates: list[tuple[int, str, object]] = []
+        candidates: list[tuple[str, object]] = []
         try:
             package = import_module("plugins")
             for module_info in pkgutil.iter_modules(package.__path__):
@@ -166,7 +183,7 @@ class PluginManager:
                     module = import_module(source)
                     candidate = getattr(module, "PLUGIN", None)
                     if candidate is not None:
-                        candidates.append(_candidate_sort_key(candidate, source))
+                        candidates.append((str(getattr(candidate, "id", source)), candidate))
                 except Exception as exc:
                     logger.warning("Failed to load bundled plugin %s: %s", source, exc)
                     issues.append(PluginLoadIssue(source, str(exc)))
@@ -177,13 +194,14 @@ class PluginManager:
 
     def _collect_entry_point_candidates(
         self,
-    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+    ) -> tuple[list[PluginLoadIssue], list[tuple[str, object]]]:
         issues: list[PluginLoadIssue] = []
-        candidates: list[tuple[int, str, object]] = []
+        candidates: list[tuple[str, object]] = []
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
             try:
                 logger.info("Loading entry-point plugin: %s", entry_point.name)
-                candidates.append(_candidate_sort_key(entry_point.load(), entry_point.name))
+                candidate = entry_point.load()
+                candidates.append((str(getattr(candidate, "id", entry_point.name)), candidate))
             except Exception as exc:
                 logger.warning("Failed to load entry-point plugin %s: %s", entry_point.name, exc)
                 issues.append(PluginLoadIssue(entry_point.name, str(exc)))
@@ -191,9 +209,9 @@ class PluginManager:
 
     def _collect_user_directory_candidates(
         self,
-    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+    ) -> tuple[list[PluginLoadIssue], list[tuple[str, object]]]:
         issues: list[PluginLoadIssue] = []
-        candidates: list[tuple[int, str, object]] = []
+        candidates: list[tuple[str, object]] = []
         user_dir = get_user_plugins_dir()
         if not user_dir.is_dir():
             return issues, candidates
@@ -214,7 +232,7 @@ class PluginManager:
                     candidate = self._load_plugin_from_file(item)
 
                 if candidate is not None:
-                    candidates.append(_candidate_sort_key(candidate, source_name))
+                    candidates.append((str(getattr(candidate, "id", source_name)), candidate))
             except Exception as exc:
                 logger.warning("Failed to load user plugin from %s: %s", item.name, exc)
                 issues.append(PluginLoadIssue(item.name, str(exc)))
@@ -324,31 +342,46 @@ class PluginManager:
 
     def _activate_candidates(
         self,
-        candidates: list[tuple[int, str, object]],
+        candidates: list[tuple[str, object]],
         issues: list[PluginLoadIssue],
     ) -> None:
-        candidates.sort(key=lambda item: (item[0], item[1]))
-        for _, plugin_id, candidate in candidates:
+        pending: list[StudioPlugin] = []
+        seen_ids: set[str] = set()
+        for source_id, candidate in sorted(candidates, key=lambda item: item[0]):
             try:
-                self._activate_candidate(candidate)
+                plugin: Any = candidate() if isinstance(candidate, type) else candidate
+                plugin_id = getattr(plugin, "id", None)
+                if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
+                    raise TypeError("Plugin entry must provide id and activate(api)")
             except Exception as exc:
-                logger.warning("Failed to activate plugin %s: %s", plugin_id, exc)
-                issues.append(PluginLoadIssue(plugin_id, str(exc)))
+                logger.warning("Failed to initialize plugin %s: %s", source_id, exc)
+                issues.append(PluginLoadIssue(source_id, str(exc)))
+                continue
 
-    def _activate_candidate(self, candidate: object) -> None:
-        plugin: Any = candidate() if isinstance(candidate, type) else candidate
-        plugin_id = getattr(plugin, "id", None)
-        if isinstance(plugin_id, str) and plugin_id in self._plugins:
-            return
-        if isinstance(plugin_id, str):
-            if plugin_id in self._disabled_plugins and plugin_id in self._candidates:
-                return
-            self._candidates[plugin_id] = plugin
+            if plugin_id in self._plugins or plugin_id in seen_ids:
+                continue
+            seen_ids.add(plugin_id)
             if plugin_id in self._disabled_plugins:
-                return
-        if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
-            raise TypeError("Plugin entry must provide id and activate(api)")
-        self.activate(plugin)
+                self._candidates.setdefault(plugin_id, plugin)
+                continue
+            self._candidates[plugin_id] = plugin
+            pending.append(plugin)
+
+        ordered, dep_errors = _order_plugins_by_dependencies(
+            pending,
+            already_active=set(self._plugins) | set(self._providers),
+            disabled_ids=self._disabled_plugins,
+        )
+        for plugin_id, message in sorted(dep_errors.items()):
+            logger.warning("Cannot activate plugin %s: %s", plugin_id, message)
+            issues.append(PluginLoadIssue(plugin_id, message))
+
+        for plugin in ordered:
+            try:
+                self.activate(plugin)
+            except Exception as exc:
+                logger.warning("Failed to activate plugin %s: %s", plugin.id, exc)
+                issues.append(PluginLoadIssue(plugin.id, str(exc)))
 
     @staticmethod
     def _load_disabled_plugins() -> set[str]:
@@ -381,9 +414,9 @@ class PluginManager:
 
     def _collect_custom_directory_candidates(
         self,
-    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+    ) -> tuple[list[PluginLoadIssue], list[tuple[str, object]]]:
         issues: list[PluginLoadIssue] = []
-        candidates: list[tuple[int, str, object]] = []
+        candidates: list[tuple[str, object]] = []
 
         for custom_dir in self._custom_folders:
             if not custom_dir.is_dir():
@@ -403,7 +436,7 @@ class PluginManager:
                 issues.append(PluginLoadIssue(str(custom_dir), str(exc)))
                 continue
             if candidate is not None:
-                candidates.append(_candidate_sort_key(candidate, custom_dir.name))
+                candidates.append((str(getattr(candidate, "id", custom_dir.name)), candidate))
                 continue
 
             # 2. Check subdirectories and .py files inside custom_dir
@@ -419,7 +452,7 @@ class PluginManager:
                         candidate = self._load_plugin_from_file(item)
 
                     if candidate is not None:
-                        candidates.append(_candidate_sort_key(candidate, source_name))
+                        candidates.append((str(getattr(candidate, "id", source_name)), candidate))
                 except Exception as exc:
                     logger.warning(
                         "Failed to load plugin from custom dir item %s: %s", item.name, exc

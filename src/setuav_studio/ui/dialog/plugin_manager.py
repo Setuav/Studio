@@ -41,12 +41,12 @@ class PluginManagerDialog(QDialog):
         layout.addWidget(QLabel("Active plugins", self))
 
         self._plugins = QTreeWidget(self)
-        self._plugins.setHeaderLabels(["Enabled", "Plugin", "Priority", "Status"])
+        self._plugins.setHeaderLabels(["Enabled", "Plugin", "Requires", "Status"])
         self._plugins.setRootIsDecorated(False)
         self._plugins.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
         header = self._plugins.header()
         header.setStretchLastSection(False)
-        for column, width in ((0, 70), (2, 90), (3, 100)):
+        for column, width in ((0, 70), (2, 180), (3, 90)):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             self._plugins.setColumnWidth(column, width)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -183,14 +183,21 @@ class PluginManagerDialog(QDialog):
         for plugin in self._manager.known_plugins:
             active = self._manager.is_active(plugin.id)
             disabled = self._manager.is_disabled(plugin.id)
+            raw_requires = getattr(plugin, "requires", ())
+            requires_list = [str(dep) for dep in raw_requires] if raw_requires else []
+            requires_display = (
+                ", ".join(dep.rsplit(".", 1)[-1] for dep in requires_list) if requires_list else "—"
+            )
             item = QTreeWidgetItem(
                 [
                     "",
                     plugin.id,
-                    str(getattr(plugin, "priority", 100)),
+                    requires_display,
                     "Active" if active else "Disabled" if disabled else "Inactive",
                 ]
             )
+            if requires_list:
+                item.setToolTip(2, ", ".join(requires_list))
             item.setData(1, Qt.ItemDataRole.UserRole, plugin.id)
             self._plugins.addTopLevelItem(item)
 

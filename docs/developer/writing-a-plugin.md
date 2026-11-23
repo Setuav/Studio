@@ -178,7 +178,6 @@ TOOLBAR_ID = "com.example.hover.add-analysis"
 
 class HoverPowerPlugin:
     id = "com.example.hover"
-    priority = 100
 
     def activate(self, api: StudioAPI) -> None:
         api.register_solver(SOLVER_ID, HoverPowerSolver, icon="fa6s.helicopter")
