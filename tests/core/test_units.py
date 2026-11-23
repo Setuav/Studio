@@ -202,3 +202,31 @@ def test_unit_manager_loads_case_insensitive_uppercase_unit_ids() -> None:
     assert manager.get_display_unit("force") == "N"
     assert manager.get_display_unit("pressure") == "kPa"
     assert manager.get_display_unit("capacity") == "mAh"
+
+
+def test_display_decimals_carry_the_field_precision_into_the_display_unit() -> None:
+    manager = get_unit_manager()
+    manager.set_active_preset("si")
+    cases = (
+        # quantity, display unit, base decimals, base value, expected text
+        ("mass", "g", 1, 136.0, "136.0 g"),
+        ("mass", "kg", 1, 136.0, "0.136 kg"),
+        ("mass", "oz", 1, 136.0, "4.797 oz"),
+        ("mass", "lb", 1, 136.0, "0.2998 lb"),
+        ("length", "mm", 1, 150.0, "150.0 mm"),
+        ("length", "m", 1, 150.0, "0.15 m"),
+        ("length", "in", 1, 150.0, "5.906 in"),
+        ("angle", "deg", 1, 12.5, "12.5 °"),
+        ("angle", "rad", 1, 12.5, "0.218 rad"),
+        ("volume", "cm3", 3, 0.189, "189 cm³"),
+        ("altitude", "ft", 0, 1000.0, "3281 ft"),
+    )
+    try:
+        for quantity, unit, decimals, base_value, expected in cases:
+            manager.set_display_unit(quantity, unit)
+            assert manager.format_value(base_value, quantity, decimals) == expected, unit
+    finally:
+        manager.set_active_preset("si")
+
+    assert manager.display_decimals("mass", 1) == 1
+    assert manager.format_value(0.75, None, 2) == "0.75"

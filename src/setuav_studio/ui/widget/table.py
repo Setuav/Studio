@@ -448,29 +448,6 @@ class FocusAwareLineEdit(QLineEdit):
         self.setCursorPosition(len(self.text()))
 
 
-def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
-    """Cleanly formats numbers removing floating-point noise and keeping engineering precision."""
-    if val is None or val == "":
-        return ""
-    try:
-        f_val = float(val)
-    except (ValueError, TypeError):
-        return str(val)
-
-    effective_decimals = 2 if decimals is None else decimals
-    rounded = round(f_val, effective_decimals)
-    if abs(rounded) < 1e-12:
-        return "0" if effective_decimals == 0 else "0.0"
-    if effective_decimals == 0:
-        return str(int(rounded))
-    if abs(rounded - int(rounded)) < 1e-9:
-        return f"{rounded:.1f}"
-    formatted = f"{rounded:.{effective_decimals}f}".rstrip("0")
-    if formatted.endswith("."):
-        formatted += "0"
-    return formatted
-
-
 class ExpressionPropertyCell(QWidget):
     """Table cell editor widget with dual display (evaluated value when idle, formula when editing)."""
 
@@ -509,8 +486,10 @@ class ExpressionPropertyCell(QWidget):
 
         self._quantity = quantity or get_quantity_for_unit(unit)
         self._suffix = unit or ""
-        self._decimals = decimals
-        if self._decimals is None:
+        self._decimals: int
+        if decimals is not None:
+            self._decimals = decimals
+        else:
             lbl = self._label.lower()
             if any(
                 w in lbl
@@ -611,13 +590,14 @@ class ExpressionPropertyCell(QWidget):
             return False, None, str(exc)
 
     def _display_number(self, base_val: float) -> tuple[str, str]:
-        from setuav_studio.units import get_unit_manager
+        from setuav_studio.units import format_engineering_value, get_unit_manager
 
         um = get_unit_manager()
         if self._quantity:
             disp_num = um.to_display(base_val, self._quantity)
             sym = um.get_unit_symbol(self._quantity)
-            return format_engineering_value(disp_num, self._decimals), sym
+            decimals = um.display_decimals(self._quantity, self._decimals)
+            return format_engineering_value(disp_num, decimals), sym
         return format_engineering_value(base_val, self._decimals), self._suffix
 
     def _refresh_display(self) -> None:

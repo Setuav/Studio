@@ -470,8 +470,11 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 label=label_text,
             )
         else:
-            from setuav_studio.ui.widget.table import format_engineering_value
-            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+            from setuav_studio.units import (
+                format_engineering_value,
+                get_quantity_for_unit,
+                get_unit_manager,
+            )
 
             um = get_unit_manager()
             self.properties_table.removeCellWidget(target_row, 1)

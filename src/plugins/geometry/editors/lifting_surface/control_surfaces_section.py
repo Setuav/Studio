@@ -461,8 +461,11 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
                 decimals=dec,
             )
         else:
-            from setuav_studio.ui.widget.table import format_engineering_value
-            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+            from setuav_studio.units import (
+                format_engineering_value,
+                get_quantity_for_unit,
+                get_unit_manager,
+            )
 
             um = get_unit_manager()
             self.cs_properties_table.removeCellWidget(target_row, 1)

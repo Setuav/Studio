@@ -592,7 +592,7 @@ class TestComponentEditor(unittest.TestCase):
         self.addCleanup(editor.deleteLater)
 
         cell = _cell(editor.parameters_table, "span")
-        self.assertEqual(cell.line_edit.text(), "3.94")
+        self.assertEqual(cell.line_edit.text(), "3.937")
         cell._on_focus_in()
         cell._on_focus_out()
         self.assertEqual(comp["parameters"]["span"], 100.0)

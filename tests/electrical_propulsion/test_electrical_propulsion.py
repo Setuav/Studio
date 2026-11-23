@@ -147,7 +147,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         units = get_unit_manager()
         units.set_display_unit("mass", "oz")
         units.units_changed.emit()
-        self.assertEqual(mass.line_edit.text(), "4.8")
+        self.assertEqual(mass.line_edit.text(), "4.797")
         self.assertEqual(mass.unit_label.text(), "oz")
         self.assertEqual(editor._property_value(editor.general_table, "motor"), "X2814 KV900 3-4S")
         self.assertEqual(editor._property_value(editor.general_table, "propeller"), "APC_12x6")

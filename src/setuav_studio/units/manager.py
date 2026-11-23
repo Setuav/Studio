@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QObject, QSettings, Signal
 
+from setuav_studio.units.format import format_engineering_value
 from setuav_studio.units.presets import PRESETS
 from setuav_studio.units.quantities import (
     QUANTITIES,
@@ -122,6 +125,36 @@ class UnitManager(QObject):
 
         target_unit = self.get_display_unit(q_id)
         return convert_value(base_value, q_id, qty.base_unit_id, target_unit)
+
+    def display_decimals(self, quantity_or_schema_unit: str | None, decimals: int) -> int:
+        """Decimals that keep a precision of ``decimals`` base-unit places in the display unit.
+
+        A precision of 0.1 g shows as 0.0001 kg, and 0.001 dm³ as 1 cm³.
+        """
+        if not quantity_or_schema_unit:
+            return decimals
+        q_id = get_quantity_for_unit(quantity_or_schema_unit) or quantity_or_schema_unit
+        qty = QUANTITIES.get(q_id)
+        unit = qty.resolve_unit(self.get_display_unit(q_id)) if qty is not None else None
+        if unit is None:
+            return decimals
+        base_per_unit = abs(unit.to_base_value(1.0) - unit.to_base_value(0.0))
+        if base_per_unit <= 0.0:
+            return decimals
+        return max(0, decimals + math.ceil(math.log10(base_per_unit) - 1e-9))
+
+    def format_value(
+        self, base_value: float, quantity_or_schema_unit: str | None, decimals: int
+    ) -> str:
+        """``base_value`` in the active display unit with its symbol, e.g. ``"0.136 kg"``."""
+        if not quantity_or_schema_unit:
+            return format_engineering_value(base_value, decimals)
+        number = format_engineering_value(
+            self.to_display(base_value, quantity_or_schema_unit),
+            self.display_decimals(quantity_or_schema_unit, decimals),
+        )
+        symbol = self.get_unit_symbol(quantity_or_schema_unit)
+        return f"{number} {symbol}" if symbol else number
 
     def to_base(self, display_value: float, quantity_or_schema_unit: str) -> float:
         """Convert a display unit value back to standard base storage unit."""

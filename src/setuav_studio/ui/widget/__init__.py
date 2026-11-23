@@ -26,7 +26,6 @@ from setuav_studio.ui.widget.table import (
     ExpressionPropertyCell,
     FocusAwareLineEdit,
     PropertyTableMixin,
-    format_engineering_value,
 )
 
 __all__ = [
@@ -41,7 +40,6 @@ __all__ = [
     "StudioChartWidget",
     "color_to_hex_str",
     "color_to_rgb_str",
-    "format_engineering_value",
     "parse_color",
     "refresh_all_button_roles",
     "refresh_button_role",
