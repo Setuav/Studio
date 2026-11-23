@@ -473,6 +473,41 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         editor.shape_combo.setCurrentIndex(editor.shape_combo.findData("sphere"))
         self.assertAlmostEqual(editor.volume_value(), box_volume * math.pi / 6.0, delta=1.0)
 
+    def test_envelope_volume_is_shown_in_the_active_volume_unit(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        battery = {
+            "id": "battery",
+            "type": "org.setuav.core:battery",
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": 140.0, "y": 45.0, "z": 30.0},
+                "offset_mm": {"x": 70.0, "y": 0.0, "z": 0.0},
+            },
+        }
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [battery]})
+        api._host.set_project(doc)
+        editor = EnvelopeEditor(api, battery)
+        self.addCleanup(editor.deleteLater)
+
+        # 140 x 45 x 30 mm = 189000 mm³ = 0.189 dm³ = 189 cm³.
+        cell = editor._property_cell(editor.definition_table, "volume")
+        assert cell is not None
+        self.assertTrue(cell.isReadOnly())
+        self.assertEqual(cell.line_edit.text(), "0.189")
+        self.assertEqual(cell.unit_label.text(), "dm³")
+
+        units = get_unit_manager()
+        units.set_display_unit("volume", "cm3")
+        units.units_changed.emit()
+        self.assertEqual(cell.line_edit.text(), "189.0")
+        self.assertEqual(cell.unit_label.text(), "cm³")
+
     def test_envelope_editor_rejects_invalid_and_clamps_negative_dimensions(self) -> None:
         from pathlib import Path
 

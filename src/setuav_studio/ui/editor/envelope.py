@@ -412,17 +412,15 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         self._update_volume_display()
 
     def _update_volume_display(self) -> None:
-        volume_mm3 = self.volume_value()
-        value = (
-            f"{volume_mm3 / 1_000_000_000.0:.6f} m³ ({volume_mm3 / 1_000_000.0:.3f} L)"
-            if volume_mm3 > 0.0
-            else "—"
-        )
-        self._set_property_value(
+        self._set_property_spinbox(
             self.definition_table,
             "volume",
-            value,
-            editable=False,
+            self.volume_value() / 1_000_000.0,
+            quantity="volume",
+            unit="dm3",
+            decimals=3,
+            label="Volume",
+            read_only=True,
         )
 
     def volume_value(self) -> float:
