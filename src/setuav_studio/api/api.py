@@ -825,7 +825,6 @@ class StudioAPI:
 
                 recompute_project_expressions(self._project, api=self)
                 self._show_expression_diagnostics()
-                self.derive_components()
             finally:
                 self._is_recomputing_expressions = False
 
@@ -1099,11 +1098,17 @@ class StudioAPI:
         """Unregister the deriver of a component type."""
         self._component_derivers.pop(type_id, None)
 
-    def derive_components(self) -> None:
-        """Run the registered derivers on the components of the current project."""
-        if self._project is None or not self._component_derivers:
-            return
-        components = [c for c in self._project.data["components"] if isinstance(c, dict)]
+    def derive_components(
+        self,
+        project: ProjectDocument | None = None,
+        *,
+        report_errors: bool = True,
+    ) -> list[str]:
+        """Run the registered derivers on the components of ``project`` (or the open project)."""
+        target_project = project if project is not None else self._project
+        if target_project is None or not self._component_derivers:
+            return []
+        components = [c for c in target_project.data["components"] if isinstance(c, dict)]
         by_id = {str(c["id"]): c for c in components}
         ordered: list[dict[str, Any]] = []
         placed: set[str] = set()
@@ -1129,8 +1134,9 @@ class StudioAPI:
                 deriver(component, by_id)
             except ValueError as exc:
                 failures.append(f"{component.get('name') or component['id']}: {exc}")
-        if failures:
+        if failures and report_errors:
             self.show_status("Cannot update " + "; ".join(failures), "error", 8000)
+        return failures
 
     def register_component_tree_provider(
         self,
