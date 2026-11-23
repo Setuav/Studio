@@ -281,6 +281,47 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         editor._on_prop_combo_changed("symmetry_mode", "symmetric")
         self.assertEqual(cs_comp["parameters"]["geometry"]["symmetry_mode"], "symmetric")
 
+    def test_derived_control_surface_values_keep_their_precision_in_the_display_unit(self) -> None:
+        from plugins.geometry.editors.control_surface import ControlSurfaceEditor
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        cs_comp = {
+            "id": "aileron",
+            "type": "org.setuav.core:control-surface",
+            "attach_to": "main-wing",
+            "parameters": {
+                "geometry": {
+                    "sizing_mode": "dimension",
+                    "span_start": 250.0,
+                    "span_end": 505.0,
+                    "chord": 50.0,
+                }
+            },
+        }
+        wing_comp = {
+            "id": "main-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0},
+                        {"position": {"x": 0.0, "y": 800.0, "z": 0.0}, "chord": 200.0},
+                    ]
+                }
+            },
+        }
+        api._host.set_project(
+            ProjectDocument(Path("test.json"), "json", {"components": [wing_comp, cs_comp]})
+        )
+        get_unit_manager().set_display_unit("length", "m")
+        editor = ControlSurfaceEditor(api, cs_comp)
+        self.addCleanup(editor.deleteLater)
+
+        # The 255 mm span length is derived; its 0.01 mm precision is five places in m.
+        self.assertEqual(editor._property_value(editor.properties_table, "span_length"), "0.255 m")
+
     def test_sizing_mode_decides_whether_span_and_chord_keep_ratio_or_mm(self) -> None:
         from plugins.geometry.engine.control_surface_geometry import sync_sizing_values
         from plugins.geometry.engine.lifting_surface_cuts import control_chord_fraction
