@@ -195,7 +195,6 @@ def set_table_spinbox(
 ) -> ExpressionPropertyCell:
     """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
     from setuav_studio.ui.widget.table import ExpressionPropertyCell
-    from setuav_studio.units import format_engineering_value
 
     item = table.item(row, column)
     if item is not None:
@@ -242,17 +241,10 @@ def set_table_spinbox(
             return
         cb(parsed[0])
 
-    if active_expr:
-        init_str = str(active_expr)
-    else:
-        init_str = (
-            format_engineering_value(value, decimals)
-            if isinstance(value, (int, float)) and not str(value).startswith("=")
-            else str(value)
-        )
+    init_value: float | str = str(active_expr) if active_expr else value
 
     cell = ExpressionPropertyCell(
-        initial_value=init_str,
+        initial_value=init_value,
         on_changed=handle_cell_changed if on_changed else None,
         on_open_assistant=on_open_assistant,
         api=api,

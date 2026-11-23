@@ -19,6 +19,7 @@ via class attributes instead of reimplementing table plumbing:
 
 from __future__ import annotations
 
+import math
 import weakref
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol
@@ -453,7 +454,7 @@ class ExpressionPropertyCell(QWidget):
 
     def __init__(
         self,
-        initial_value: str = "",
+        initial_value: float | str = "",
         on_changed: Callable[[str], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
         api: Any | None = None,
@@ -475,7 +476,10 @@ class ExpressionPropertyCell(QWidget):
         self._on_open_assistant = on_open_assistant
         self._api = api
         self._label = label
-        self._raw_expression = str(initial_value)
+        self._base_value: float | None = None
+        self._formula: str | None = None
+        self._invalid_text: str | None = None
+        self._set_stored_value(initial_value)
         self._allow_empty = allow_empty
         self._edit_start_text: str | None = None
         self._is_focused = False
@@ -566,6 +570,45 @@ class ExpressionPropertyCell(QWidget):
         except (RuntimeError, TypeError):
             pass
 
+    @property
+    def _raw_expression(self) -> str:
+        if self._formula is not None:
+            return self._formula
+        if self._base_value is not None:
+            return str(self._base_value)
+        if self._invalid_text is not None:
+            return self._invalid_text
+        return ""
+
+    def _set_stored_value(self, raw: float | int | str | None) -> None:
+        self._base_value = None
+        self._formula = None
+        self._invalid_text = None
+        if raw is None:
+            return
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            num = float(raw)
+            if math.isfinite(num):
+                self._base_value = num
+            else:
+                self._invalid_text = str(raw)
+            return
+        text = str(raw).strip()
+        if not text:
+            return
+        if self._is_formula(text):
+            self._formula = text
+            return
+        try:
+            num = float(text)
+        except ValueError:
+            self._invalid_text = str(raw)
+            return
+        if math.isfinite(num):
+            self._base_value = num
+        else:
+            self._invalid_text = str(raw)
+
     def _is_formula(self, text: str) -> bool:
         from setuav_studio.model.expression import ExpressionEvaluator
 
@@ -617,8 +660,7 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.setStyleSheet("")
             return
 
-        clean = self._raw_expression.strip()
-        if not clean:
+        if self._formula is None and self._base_value is None and self._invalid_text is None:
             self.line_edit.blockSignals(True)
             self.clear_error()
             self.line_edit.setText("")
@@ -628,8 +670,8 @@ class ExpressionPropertyCell(QWidget):
             return
 
         # Idle / Display mode: show evaluated calculated value if it is a formula
-        if self._is_formula(clean):
-            ok, val, err_msg = self._evaluate_expression(clean)
+        if self._formula is not None:
+            ok, val, err_msg = self._evaluate_expression(self._formula)
             self.line_edit.blockSignals(True)
             if ok and not isinstance(val, bool) and isinstance(val, (int, float)):
                 self.clear_error()
@@ -638,30 +680,29 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.setStyleSheet(
                     "color: #4CAF50; font-style: italic; font-weight: bold;"
                 )
-                tip = f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
+                tip = f"Bound to: {self._formula}\nCalculated value: {disp_val}"
                 if sym:
                     tip += f" {sym}"
                 self.line_edit.setToolTip(tip)
             else:
-                tip = (
-                    f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
-                )
-                self.set_error(tip, display_text=f"#REF! {self._raw_expression}")
+                tip = f"Formula Error in '{self._formula}':\n{err_msg or 'Failed to evaluate'}"
+                self.set_error(tip, display_text=f"#REF! {self._formula}")
+            self.line_edit.blockSignals(False)
+        elif self._base_value is not None:
+            self.line_edit.blockSignals(True)
+            disp_val, sym = self._display_number(self._base_value)
+            self.line_edit.setText(disp_val)
+            if not self._has_error:
+                self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
+                self.line_edit.setStyleSheet("")
             self.line_edit.blockSignals(False)
         else:
+            invalid = self._invalid_text or ""
             self.line_edit.blockSignals(True)
-            try:
-                num_val = float(clean)
-                disp_val, sym = self._display_number(num_val)
-                self.line_edit.setText(disp_val)
-                if not self._has_error:
-                    self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
-                    self.line_edit.setStyleSheet("")
-            except ValueError:
-                self.set_error(
-                    f"Invalid numeric value: '{clean}'",
-                    display_text=self._raw_expression,
-                )
+            self.set_error(
+                f"Invalid numeric value: '{invalid.strip()}'",
+                display_text=invalid,
+            )
             self.line_edit.blockSignals(False)
 
     def _on_focus_in(self) -> None:
@@ -669,18 +710,16 @@ class ExpressionPropertyCell(QWidget):
             return
         self._is_focused = True
         ExpressionFocusTracker.set_active_editor(self)
-        clean = self._raw_expression.strip()
         self.line_edit.blockSignals(True)
-        if self._is_formula(clean):
-            self.line_edit.setText(self._raw_expression)
+        if self._formula is not None:
+            self.line_edit.setText(self._formula)
             self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        elif self._base_value is not None:
+            disp_val, _ = self._display_number(self._base_value)
+            self.line_edit.setText(disp_val)
+            self.line_edit.setStyleSheet("")
         else:
-            try:
-                num_val = float(clean)
-                disp_val, _ = self._display_number(num_val)
-                self.line_edit.setText(disp_val)
-            except ValueError:
-                self.line_edit.setText(self._raw_expression)
+            self.line_edit.setText(self._invalid_text or "")
             self.line_edit.setStyleSheet("")
         self.line_edit.blockSignals(False)
         self._edit_start_text = self.line_edit.text().strip()
@@ -721,15 +760,21 @@ class ExpressionPropertyCell(QWidget):
             if self._allow_empty:
                 if self._raw_expression:
                     self.clear_error()
-                    self._raw_expression = ""
+                    self._set_stored_value(None)
                     self._call_on_changed("")
             else:
                 self._refresh_display()
             return
+        if self._is_formula(new_text):
+            if new_text != self._formula:
+                self.clear_error()
+                self._set_stored_value(new_text)
+                self._call_on_changed(new_text)
+            return
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:
             self.clear_error()
-            self._raw_expression = new_raw
+            self._set_stored_value(new_raw)
             self._call_on_changed(self._raw_expression)
 
     def _on_focus_out(self) -> None:
@@ -750,11 +795,10 @@ class ExpressionPropertyCell(QWidget):
 
     def stored_expression(self) -> str | None:
         """Return formula expression if current value is a formula, else None."""
-        clean = self._raw_expression.strip()
-        return clean if clean and self._is_formula(clean) else None
+        return self._formula
 
     def set_expression(self, expr: str) -> None:
-        self._raw_expression = expr.strip()
+        self._set_stored_value(expr.strip())
         self._call_on_changed(self._raw_expression)
         self._refresh_display()
 
@@ -815,24 +859,24 @@ class ExpressionPropertyCell(QWidget):
     def text(self) -> str:
         return self._raw_expression
 
-    def setText(self, text: str) -> None:
-        self._raw_expression = str(text)
+    def setText(self, text: str | float) -> None:
+        self._set_stored_value(text)
         self._refresh_display()
 
     def value(self) -> float:
-        clean = self._raw_expression.strip()
-        if self._is_formula(clean):
-            ok, val, _ = self._evaluate_expression(clean)
-            if ok and isinstance(val, (int, float)):
+        if self._formula is not None:
+            ok, val, _ = self._evaluate_expression(self._formula)
+            if ok and not isinstance(val, bool) and isinstance(val, (int, float)):
                 return float(val)
-        try:
-            return float(clean)
-        except ValueError:
             return 0.0
+        if self._base_value is not None:
+            return self._base_value
+        return 0.0
 
     def setValue(self, val: float | str) -> None:
-        self.setText(str(val))
-        self._call_on_changed(str(val))
+        self._set_stored_value(val)
+        self._refresh_display()
+        self._call_on_changed(self._raw_expression)
 
     def suffix(self) -> str:
         from setuav_studio.units import get_unit_manager

@@ -920,3 +920,55 @@ def test_parameter_stores_quantity_without_display_unit_and_formats_live(tmp_pat
         tree.deleteLater()
     finally:
         um.set_active_preset("si")
+
+
+def test_expression_cell_preserves_raw_float_precision_across_unit_switches() -> None:
+    from PySide6.QtWidgets import QTableWidget
+
+    from setuav_studio.ui.widget.spinbox import set_table_spinbox
+    from setuav_studio.units import get_unit_manager
+    from tests._common import get_qapp
+
+    get_qapp()
+    um = get_unit_manager()
+    um.set_active_preset("si")
+    changes: list[str] = []
+    try:
+        table = QTableWidget(1, 1)
+        exact_mm = 123.45678
+        cell = set_table_spinbox(
+            table,
+            0,
+            0,
+            exact_mm,
+            quantity="length",
+            decimals=2,
+            on_changed=lambda v: changes.append(v),
+            api=None,
+        )
+
+        # Idle display rounds visually, while stored float keeps full precision.
+        assert cell.line_edit.text() == "123.46"
+        assert cell.value() == pytest.approx(exact_mm)
+        assert cell.stored_expression() is None
+
+        # Switching units converts from full-precision base value without drift
+        # (123.45678 / 25.4 = 4.860503..., whereas pre-rounded 123.46 / 25.4 would be 4.8606).
+        um.set_active_preset("imperial")
+        um.units_changed.emit()
+        assert cell.value() == pytest.approx(exact_mm)
+        assert cell.line_edit.text() == "4.8605"
+
+        um.set_active_preset("si")
+        um.units_changed.emit()
+        assert cell.value() == pytest.approx(exact_mm)
+        assert cell.line_edit.text() == "123.46"
+
+        # Focusing in and out without editing must not emit a change or truncate precision.
+        cell._on_focus_in()
+        cell._on_focus_out()
+        assert changes == []
+        assert cell.value() == pytest.approx(exact_mm)
+        table.deleteLater()
+    finally:
+        um.set_active_preset("si")
