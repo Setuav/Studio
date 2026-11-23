@@ -1032,3 +1032,76 @@ def test_expression_cell_shows_base_unit_badge_while_editing_formula(tmp_path: P
         dlg.deleteLater()
     finally:
         um.set_active_preset("si")
+
+
+def test_global_parameters_share_universal_scope_and_hyphen_aliases(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from tests._common import get_qapp
+
+    get_qapp()
+    proj = ProjectDocument(
+        tmp_path / "unified_scope.json",
+        "json",
+        {
+            "parameters": {
+                "wing-span": 2000.0,
+                "half_span": "= wing_span / 2",
+                "wing_mass_ratio": "= main_wing.mass / total_mass",
+            },
+            "components": [
+                {
+                    "id": "main-wing",
+                    "name": "Main Wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 400.0,
+                },
+                {
+                    "id": "battery",
+                    "name": "Battery",
+                    "type": "org.setuav.core:battery",
+                    "mass": 300.0,
+                },
+                {
+                    "id": "battery-2",
+                    "name": "Battery Copy",
+                    "kind": "instance",
+                    "source": "battery",
+                },
+                {
+                    "id": "ballast",
+                    "name": "Ballast",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 0.0,
+                    "_expressions": {"mass": "= half_span / 10"},
+                },
+            ],
+        },
+    )
+    api = StudioAPI()
+    api._host.set_project(proj)
+
+    # Instance battery-2 contributes 300 g just like mass_balance.py:
+    # main-wing (400) + battery (300) + battery-2 (300) + ballast (100) = 1100 g.
+    scope = proj.get_scope(api=api)
+    assert math.isclose(scope["half_span"], 1000.0)
+    assert math.isclose(proj.data["components"][3]["mass"], 100.0)
+    assert math.isclose(scope["total_mass"], 1100.0)
+    assert math.isclose(scope["total_mass"], proj.mass_properties.mass_kg * 1000.0, rel_tol=1e-6)
+    assert math.isclose(scope["wing_mass_ratio"], 400.0 / 1100.0)
+    assert api.expression_diagnostics == []
+
+    # ParameterPropertyEditor accepts component & total_mass formulas cleanly.
+    editor = ParameterPropertyEditor(api, {"key": "wing_mass_ratio"})
+    editor._on_value_expression_changed("= main_wing.mass / total_mass")
+    assert proj.data["parameters"]["wing_mass_ratio"] == "= main_wing.mass / total_mass"
+    assert not editor._property_cell(editor.general_table, "value")._has_error  # type: ignore[union-attr]
+    editor.deleteLater()
+
+    # Parameter <-> component cycle is detected and rolled back.
+    proj.data["parameters"]["loop_p"] = "= ballast.mass + 1"
+    proj.data["components"][3]["_expressions"]["mass"] = "= loop_p + 1"
+    before_mass = proj.data["components"][3]["mass"]
+    diagnostics = recompute_project_expressions(proj, api=api)
+    assert any("Circular" in d["message"] for d in diagnostics)
+    assert proj.data["components"][3]["mass"] == before_mass

@@ -53,6 +53,13 @@ class ParameterResolver:
 
     def build_dependency_graph(self, parameters: dict[str, Any]) -> dict[str, set[str]]:
         """Build dependency graph mapping each parameter to set of parameters it depends on."""
+        alias_to_key: dict[str, str] = {}
+        for key in parameters:
+            clean = key.replace("-", "_")
+            alias_to_key.setdefault(clean, key)
+        for key in parameters:
+            alias_to_key[key] = key
+
         graph: dict[str, set[str]] = {}
         for key, val in parameters.items():
             raw_val = _raw_value(val)
@@ -62,10 +69,10 @@ class ParameterResolver:
                 dep_set: set[str] = set()
                 for sym in symbols:
                     root_sym = sym.split(".")[0]
-                    if sym in parameters:
-                        dep_set.add(sym)
-                    elif root_sym in parameters:
-                        dep_set.add(root_sym)
+                    if sym in alias_to_key:
+                        dep_set.add(alias_to_key[sym])
+                    elif root_sym in alias_to_key:
+                        dep_set.add(alias_to_key[root_sym])
                 graph[key] = dep_set
             else:
                 graph[key] = set()
@@ -95,9 +102,15 @@ class ParameterResolver:
 
         return cycles
 
-    def resolve_all(self, parameters: dict[str, Any]) -> ParameterResolution:
+    def resolve_all(
+        self,
+        parameters: dict[str, Any],
+        base_scope: dict[str, Any] | None = None,
+    ) -> ParameterResolution:
         """Resolve every parameter that can be evaluated.
 
+        When ``base_scope`` is provided, parameter expressions may also read symbols
+        from that scope (such as component models, ``total_mass``, and extensions).
         A parameter whose expression fails, that lies on a dependency cycle, or that
         depends on such a parameter is left out of ``values`` and reported in
         ``diagnostics``.
@@ -112,6 +125,11 @@ class ParameterResolver:
         order = _topological_order(graph)
         ordered = set(order)
         values: dict[str, Any] = {}
+        eval_scope: dict[str, Any] = dict(base_scope) if base_scope else {}
+        for key in parameters:
+            eval_scope.pop(key, None)
+            eval_scope.pop(key.replace("-", "_"), None)
+
         for key in [*order, *(k for k in parameters if k not in ordered)]:
             if key in errors:
                 continue
@@ -121,12 +139,18 @@ class ParameterResolver:
                 continue
             raw_val = _raw_value(parameters[key])
             if not self.evaluator.is_expression(raw_val):
-                values[key] = raw_val
-                continue
-            try:
-                values[key] = self.evaluator.evaluate(str(raw_val), values)
-            except ExpressionEvaluationError as exc:
-                errors[key] = str(exc)
+                resolved_val = raw_val
+            else:
+                try:
+                    resolved_val = self.evaluator.evaluate(str(raw_val), eval_scope)
+                except ExpressionEvaluationError as exc:
+                    errors[key] = str(exc)
+                    continue
+            values[key] = resolved_val
+            eval_scope[key] = resolved_val
+            clean_key = key.replace("-", "_")
+            if clean_key != key:
+                eval_scope[clean_key] = resolved_val
 
         diagnostics = [
             {
