@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
@@ -48,6 +49,7 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         self._result_id = str(plot_item.get("result_id") or "")
         self._plot_id = str(plot_item.get("plot_id") or "")
         self._loading = False
+        self._editing = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -70,6 +72,28 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         self._content_layout.addStretch()
 
         self._load_data()
+        self._api.on_project_content_changed(self._on_project_content_changed)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if not self._loading and not self._editing:
+            self._load_data()
+
+    def _edit_plot(self, description: str, change: Callable[[PlotDefinition], object]) -> None:
+        """Apply ``change`` to the plot as one undoable project edit."""
+        res, plot, _ = self._get_result_and_plot()
+        project = self._api.project
+        if res is None or plot is None or project is None:
+            return
+
+        def apply() -> None:
+            change(plot)
+            project.add_solver_result(res)
+
+        self._editing = True
+        try:
+            self._api.edit_project(description, apply)
+        finally:
+            self._editing = False
 
     def _get_result_and_plot(
         self,
@@ -265,8 +289,8 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         y_col_def = table.get_column_def(series.y_column)
         default_label = series.label or (y_col_def.label if y_col_def else series.y_column)
         label_edit = QLineEdit(default_label)
-        label_edit.textChanged.connect(
-            lambda text, idx=index: self._on_curve_label_changed(idx, text)
+        label_edit.editingFinished.connect(
+            lambda idx=index, edit=label_edit: self._on_curve_label_changed(idx, edit.text())
         )
         r1_layout.addWidget(label_edit, 1)
 
@@ -353,17 +377,14 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
             val = self._property_text(self.details_table, row).strip()
             _, plot, _ = self._get_result_and_plot()
             if plot is not None and val != plot.title:
-                plot.title = val
-                self._notify_plot_changed()
-                self._api.notify_project_content_changed()
+                self._edit_plot("Rename plot", lambda p: setattr(p, "title", val))
 
     def _on_x_column_changed(self, new_x_col: str) -> None:
         if self._loading:
             return
         _, plot, _ = self._get_result_and_plot()
         if plot is not None and plot.x_column != new_x_col:
-            plot.x_column = new_x_col
-            self._notify_plot_changed()
+            self._edit_plot("Change plot X axis", lambda p: setattr(p, "x_column", new_x_col))
 
     def _on_curve_y_changed(self, index: int, combo: QComboBox) -> None:
         if self._loading:
@@ -372,47 +393,62 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         if not key:
             return
         _, plot, table = self._get_result_and_plot()
-        if plot is not None and 0 <= index < len(plot.series):
-            series = plot.series[index]
-            if series.y_column != str(key):
-                old_y_col = series.y_column
-                old_col_def = table.get_column_def(old_y_col) if table is not None else None
-                series.y_column = str(key)
-                if table is not None:
-                    col_def = table.get_column_def(str(key))
-                    is_default_label = (
-                        not series.label
-                        or series.label == old_y_col
-                        or (old_col_def is not None and series.label == old_col_def.label)
-                    )
-                    if col_def and is_default_label:
-                        series.label = col_def.label
-                self._build_series_ui()
-                self._notify_plot_changed()
+        if plot is None or not 0 <= index < len(plot.series):
+            return
+        if plot.series[index].y_column == str(key):
+            return
+
+        def change(p: PlotDefinition) -> None:
+            series = p.series[index]
+            old_y_col = series.y_column
+            old_col_def = table.get_column_def(old_y_col) if table is not None else None
+            series.y_column = str(key)
+            if table is not None:
+                col_def = table.get_column_def(str(key))
+                is_default_label = (
+                    not series.label
+                    or series.label == old_y_col
+                    or (old_col_def is not None and series.label == old_col_def.label)
+                )
+                if col_def and is_default_label:
+                    series.label = col_def.label
+
+        self._edit_plot("Change curve Y column", change)
+        self._build_series_ui()
 
     def _on_curve_label_changed(self, index: int, new_label: str) -> None:
         if self._loading:
             return
         _, plot, _ = self._get_result_and_plot()
-        if plot is not None and 0 <= index < len(plot.series):
-            plot.series[index].label = new_label
-            self._notify_plot_changed()
+        if (
+            plot is not None
+            and 0 <= index < len(plot.series)
+            and plot.series[index].label != new_label
+        ):
+            self._edit_plot("Rename curve", lambda p: setattr(p.series[index], "label", new_label))
 
     def _on_curve_color_changed(self, index: int, new_color: str) -> None:
         if self._loading:
             return
         _, plot, _ = self._get_result_and_plot()
-        if plot is not None and 0 <= index < len(plot.series):
-            plot.series[index].color = new_color
-            self._notify_plot_changed()
+        if (
+            plot is not None
+            and 0 <= index < len(plot.series)
+            and plot.series[index].color != new_color
+        ):
+            self._edit_plot(
+                "Change curve color", lambda p: setattr(p.series[index], "color", new_color)
+            )
 
     def _on_curve_style_changed(self, index: int, style_text: str) -> None:
         if self._loading:
             return
+        style = style_text.lower()
         _, plot, _ = self._get_result_and_plot()
-        if plot is not None and 0 <= index < len(plot.series):
-            plot.series[index].style = style_text.lower()
-            self._notify_plot_changed()
+        if plot is not None and 0 <= index < len(plot.series) and plot.series[index].style != style:
+            self._edit_plot(
+                "Change curve style", lambda p: setattr(p.series[index], "style", style)
+            )
 
     def _on_add_curve_clicked(self) -> None:
         _, plot, table = self._get_result_and_plot()
@@ -434,25 +470,20 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
             style="solid",
             color=color,
         )
-        plot.series.append(new_series)
+        self._edit_plot("Add curve", lambda p: p.series.append(new_series))
         self._build_series_ui()
-        self._notify_plot_changed()
 
     def _on_delete_curve(self, index: int) -> None:
         _, plot, _ = self._get_result_and_plot()
         if plot is not None and len(plot.series) > 1 and 0 <= index < len(plot.series):
-            plot.series.pop(index)
+            self._edit_plot("Remove curve", lambda p: p.series.pop(index))
             self._build_series_ui()
-            self._notify_plot_changed()
 
     def _on_reset_plot_clicked(self) -> None:
-        res = self._api.get_solver_result(self._result_id)
+        res, _, _ = self._get_result_and_plot()
         if res is not None:
-            res.reset_plot(self._plot_id)
-            if self._api.project is not None:
-                self._api.project.add_solver_result(res)
+            self._edit_plot("Reset plot", lambda _plot: res.reset_plot(self._plot_id))
         self._load_data()
-        self._notify_plot_changed()
         self._api.publish(
             str(StudioEvents.ANALYSIS_PLOT_ACTION),
             {"result_id": self._result_id, "plot_id": self._plot_id, "action": "reset_plot"},
@@ -468,15 +499,4 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         self._api.publish(
             str(StudioEvents.ANALYSIS_PLOT_ACTION),
             {"result_id": self._result_id, "plot_id": self._plot_id, "action": "export_csv"},
-        )
-
-    def _notify_plot_changed(self) -> None:
-        if self._loading:
-            return
-        res, _, _ = self._get_result_and_plot()
-        if res is not None and self._api.project is not None:
-            self._api.project.add_solver_result(res)
-        self._api.publish(
-            str(StudioEvents.ANALYSIS_PLOT_UPDATED),
-            {"result_id": self._result_id, "plot_id": self._plot_id},
         )
