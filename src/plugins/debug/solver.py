@@ -297,7 +297,7 @@ class MockGeneratorSolver(AbstractSolver):
         columns = int(self.config.parameters["columns"])
 
         # 1. Initial cancellation check
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Solver cancelled before start.")
 
@@ -306,7 +306,7 @@ class MockGeneratorSolver(AbstractSolver):
             num_steps = max(5, int(duration * 20))
             dt = duration / num_steps
             for step in range(num_steps):
-                if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+                if self.is_cancel_requested:
                     self.status = SolverStatus.CANCELLED
                     raise TaskCancelledError("Solver cancelled during execution.")
 
@@ -317,7 +317,7 @@ class MockGeneratorSolver(AbstractSolver):
 
                 time.sleep(dt)
 
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Solver cancelled after execution.")
 

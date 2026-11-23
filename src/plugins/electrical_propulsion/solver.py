@@ -42,8 +42,6 @@ class BasePropulsionSolver(AbstractSolver):
 
     def _powertrain(self) -> Powertrain:
         project = self.project
-        if project is None and self.api is not None:
-            project = self.api.project
         if project is None:
             raise RuntimeError("No active project available for propulsion analysis.")
         components = [c for c in project.data["components"] if isinstance(c, dict)]
@@ -420,7 +418,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
@@ -439,7 +437,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
         points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, t_val in enumerate(t_list):
-            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            if self.is_cancel_requested:
                 self.status = SolverStatus.CANCELLED
                 raise TaskCancelledError("Analysis cancelled during sweep.")
 
@@ -548,7 +546,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
@@ -567,7 +565,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
         points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, v_val in enumerate(v_list):
-            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            if self.is_cancel_requested:
                 self.status = SolverStatus.CANCELLED
                 raise TaskCancelledError("Analysis cancelled during sweep.")
 
@@ -652,7 +650,7 @@ class OperatingPointSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+        if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 

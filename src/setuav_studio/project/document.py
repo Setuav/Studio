@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tempfile
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -64,6 +65,20 @@ class ProjectDocument:
     @property
     def degraded(self) -> bool:
         return bool(self.plugin_issues)
+
+    def snapshot(self) -> ProjectDocument:
+        """Return a detached read-only deep copy safe to read from background threads."""
+        return ProjectDocument(
+            path=self.path,
+            kind=self.kind,
+            data=deepcopy(self.data),
+            modified=self.modified,
+            plugin_issues=list(self.plugin_issues),
+            read_only=True,
+            untitled=self.untitled,
+            expression_diagnostics=deepcopy(self.expression_diagnostics),
+            format_warning=self.format_warning,
+        )
 
     @property
     def solver_results(self) -> dict[str, SolverResult]:
