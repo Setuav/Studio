@@ -28,7 +28,7 @@ def run_analysis(api: StudioAPI, config_id: str | None = None) -> None:
             config = next(iter(all_configs.values()))
             api.set_current_solver_config(config.config_id)
 
-    solver_cls = api.solvers.get_solver_class(config.solver_id)
+    solver_cls = api.get_solver_class(config.solver_id)
     if solver_cls is None:
         api.show_status(f"No registered solver found for '{config.solver_id}'.", "error", 3000)
         return

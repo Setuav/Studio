@@ -192,7 +192,7 @@ class TestDebugMockSolver(unittest.TestCase):
 
         # Verify solver registration
         self.assertIs(
-            self.api.solvers.get_solver_class(SOLVER_ID_MOCK_GENERATOR),
+            self.api.get_solver_class(SOLVER_ID_MOCK_GENERATOR),
             MockGeneratorSolver,
         )
 
@@ -208,7 +208,7 @@ class TestDebugMockSolver(unittest.TestCase):
 
         # Test deactivate cleanly cleans up
         plugin.deactivate(self.api)
-        self.assertIsNone(self.api.solvers.get_solver_class(SOLVER_ID_MOCK_GENERATOR))
+        self.assertIsNone(self.api.get_solver_class(SOLVER_ID_MOCK_GENERATOR))
 
 
 if __name__ == "__main__":
