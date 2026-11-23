@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.style.theme import tokens
 
@@ -52,6 +52,7 @@ class PropertiesPanel(QWidget):
         api.on_selection_changed(self.set_selection)
         api.on_project_content_changed(self._on_project_content_changed)
         api.on_project_changed(self._on_project_changed)
+        api.subscribe(StudioEvents.PLUGINS_CHANGED, self._on_project_changed)
 
     def _resolve_live_component(self, comp_id: str) -> dict[str, Any] | None:
         proj = self._api.project

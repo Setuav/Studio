@@ -11,6 +11,7 @@ class StudioEvents(StrEnum):
     PROJECT_CLOSED = "project.closed"
     PROJECT_CONTENT_CHANGED = "project.content_changed"
     PROJECT_MODIFIED = "project.modified"
+    PLUGINS_CHANGED = "plugins.changed"
 
     # Selection
     SELECTION_CHANGED = "selection.changed"

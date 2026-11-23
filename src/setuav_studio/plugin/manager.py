@@ -37,6 +37,7 @@ class PluginManager:
         self._load_issues: list[PluginLoadIssue] = []
         self._providers: dict[str, str] = {}
         self._plugin_providers: dict[str, dict[str, str]] = {}
+        self._discovering: bool = False
         api._host.bind_project_requirement_checker(self.check_project_requirements)
 
     @property
@@ -110,6 +111,8 @@ class PluginManager:
             provided = {str(plugin_id): str(version) for plugin_id, version in provides.items()}
             self._providers.update(provided)
             self._plugin_providers[plugin.id] = provided
+        if not self._discovering and self._api.project is not None:
+            self._api._host.refresh_after_plugin_change()
 
     def deactivate(self, plugin_id: str) -> None:
         plugin = self._plugins.get(plugin_id)
@@ -133,6 +136,8 @@ class PluginManager:
         self._save_disabled_plugins()
         for provided_id in self._plugin_providers.pop(plugin_id, {}):
             self._providers.pop(provided_id, None)
+        if self._api.project is not None:
+            self._api._host.refresh_after_plugin_change()
 
     def discover(self) -> list[PluginLoadIssue]:
         logger.info("Discovering plugins")
@@ -144,8 +149,14 @@ class PluginManager:
         candidates = (
             bundled_candidates + entry_point_candidates + user_candidates + custom_candidates
         )
-        self._activate_candidates(candidates, issues)
+        self._discovering = True
+        try:
+            self._activate_candidates(candidates, issues)
+        finally:
+            self._discovering = False
         self._load_issues = issues
+        if self._api.project is not None:
+            self._api._host.refresh_after_plugin_change()
         return issues
 
     def check_project_requirements(self, data: dict[str, Any]) -> list[str]:

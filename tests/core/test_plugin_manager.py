@@ -336,3 +336,72 @@ def test_bundled_plugins_discover_in_dependency_order_and_protect_deactivate() -
         manager.deactivate("org.setuav.studio.airframe_design")
     with pytest.raises(ValueError, match=r"org\.setuav\.studio\.flight_performance"):
         manager.deactivate("org.setuav.studio.electrical_propulsion")
+
+
+def test_plugin_toggle_refreshes_open_project_derivers_issues_and_editor() -> None:
+    from typing import ClassVar
+
+    from PySide6.QtWidgets import QLabel
+
+    from setuav_studio.api import ComponentTypeContribution
+    from setuav_studio.project import ProjectDocument
+    from setuav_studio.ui.panels.properties import PropertiesPanel
+
+    class _CustomEditor(QLabel):
+        pass
+
+    class _GadgetPlugin:
+        id = "org.test.gadget"
+        provides: ClassVar[dict[str, str]] = {"org.test.gadget": "1.0.0"}
+
+        def activate(self, api: StudioAPI) -> None:
+            api.register_component_type(
+                ComponentTypeContribution(
+                    id="org.test:gadget",
+                    name="Gadget",
+                    editor=lambda comp: _CustomEditor(str(comp["id"])),
+                )
+            )
+            api.register_component_deriver(
+                "org.test:gadget",
+                lambda comp, _by_id: comp.__setitem__("mass", 77.0),
+            )
+
+        def deactivate(self, api: StudioAPI) -> None:
+            api.unregister_component_deriver("org.test:gadget")
+            api.unregister_component_type("org.test:gadget")
+
+    api = StudioAPI()
+    manager = PluginManager(api)
+    comp = {"id": "g1", "name": "Gadget 1", "type": "org.test:gadget", "mass": 0.0}
+    project = ProjectDocument(
+        Path("live_toggle.json"),
+        "json",
+        {
+            "plugins": [{"id": "org.test.gadget", "version": "^1.0.0"}],
+            "components": [comp],
+        },
+    )
+    api._host.set_project(project)
+    project.plugin_issues = manager.check_project_requirements(project.data)
+    assert project.degraded
+
+    panel = PropertiesPanel(api)
+    api.set_selection(comp)
+    assert panel._component_tabs is not None
+    assert not isinstance(panel._component_tabs.widget(0), _CustomEditor)
+
+    # Activating the plugin clears plugin_issues, runs derivers, and upgrades open editor.
+    plugin = _GadgetPlugin()
+    manager.activate(plugin)
+    assert not project.degraded
+    assert comp["mass"] == 77.0
+    assert panel._component_tabs is not None
+    assert isinstance(panel._component_tabs.widget(0), _CustomEditor)
+
+    # Deactivating updates plugin_issues and replaces the unloaded plugin's editor.
+    manager.deactivate("org.test.gadget")
+    assert project.degraded
+    assert panel._component_tabs is not None
+    assert not isinstance(panel._component_tabs.widget(0), _CustomEditor)
+    panel.deleteLater()
