@@ -86,6 +86,8 @@ class ParameterField:
     decimals: int = 2
     tooltip: str = ""
     options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
+    # A choice of one project component of this type, stored by its ID.
+    component_type: str | None = None
     allow_formula: bool = True
     readonly: bool = False
     widget_type: str | None = None

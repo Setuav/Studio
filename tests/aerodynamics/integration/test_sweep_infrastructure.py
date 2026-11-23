@@ -56,8 +56,8 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertEqual(FlightCondition(sweep_variable="alpha").sweep_type, SweepType.ALPHA)
         self.assertEqual(FlightCondition(sweep_variable="beta").sweep_type, SweepType.BETA)
 
-    def test_sweep_type_rejects_unsupported_variables(self) -> None:
-        for invalid in ("", "velocity", "left-elevator"):
+    def test_sweep_type_rejects_an_empty_variable(self) -> None:
+        for invalid in ("", "  "):
             with self.assertRaises(ValueError):
                 SweepType.from_variable(invalid)
 
@@ -227,7 +227,7 @@ class TestParametricSweeps(unittest.TestCase):
         cond = FlightCondition(
             velocity=20.0,
             alpha=2.0,
-            sweep_variable="elevator",
+            sweep_variable="elevator-1",
             sweep_min=-10.0,
             sweep_max=10.0,
             sweep_steps=5,
@@ -237,7 +237,7 @@ class TestParametricSweeps(unittest.TestCase):
         self.assertEqual(len(res.polar_points), 5)
         self.assertIsNotNone(res.control_analysis)
         assert res.control_analysis is not None
-        self.assertEqual(res.control_analysis.channel, "elevator")
+        self.assertEqual(res.control_analysis.control_surface, "elevator-1")
         self.assertEqual(res.control_analysis.sample_count, 5)
         self.assertLess(res.control_analysis.derivatives_per_deg["Cm"], 0.0)
         self.assertGreater(res.control_analysis.linearity_r2["Cm"], 0.9)
@@ -247,21 +247,22 @@ class TestParametricSweeps(unittest.TestCase):
         cm_down = res.polar_points[-1].cm  # delta_e = +10 deg
         self.assertGreater(cm_up, cm_down)
 
-    def test_surface_name_cannot_be_used_as_control_analysis_channel(self) -> None:
-        cond = FlightCondition(
-            velocity=20.0,
-            alpha=2.0,
-            sweep_variable="left-elevator",
-            sweep_min=-10.0,
-            sweep_max=10.0,
-            sweep_steps=3,
-        )
-        with self.assertRaisesRegex(ValueError, "Unsupported sweep variable"):
-            self.engine.analyze(
-                self.components,
-                cond,
-                method=AnalysisMethod.AERO_BUILDUP,
+    def test_control_sweep_must_name_a_control_surface_of_the_aircraft(self) -> None:
+        for variable in ("left-elevator", "elevator", "velocity"):
+            cond = FlightCondition(
+                velocity=20.0,
+                alpha=2.0,
+                sweep_variable=variable,
+                sweep_min=-10.0,
+                sweep_max=10.0,
+                sweep_steps=3,
             )
+            with self.assertRaisesRegex(ValueError, "not a control surface of the aircraft"):
+                self.engine.analyze(
+                    self.components,
+                    cond,
+                    method=AnalysisMethod.AERO_BUILDUP,
+                )
 
 
 if __name__ == "__main__":

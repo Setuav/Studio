@@ -8,12 +8,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from plugins.aerodynamics.engine.aerosandbox_analysis import DEFAULT_SOLVER_SETTINGS
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 from plugins.aerodynamics.engine.base import (
-    CONTROL_CHANNELS,
     AeroAnalysisError,
     AeroResult,
     AnalysisMethod,
     FlightCondition,
-    control_channels_for_components,
 )
 from setuav_studio.api import ParameterField
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
@@ -666,12 +664,12 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
     PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
         ParameterField(
-            key="channel",
-            label="Control Channel",
+            key="control_surface",
+            label="Control Surface",
             field_type=str,
-            default="elevator",
-            options=tuple((channel, channel.capitalize()) for channel in CONTROL_CHANNELS),
-            tooltip="Control channel to deflect.",
+            default="",
+            component_type=_CONTROL_SURFACE_TYPE,
+            tooltip="Control surface to deflect.",
         ),
         ParameterField(
             key="deflection_min",
@@ -784,13 +782,20 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         components = self._extract_components()
 
-        channel = str(self.config.parameters["channel"])
-        available_channels = control_channels_for_components(components)
-        if channel not in available_channels:
-            available = ", ".join(available_channels) or "none"
-            raise AeroAnalysisError(
-                f"Aircraft has no '{channel}' control channel (available: {available})."
-            )
+        surface_id = str(self.config.parameters["control_surface"])
+        surface = next(
+            (
+                c
+                for c in components
+                if isinstance(c, dict)
+                and c.get("type") == _CONTROL_SURFACE_TYPE
+                and c.get("id") == surface_id
+            ),
+            None,
+        )
+        if surface is None:
+            raise AeroAnalysisError("Select a control surface of the design to deflect.")
+        surface_name = str(surface.get("name") or surface_id)
 
         def_min, def_max, num_steps = self._sweep("deflection")
         condition = FlightCondition(
@@ -798,11 +803,11 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             alpha=self._parameter("alpha"),
             beta=self._parameter("beta"),
             altitude=self._parameter("altitude"),
-            sweep_variable=channel,
+            sweep_variable=surface_id,
             sweep_min=def_min,
             sweep_max=def_max,
             sweep_steps=num_steps,
-            control_deflections={channel: 0.0},
+            control_deflections={surface_id: 0.0},
         )
 
         aero_result = self.engine.analyze(
@@ -815,12 +820,12 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             include_stability=False,
         )
 
-        return self._build_result(aero_result, channel)
+        return self._build_result(aero_result, surface_id, surface_name)
 
-    def _build_result(self, res: AeroResult, channel: str) -> SolverResult:
+    def _build_result(self, res: AeroResult, surface_id: str, surface_name: str) -> SolverResult:
         pts = [p for p in res.polar_points if p.converged]
 
-        deflection_col = [p.control_deflections.get(channel, 0.0) for p in pts]
+        deflection_col = [p.control_deflections.get(surface_id, 0.0) for p in pts]
         cl_col = [p.cl for p in pts]
         cd_col = [p.cd for p in pts]
         cm_col = [p.cm for p in pts]
@@ -832,7 +837,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             title="Response",
             columns=[
                 TableColumn(
-                    "deflection", f"Deflection δ ({channel})", unit="°", quantity_id="angle"
+                    "deflection", f"Deflection δ ({surface_name})", unit="°", quantity_id="angle"
                 ),
                 TableColumn("cl", "CL"),
                 TableColumn("cd", "CD"),
@@ -857,7 +862,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
                 table_id="control_polar",
                 x_column="deflection",
                 series=[PlotSeriesDef("cm", "Cm", color="#f59e0b")],
-                x_label=f"Deflection Angle δ ({channel})",
+                x_label=f"Deflection Angle δ ({surface_name})",
                 y_label="Pitching Moment Coefficient Cm",
             ),
             PlotDefinition(
@@ -866,7 +871,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
                 table_id="control_polar",
                 x_column="deflection",
                 series=[PlotSeriesDef("cl", "CL", color="#3b82f6")],
-                x_label=f"Deflection Angle δ ({channel})",
+                x_label=f"Deflection Angle δ ({surface_name})",
                 y_label="Lift Coefficient CL",
             ),
             PlotDefinition(
@@ -878,13 +883,13 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
                     PlotSeriesDef("cl_roll", "Cl (Roll)", color="#8b5cf6"),
                     PlotSeriesDef("cn", "Cn (Yaw)", color="#ef4444"),
                 ],
-                x_label=f"Deflection Angle δ ({channel})",
+                x_label=f"Deflection Angle δ ({surface_name})",
                 y_label="Moment Coefficients",
             ),
         ]
 
         summary = [
-            SummaryItem("channel", channel.capitalize(), "Control Channel"),
+            SummaryItem("control_surface", surface_name, "Control Surface"),
         ]
 
         if res.control_analysis is not None:

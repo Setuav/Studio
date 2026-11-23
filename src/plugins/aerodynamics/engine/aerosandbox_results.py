@@ -11,7 +11,7 @@ from .base import (
     AeroForcesMoments,
     AeroResult,
     AnalysisMethod,
-    ControlChannelAnalysis,
+    ControlSurfaceAnalysis,
     FlightCondition,
     MultiDimensionalSweepResult,
     PolarPoint,
@@ -238,12 +238,10 @@ class AeroSandboxResultMixin:
 
     def _control_analysis(
         self, condition: FlightCondition, points: list[PolarPoint]
-    ) -> ControlChannelAnalysis | None:
+    ) -> ControlSurfaceAnalysis | None:
         if condition.sweep_type != SweepType.CONTROL_DEFLECTION:
             return None
-        return self._fit_control_channel_analysis(
-            points, str(condition.sweep_variable).strip().lower()
-        )
+        return self._fit_control_surface_analysis(points, condition.sweep_variable)
 
     def _build_aero_result(
         self,
@@ -254,7 +252,7 @@ class AeroSandboxResultMixin:
         converged: list[PolarPoint],
         summary: dict[str, float | None],
         sweep_result: MultiDimensionalSweepResult | None,
-        control_analysis: ControlChannelAnalysis | None,
+        control_analysis: ControlSurfaceAnalysis | None,
         stability: Any | None,
         stability_error: str | None,
     ) -> AeroResult:
@@ -310,18 +308,18 @@ class AeroSandboxResultMixin:
         ]
 
     @staticmethod
-    def _fit_control_channel_analysis(
+    def _fit_control_surface_analysis(
         points: list[PolarPoint],
-        channel: str,
-    ) -> ControlChannelAnalysis | None:
-        """Fit coefficient-per-degree effectiveness from converged channel-sweep points."""
+        control: str,
+    ) -> ControlSurfaceAnalysis | None:
+        """Fit coefficient-per-degree effectiveness from converged sweep points of ``control``."""
         samples = [
-            point for point in points if point.converged and channel in point.control_deflections
+            point for point in points if point.converged and control in point.control_deflections
         ]
         if len(samples) < 2:
             return None
 
-        x_values = [float(point.control_deflections[channel]) for point in samples]
+        x_values = [float(point.control_deflections[control]) for point in samples]
         x_mean = sum(x_values) / len(x_values)
         denominator = sum((value - x_mean) ** 2 for value in x_values)
         if denominator <= 1e-12:
@@ -357,8 +355,8 @@ class AeroSandboxResultMixin:
                 1.0 if total <= 1e-12 and residual <= 1e-12 else 1.0 - residual / max(total, 1e-12)
             )
 
-        return ControlChannelAnalysis(
-            channel=channel,
+        return ControlSurfaceAnalysis(
+            control_surface=control,
             sample_count=len(samples),
             deflection_min_deg=min(x_values),
             deflection_max_deg=max(x_values),

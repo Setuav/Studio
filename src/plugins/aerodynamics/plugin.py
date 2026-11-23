@@ -83,10 +83,19 @@ class AerodynamicsPlugin:
             if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
+            parameters = ControlDeflectionSolver.default_parameters()
+            parameters["control_surface"] = next(
+                (
+                    str(c["id"])
+                    for c in api.project.data["components"]
+                    if isinstance(c, dict) and c.get("type") == "org.setuav.core:control-surface"
+                ),
+                "",
+            )
             config = SolverConfig(
                 solver_id=SOLVER_ID_CONTROL_DEFLECTION,
                 name="Control Deflection",
-                parameters=ControlDeflectionSolver.default_parameters(),
+                parameters=parameters,
             )
             api.add_solver_config(config)
             api.show_status("Added Control Deflection configuration.", "success", 3000)

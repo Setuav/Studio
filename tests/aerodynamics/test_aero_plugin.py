@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QMenu, QMessageBox
+from PySide6.QtWidgets import QComboBox, QMenu, QMessageBox
 
 from plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
@@ -18,14 +18,12 @@ from plugins.aerodynamics.engine.aerosandbox_engine import (
     AeroSandboxEngine,
 )
 from plugins.aerodynamics.engine.base import (
-    CONTROL_CHANNELS,
     AeroAnalysisError,
     AeroForcesMoments,
     AeroResult,
     AnalysisMethod,
     FlightCondition,
     PolarPoint,
-    control_channels_for_components,
 )
 from plugins.aerodynamics.engine.stability_models import (
     StabilityDerivatives,
@@ -51,6 +49,7 @@ from setuav_studio.project import ProjectDocument
 from setuav_studio.solver import SolverConfig
 from setuav_studio.solver.base import SolverStatus
 from setuav_studio.solver.results import SolverResult
+from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from tests._common import get_qapp
 
@@ -78,10 +77,12 @@ _EMPTY_RESULT = AeroResult(method=AnalysisMethod.AERO_BUILDUP, engine_name="test
 WING = {"id": "wing", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
 
 
-def _control_surface(component_id: str, surface_type: str) -> dict[str, Any]:
+def _control_surface(
+    component_id: str, surface_type: str, name: str | None = None
+) -> dict[str, Any]:
     return {
         "id": component_id,
-        "name": component_id,
+        "name": name or component_id,
         "type": "org.setuav.core:control-surface",
         "attach_to": "wing",
         "parameters": {"geometry": {"type": surface_type}},
@@ -226,10 +227,57 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(self.api.current_solver_config_id, configs[-1].config_id)
         for config in configs:
             solver_cls = SOLVER_CLASSES[config.solver_id]
-            self.assertEqual(
-                config.parameters,
-                {field.key: field.default for field in solver_cls.PARAMETER_FIELDS},
+            expected = {field.key: field.default for field in solver_cls.PARAMETER_FIELDS}
+            if solver_cls is ControlDeflectionSolver:
+                expected["control_surface"] = "aileron"
+            self.assertEqual(config.parameters, expected)
+
+    def test_control_deflection_offers_the_design_control_surfaces(self) -> None:
+        self.plugin.activate(self.api)
+        project = _project(
+            [
+                WING,
+                _control_surface("left-aileron", "aileron", "Left Aileron"),
+                _control_surface("elevator", "elevator", "Elevator"),
+            ]
+        )
+        self.api._host.set_project(project)
+        _trigger(self._analysis_buttons()[2])
+        config = self.api.get_current_solver_config()
+        assert config is not None
+        self.assertEqual(config.parameters["control_surface"], "left-aileron")
+
+        editor = SolverConfigPropertyEditor(self.api, config)
+        self.addCleanup(editor.deleteLater)
+
+        def combo() -> QComboBox:
+            table = editor.parameters_table
+            row = next(
+                row
+                for row in range(table.rowCount())
+                if editor._property_key(table, row) == "control_surface"
             )
+            widget = table.cellWidget(row, 1)
+            assert isinstance(widget, QComboBox)
+            return widget
+
+        options = combo()
+        self.assertEqual(
+            [options.itemText(i) for i in range(options.count())], ["Left Aileron", "Elevator"]
+        )
+        options.setCurrentIndex(1)
+        stored = self.api.get_solver_config(config.config_id)
+        assert stored is not None
+        self.assertEqual(stored.parameters["control_surface"], "elevator")
+
+        # A surface removed from the design shows as no selection, not as another surface.
+        project.data["components"] = [
+            c for c in project.data["components"] if c["id"] != "elevator"
+        ]
+        self.api.notify_project_content_changed()
+        options = combo()
+        self.assertEqual(options.currentText(), "—")
+        self.assertEqual(options.currentData(), "")
 
     def test_analyses_name_the_part_the_design_lacks(self) -> None:
         for solver_cls in SOLVER_CLASSES.values():
@@ -368,26 +416,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
         finally:
             release.set()
 
-    def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
-        components = [
-            WING,
-            _control_surface("left-elevon", "elevon"),
-            _control_surface("right-ruddervator", "ruddervator"),
-        ]
-        self.assertEqual(
-            control_channels_for_components(components),
-            ("elevator", "aileron", "rudder"),
-        )
-
-        channel_field = next(
-            field for field in ControlDeflectionSolver.PARAMETER_FIELDS if field.key == "channel"
-        )
-        assert channel_field.options is not None
-        offered = tuple(value for value, _label in channel_field.options)
-        self.assertEqual(offered, CONTROL_CHANNELS)
-        self.assertNotIn("elevon", offered)
-        self.assertNotIn("ruddervator", offered)
-
     def test_option_values_are_what_the_solvers_read(self) -> None:
         """Options are (value, label): the editor stores the value the solver parses."""
         from plugins.aerodynamics.engine.base import AnalysisMethod
@@ -400,8 +428,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 if field.key == "method":
                     for value in values:
                         self.assertEqual(AnalysisMethod.from_value(value).value, value)
-                if field.key == "channel":
-                    self.assertEqual(tuple(values), CONTROL_CHANNELS)
 
     def test_sweep_solver_rejects_reversed_bounds(self) -> None:
         parameters = {
@@ -543,7 +569,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 cm=-deflection * 0.015,
                 cl_roll=deflection * 0.002,
                 cn=-deflection * 0.0005,
-                control_deflections={"elevator": deflection},
+                control_deflections={"left-elevon": deflection},
             )
             for deflection in (-10.0, 0.0, 10.0)
         ]
@@ -551,13 +577,13 @@ class AerodynamicsPluginTests(unittest.TestCase):
             method=AnalysisMethod.VLM,
             engine_name="AeroSandbox",
             polar_points=points,
-            control_analysis=AeroSandboxEngine._fit_control_channel_analysis(points, "elevator"),
+            control_analysis=AeroSandboxEngine._fit_control_surface_analysis(points, "left-elevon"),
         )
 
         result, call = self._run_solver(
             ControlDeflectionSolver,
             {
-                "channel": "elevator",
+                "control_surface": "left-elevon",
                 "deflection_min": -10.0,
                 "deflection_max": 10.0,
                 "deflection_step": 10.0,
@@ -565,19 +591,20 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 "method": "vlm",
             },
             aero_result,
-            components=[WING, _control_surface("left-elevon", "elevon")],
+            components=[WING, _control_surface("left-elevon", "elevon", "Left Elevon")],
         )
 
         self.assertFalse(call["include_stability"])
         condition: FlightCondition = call["condition"]
-        self.assertEqual(condition.sweep_variable, "elevator")
-        self.assertEqual(condition.control_deflections, {"elevator": 0.0})
+        self.assertEqual(condition.sweep_variable, "left-elevon")
+        self.assertEqual(condition.control_deflections, {"left-elevon": 0.0})
         self.assertEqual(condition.sweep_steps, 3)
 
         table = result.tables["control_polar"]
         self.assertEqual(table.get_column("deflection"), [-10.0, 0.0, 10.0])
+        self.assertEqual(table.columns[0].label, "Deflection δ (Left Elevon)")
         self.assertEqual(set(result.plots), {"cm_delta", "cl_delta", "roll_yaw_delta"})
-        self.assertEqual(result.summary["channel"].value, "Elevator")
+        self.assertEqual(result.summary["control_surface"].value, "Left Elevon")
         self.assertEqual(result.summary["cm_delta"].value, -0.015)
         self.assertEqual(result.summary["cl_delta"].value, 0.01)
         self.assertEqual(result.summary["cl_roll_delta"].value, 0.002)
@@ -619,7 +646,17 @@ class AerodynamicsPluginTests(unittest.TestCase):
     def test_control_analysis_needs_a_control_surface(self) -> None:
         aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
         with self.assertRaisesRegex(AeroAnalysisError, "Add a control surface"):
-            self._run_solver(ControlDeflectionSolver, {"channel": "aileron"}, aero_result)
+            self._run_solver(ControlDeflectionSolver, {"control_surface": "aileron"}, aero_result)
+
+    def test_control_analysis_rejects_a_surface_missing_from_the_design(self) -> None:
+        aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
+        with self.assertRaisesRegex(AeroAnalysisError, "Select a control surface"):
+            self._run_solver(
+                ControlDeflectionSolver,
+                {"control_surface": "removed"},
+                aero_result,
+                components=[WING, _control_surface("elevator", "elevator")],
+            )
 
     def test_unknown_solver_method_is_rejected(self) -> None:
         aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")

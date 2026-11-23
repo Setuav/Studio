@@ -311,21 +311,21 @@ C_{n_\beta} \approx \frac{C_{n,\text{last}} - C_{n,\text{first}}}{\beta_\text{la
 
 ## Control Deflection
 
-Computes the response of the aircraft to one control channel over a range of
+Computes the response of the aircraft to one control surface over a range of
 deflections at constant angle of attack, sideslip, airspeed, and altitude.
 Default name: **Control Deflection**.
 
-The channel deflection is added to the **Deflection Angle** of every control
-surface that the channel drives (see [Geometry
-conversion](#geometry-conversion)). The aircraft must have a control surface
-for the chosen channel. Otherwise the analysis stops and lists the available
-channels.
+The deflection is added to the **Deflection Angle** of the chosen control
+surface, and its **Symmetry Mode** sets the mirrored half (see [Geometry
+conversion](#geometry-conversion)). A new analysis starts with the design's
+first control surface. If the chosen surface is removed from the design, the
+analysis stops until another one is chosen.
 
 ### Parameters
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
-| Control Channel | — | Elevator | Elevator, Aileron, Rudder, or Flap. |
+| Control Surface | — | First control surface | One of the design's control surfaces, by name. |
 | Deflection Min | ° | −20.0 | Starting deflection δ. Range −90 to 90. |
 | Deflection Max | ° | 20.0 | Ending deflection δ. Range −90 to 90. |
 | Deflection Step | ° | 2.0 | Deflection increment. Range 0.5 to 20. |
@@ -342,7 +342,7 @@ chordwise panels.
 
 | Output | Unit | Description |
 |---|---|---|
-| Deflection δ (*channel*) | ° | Channel deflection, for example "Deflection δ (elevator)". |
+| Deflection δ (*surface*) | ° | Deflection of the control surface, for example "Deflection δ (Elevator)". |
 | CL | — | Lift coefficient. |
 | CD | — | Drag coefficient. |
 | Cm | — | Pitching moment coefficient. |
@@ -353,15 +353,15 @@ chordwise panels.
 
 | Plot | X axis | Series |
 |---|---|---|
-| Cm vs δ | Deflection Angle δ (*channel*) | Cm |
-| CL vs δ | Deflection Angle δ (*channel*) | CL |
-| Cl, Cn vs δ | Deflection Angle δ (*channel*) | Cl (Roll), Cn (Yaw) |
+| Cm vs δ | Deflection Angle δ (*surface*) | Cm |
+| CL vs δ | Deflection Angle δ (*surface*) | CL |
+| Cl, Cn vs δ | Deflection Angle δ (*surface*) | Cl (Roll), Cn (Yaw) |
 
 ### Results Summary
 
 | Output | Unit | Description |
 |---|---|---|
-| Control Channel | — | The swept channel. |
+| Control Surface | — | Name of the swept control surface. |
 | Cm_delta (Pitch Authority) | 1/° | \(\partial C_m / \partial \delta\). |
 | CL_delta (Lift Authority) | 1/° | \(\partial C_L / \partial \delta\). |
 | Cl_delta (Roll Authority) | 1/° | \(\partial C_l / \partial \delta\). |
