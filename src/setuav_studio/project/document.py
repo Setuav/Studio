@@ -263,7 +263,12 @@ def create_project(path: str | Path) -> ProjectDocument:
     )
 
 
-def open_project(path: str | Path) -> ProjectDocument:
+def open_project(
+    path: str | Path,
+    *,
+    api: Any | None = None,
+    recompute: bool = True,
+) -> ProjectDocument:
     selected_path = Path(path).expanduser().resolve()
     logger.info("Opening project: %s", selected_path)
 
@@ -278,10 +283,11 @@ def open_project(path: str | Path) -> ProjectDocument:
         raise ProjectOpenError("Expected a project folder, project.json, or .suav file")
     doc.format_warning = _check_format_version(doc.data, selected_path)
 
-    # Evaluate all parametric expressions to hydrate runtime numeric caches
-    from setuav_studio.project.evaluator import recompute_project_expressions
+    if recompute:
+        # Evaluate all parametric expressions to hydrate runtime numeric caches
+        from setuav_studio.project.evaluator import recompute_project_expressions
 
-    recompute_project_expressions(doc)
+        recompute_project_expressions(doc, api=api)
     doc.modified = False
     return doc
 
