@@ -972,3 +972,63 @@ def test_expression_cell_preserves_raw_float_precision_across_unit_switches() ->
         table.deleteLater()
     finally:
         um.set_active_preset("si")
+
+
+def test_expression_cell_shows_base_unit_badge_while_editing_formula(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell
+    from setuav_studio.units import get_unit_manager
+    from tests._common import get_qapp
+
+    get_qapp()
+    um = get_unit_manager()
+    um.set_active_preset("imperial")
+    try:
+        proj = ProjectDocument(
+            tmp_path / "formula_badge.json",
+            "json",
+            {"parameters": {"span": {"value": 254.0, "quantity": "length"}}, "components": []},
+        )
+        api = StudioAPI()
+        api._host.set_project(proj)
+
+        cell = ExpressionPropertyCell(
+            initial_value="= span",
+            api=api,
+            quantity="length",
+            decimals=2,
+        )
+
+        # Idle display converts base mm (254) to active display unit (10 in).
+        assert cell.line_edit.text() == "10.0"
+        assert cell.unit_label.text() == "in"
+        assert cell.unit_label.toolTip() == ""
+
+        # Focusing into a formula switches the badge to the base unit (mm) with tooltip.
+        cell._on_focus_in()
+        assert cell.line_edit.text() == "= span"
+        assert cell.unit_label.text() == "mm"
+        assert "mm" in cell.unit_label.toolTip()
+
+        # Deleting '=' returns to plain-number display unit entry; re-typing '=' switches back to base unit.
+        cell.line_edit.setText("10")
+        assert cell.unit_label.text() == "in"
+        assert cell.unit_label.toolTip() == ""
+
+        cell.line_edit.setText("= span * 2")
+        assert cell.unit_label.text() == "mm"
+        assert "mm" in cell.unit_label.toolTip()
+
+        # Focusing out restores the active display unit badge with converted evaluated value.
+        cell._on_focus_out()
+        assert cell.unit_label.text() == "in"
+        assert cell.line_edit.text() == "20.0"
+        cell.deleteLater()
+
+        # AdvancedExpressionDialog shows the target base unit on the numeric result preview.
+        dlg = AdvancedExpressionDialog(api, initial_expression="= span", result_unit="mm")
+        assert "254 mm" in dlg.preview_label.text()
+        dlg.deleteLater()
+    finally:
+        um.set_active_preset("si")

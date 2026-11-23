@@ -522,13 +522,11 @@ class ExpressionPropertyCell(QWidget):
         self.line_edit.focused_in.connect(self._on_focus_in)
         self.line_edit.focused_out.connect(self._on_focus_out)
         self.line_edit.returnPressed.connect(self._on_return_pressed)
+        self.line_edit.textChanged.connect(self._on_edit_text_changed)
         layout.addWidget(self.line_edit, 1)
 
         self.unit_label = QLabel(self)
         self.unit_label.setObjectName("cellUnitBadge")
-        self.unit_label.setStyleSheet(
-            "QLabel { color: #f0f0f0; font-size: 11px; font-weight: bold; padding-left: 2px; padding-right: 3px; }"
-        )
         self.unit_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.unit_label)
 
@@ -643,18 +641,51 @@ class ExpressionPropertyCell(QWidget):
             return format_engineering_value(disp_num, decimals), sym
         return format_engineering_value(base_val, self._decimals), self._suffix
 
-    def _refresh_display(self) -> None:
+    def _base_unit_symbol(self) -> str:
+        from setuav_studio.units import QUANTITIES
+
+        if self._quantity:
+            qty = QUANTITIES.get(self._quantity)
+            if qty is not None:
+                return qty.units[qty.base_unit_id].symbol
+        return self._suffix or ""
+
+    def _update_unit_badge(self, *, formula_edit: bool) -> None:
         from setuav_studio.units import get_unit_manager
+
+        if formula_edit:
+            sym = self._base_unit_symbol()
+            self.unit_label.setText(sym)
+            self.unit_label.setVisible(bool(sym))
+            self.unit_label.setStyleSheet(
+                "QLabel { color: #4CAF50; font-size: 11px; font-weight: bold; padding-left: 2px; padding-right: 3px; }"
+            )
+            self.unit_label.setToolTip(f"Formulas evaluate in base unit ({sym})" if sym else "")
+            return
 
         um = get_unit_manager()
         active_sym = um.get_unit_symbol(self._quantity) if self._quantity else (self._suffix or "")
         self.unit_label.setText(active_sym)
         self.unit_label.setVisible(bool(active_sym))
+        self.unit_label.setStyleSheet(
+            "QLabel { color: #f0f0f0; font-size: 11px; font-weight: bold; padding-left: 2px; padding-right: 3px; }"
+        )
+        self.unit_label.setToolTip("")
+
+    def _on_edit_text_changed(self, text: str) -> None:
+        if not self._is_focused:
+            return
+        is_formula = self._is_formula(text.strip())
+        self._update_unit_badge(formula_edit=is_formula)
+        self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;" if is_formula else "")
+
+    def _refresh_display(self) -> None:
+        is_formula_edit = self._is_focused and self._is_formula(self.line_edit.text().strip())
+        self._update_unit_badge(formula_edit=is_formula_edit)
 
         # While being actively edited by the user, only update styling, DO NOT overwrite ongoing input!
         if self._is_focused:
-            clean_text = self.line_edit.text().strip()
-            if self._is_formula(clean_text):
+            if is_formula_edit:
                 self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
             else:
                 self.line_edit.setStyleSheet("")
@@ -722,6 +753,7 @@ class ExpressionPropertyCell(QWidget):
             self.line_edit.setText(self._invalid_text or "")
             self.line_edit.setStyleSheet("")
         self.line_edit.blockSignals(False)
+        self._update_unit_badge(formula_edit=self._formula is not None)
         self._edit_start_text = self.line_edit.text().strip()
         self.line_edit.selectAll()
 
@@ -847,6 +879,7 @@ class ExpressionPropertyCell(QWidget):
                 initial_expression=curr_text,
                 title=f"Equation Editor — {self._label}" if self._label else "Equation Editor",
                 is_boolean_constraint=False,
+                result_unit=self._base_unit_symbol(),
                 parent=self.window(),
             )
             if dlg.exec():
