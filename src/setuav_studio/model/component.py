@@ -369,6 +369,8 @@ class Component:
 
     def add_child_model(self, child: Component) -> None:
         """Register the model of a component attached to this one."""
+        from setuav_studio.model.symbol import slugify_identifier
+
         child_id = child.id
         if child_id:
             clean_id = child_id.replace("-", "_").lower()
@@ -377,20 +379,18 @@ class Component:
             own_clean = self.id.replace("-", "_").lower()
             if clean_id.startswith(f"{own_clean}_"):
                 short_name = clean_id[len(own_clean) + 1 :]
-                if short_name:
-                    self._children[short_name] = child
+                if short_name and short_name.isidentifier():
+                    self._children.setdefault(short_name, child)
             elif "-" in child_id:
                 short_name = child_id.split("-")[-1].replace("-", "_").lower()
-                if short_name:
-                    self._children[short_name] = child
+                if short_name and short_name.isidentifier():
+                    self._children.setdefault(short_name, child)
 
-        raw = child.raw_data
-        ctype = str(raw.get("type") or "").replace("-", "_").lower()
-        if ctype:
-            self._children[ctype] = child
-        c_name = str(raw.get("name") or "").replace("-", "_").replace(" ", "_").lower()
-        if c_name:
-            self._children[c_name] = child
+        raw_name = str(child.raw_data.get("name") or "").strip()
+        if raw_name:
+            name_slug = slugify_identifier(raw_name, fallback="")
+            if name_slug:
+                self._children.setdefault(name_slug, child)
 
     @property
     def children(self) -> dict[str, Any]:

@@ -106,7 +106,7 @@ def build_project_base_scope(
 
     scope: dict[str, Any] = {}
 
-    # 1. Materialized Components (reading stored evaluated values directly)
+    # 1. Materialized Components (canonical IDs first, then display symbols and short child aliases)
     components = p_dict.get("components", [])
     symbol_map = build_component_symbol_map(p_dict)
     models_list = build_component_models(components, api)
@@ -119,23 +119,21 @@ def build_project_base_scope(
         if raw_cid != clean_cid:
             scope[raw_cid] = model
 
-        # Short child names (e.g. aileron -> main_wing.aileron)
-        for child_name, child_model in model.children.items():
-            child_clean = child_name.replace("-", "_")
-            if child_clean not in scope:
-                scope[child_clean] = child_model
-
         # Flat property names (e.g. main_wing_planform_area)
         for prop_name, prop_val in model.get_exposed_properties().items():
             if isinstance(prop_val, (int, float, bool, str)):
                 scope[f"{clean_cid}_{prop_name}"] = prop_val
 
-    # Bind user-facing component name symbols without overriding canonical IDs.
     for model in models_list:
         clean_cid = model.id.replace("-", "_") if model.id else ""
         display_sym = symbol_map.id_to_symbol.get(clean_cid)
         if display_sym and display_sym not in scope:
             scope[display_sym] = model
+
+    for model in models_list:
+        for child_name, child_model in model.children.items():
+            if child_name.isidentifier() and child_name not in scope:
+                scope[child_name] = child_model
 
     # 2. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
     _populate_extension_scope(scope, p_dict.get("extensions", {}))

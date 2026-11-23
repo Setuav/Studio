@@ -1359,3 +1359,7 @@ def test_component_formulas_store_stable_id_and_display_live_name(tmp_path: Path
     assert expr_cell.line_edit.text() == "arka_kanat.mass > 100"
     assert expr_cell.text() == "lifting_surface_2.mass > 100"
     const_editor.deleteLater()
+
+    # Scope never exposes invalid component type strings as child aliases.
+    scope = proj.get_scope(api=api)
+    assert not any(":" in k for k in scope)
