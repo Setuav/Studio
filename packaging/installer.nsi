@@ -6,7 +6,7 @@ SetCompressor /SOLID lzma
 
 !define APP_NAME "Setuav Studio"
 !ifndef APP_VERSION
-  !define APP_VERSION "0.1.0"
+  !error "Pass the release version: makensis /DAPP_VERSION=<version>"
 !endif
 !define APP_EXE "setuav-studio.exe"
 !define SOURCE_DIR "..\dist\setuav-studio"
