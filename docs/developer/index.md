@@ -47,7 +47,7 @@ dependencies = ["setuav-studio"]
 The target may be a plugin class or instance with:
 
 - `id`: stable reverse-domain identifier.
-- `priority`: optional integer; lower values activate first, default `100`.
+- `requires`: optional tuple of plugin IDs that must be active before this plugin activates.
 - `activate(api)` and `deactivate(api)`.
 
 ### User plugin folder
@@ -62,7 +62,8 @@ a plugin archive into it.
 ### Startup and activation
 
 On startup the host collects the bundled plugins, installed entry points, and
-user plugins, orders them by `(priority, id)`, and calls `activate(api)`.
+user plugins, orders them topologically by `requires` (alphabetical by `id`
+when independent), and calls `activate(api)`.
 Contributions become available only after activation returns. Remove all of
 them in `deactivate(api)` so the plugin can be disabled and re-enabled safely
 from the Plugin Manager.

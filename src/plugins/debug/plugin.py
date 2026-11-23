@@ -77,7 +77,6 @@ class DebugPlugin:
     id = "org.setuav.studio.debug"
     name = "Debug"
     version = "0.1.0"
-    priority = 100
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

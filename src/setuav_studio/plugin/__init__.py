@@ -7,7 +7,7 @@ from .manager import PluginManager
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
 from .requirements import (
     PluginLoadIssue,
-    _candidate_sort_key,
+    _plugin_requires,
     _plugin_sort_key,
     _version_satisfies,
 )
@@ -17,7 +17,7 @@ __all__ = [
     "PluginLoadIssue",
     "PluginManager",
     "StudioPlugin",
-    "_candidate_sort_key",
+    "_plugin_requires",
     "_plugin_sort_key",
     "_version_satisfies",
     "get_user_plugins_dir",
