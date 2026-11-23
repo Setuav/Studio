@@ -332,9 +332,9 @@ class FocusAwareLineEdit(QLineEdit):
                 name = str(constant["expression"])
                 items.append((name, f"{name:<18} ({_completion_value(constant['value'])})"))
             for component in metadata["components"]:
-                component_id = str(component["id"])
+                component_sym = str(component.get("symbol") or component["id"])
                 type_label = resolved_api.get_component_type_label(str(component["type"]))
-                items.append((component_id, f"{component_id:<18} [{type_label}]"))
+                items.append((component_sym, f"{component_sym:<18} [{type_label}]"))
                 for prop in component["properties"]:
                     # Formulas compute with numbers; text values only lengthen the list.
                     if isinstance(prop["value"], str):
@@ -612,6 +612,20 @@ class ExpressionPropertyCell(QWidget):
 
         return ExpressionEvaluator.is_expression(text)
 
+    def _display_formula(self, expr: str) -> str:
+        if self._api is None or self._api.project is None:
+            return expr
+        from setuav_studio.model.symbol import build_component_symbol_map
+
+        return build_component_symbol_map(self._api.project.data).to_display(expr)
+
+    def _storage_formula(self, expr: str) -> str:
+        if self._api is None or self._api.project is None:
+            return expr
+        from setuav_studio.model.symbol import build_component_symbol_map
+
+        return build_component_symbol_map(self._api.project.data).to_storage(expr)
+
     def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any, str | None]:
         """Evaluate expression against current project scope (or math fallback)."""
         from setuav_studio.model.expression import (
@@ -702,6 +716,7 @@ class ExpressionPropertyCell(QWidget):
 
         # Idle / Display mode: show evaluated calculated value if it is a formula
         if self._formula is not None:
+            disp_formula = self._display_formula(self._formula)
             ok, val, err_msg = self._evaluate_expression(self._formula)
             self.line_edit.blockSignals(True)
             if ok and not isinstance(val, bool) and isinstance(val, (int, float)):
@@ -711,13 +726,13 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.setStyleSheet(
                     "color: #4CAF50; font-style: italic; font-weight: bold;"
                 )
-                tip = f"Bound to: {self._formula}\nCalculated value: {disp_val}"
+                tip = f"Bound to: {disp_formula}\nCalculated value: {disp_val}"
                 if sym:
                     tip += f" {sym}"
                 self.line_edit.setToolTip(tip)
             else:
-                tip = f"Formula Error in '{self._formula}':\n{err_msg or 'Failed to evaluate'}"
-                self.set_error(tip, display_text=f"#REF! {self._formula}")
+                tip = f"Formula Error in '{disp_formula}':\n{err_msg or 'Failed to evaluate'}"
+                self.set_error(tip, display_text=f"#REF! {disp_formula}")
             self.line_edit.blockSignals(False)
         elif self._base_value is not None:
             self.line_edit.blockSignals(True)
@@ -740,10 +755,11 @@ class ExpressionPropertyCell(QWidget):
         if self._is_focused or self._read_only:
             return
         self._is_focused = True
+        self.line_edit._completer = None
         ExpressionFocusTracker.set_active_editor(self)
         self.line_edit.blockSignals(True)
         if self._formula is not None:
-            self.line_edit.setText(self._formula)
+            self.line_edit.setText(self._display_formula(self._formula))
             self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
         elif self._base_value is not None:
             disp_val, _ = self._display_number(self._base_value)
@@ -798,10 +814,11 @@ class ExpressionPropertyCell(QWidget):
                 self._refresh_display()
             return
         if self._is_formula(new_text):
-            if new_text != self._formula:
+            storage_expr = self._storage_formula(new_text)
+            if storage_expr != self._formula:
                 self.clear_error()
-                self._set_stored_value(new_text)
-                self._call_on_changed(new_text)
+                self._set_stored_value(storage_expr)
+                self._call_on_changed(storage_expr)
             return
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:

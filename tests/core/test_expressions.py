@@ -1236,3 +1236,126 @@ def test_parameter_rename_rewrites_formulas_and_constraints_atomically(tmp_path:
     assert proj.data["constraints"][0]["expression"] == "wing_area >= 20"
     assert api.expression_diagnostics == []
     editor.deleteLater()
+
+
+def test_component_formulas_store_stable_id_and_display_live_name(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.model.symbol import build_component_symbol_map, slugify_identifier
+    from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
+    from setuav_studio.ui.editor.constraint import (
+        ConstraintExpressionCell,
+        ConstraintPropertyEditor,
+    )
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell
+    from tests._common import get_qapp
+
+    get_qapp()
+
+    # Deterministic identifier slugification (Turkish chars, leading digits, keywords).
+    assert slugify_identifier("Ana Kanat (Ön)") == "ana_kanat_on"
+    assert slugify_identifier("2. Gövde") == "c_2_govde"
+    assert slugify_identifier("for") == "c_for"
+
+    proj = ProjectDocument(
+        tmp_path / "component_symbols.json",
+        "json",
+        {
+            "parameters": {"k": 2.0},
+            "components": [
+                {
+                    "id": "lifting-surface-2",
+                    "name": "V-Tail",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 150.0,
+                },
+                {
+                    "id": "comp-dup-1",
+                    "name": "Aileron",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 20.0,
+                },
+                {
+                    "id": "comp-dup-2",
+                    "name": "Aileron",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 25.0,
+                },
+                {
+                    "id": "comp-pi",
+                    "name": "pi",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 10.0,
+                },
+                {
+                    "id": "ballast",
+                    "name": "Ballast",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 0.0,
+                },
+            ],
+            "constraints": [
+                {
+                    "id": "c1",
+                    "name": "Tail Mass",
+                    "expression": "lifting_surface_2.mass > 100",
+                    "enabled": True,
+                }
+            ],
+        },
+    )
+    api = StudioAPI()
+    api._host.set_project(proj)
+
+    smap = build_component_symbol_map(proj.data)
+    assert smap.id_to_symbol["lifting_surface_2"] == "v_tail"
+    assert smap.id_to_symbol["comp_dup_1"] == "aileron"
+    assert smap.id_to_symbol["comp_dup_2"] == "aileron_2"
+    assert smap.id_to_symbol["comp_pi"] == "pi_2"
+
+    # User enters formula using display name 'v_tail'; cell stores canonical 'lifting_surface_2'.
+    emitted: list[str] = []
+    cell = ExpressionPropertyCell(
+        initial_value=0.0,
+        on_changed=lambda s: emitted.append(s),
+        api=api,
+        quantity="mass",
+    )
+    cell._on_focus_in()
+    cell.line_edit.setText("= v_tail.mass * 2")
+    cell._on_focus_out()
+    assert emitted == ["= lifting_surface_2.mass * 2"]
+    assert cell.stored_expression() == "= lifting_surface_2.mass * 2"
+    assert math.isclose(cell.value(), 300.0)
+    assert "v_tail.mass * 2" in cell.line_edit.toolTip()
+
+    # Renaming 'V-Tail' -> 'Arka Kanat' never breaks the stored formula and updates UI live.
+    api.edit_project(
+        "Rename tail",
+        lambda: proj.data["components"][0].update({"name": "Arka Kanat"}),
+    )
+    assert cell.stored_expression() == "= lifting_surface_2.mass * 2"
+    assert math.isclose(cell.value(), 300.0)
+    assert "arka_kanat.mass * 2" in cell.line_edit.toolTip()
+
+    cell._on_focus_in()
+    assert cell.line_edit.text() == "= arka_kanat.mass * 2"
+    completion_names = {ins for ins, _ in cell.line_edit._build_completion_items()}
+    assert "arka_kanat" in completion_names
+    assert "arka_kanat.mass" in completion_names
+    cell._on_focus_out()
+    cell.deleteLater()
+
+    # AdvancedExpressionDialog shows display name, previews correctly, and returns canonical ID.
+    dlg = AdvancedExpressionDialog(api, initial_expression="= lifting_surface_2.mass * 2")
+    assert dlg.expr_edit.text() == "= arka_kanat.mass * 2"
+    assert "300" in dlg.preview_label.text()
+    assert dlg.get_expression() == "= lifting_surface_2.mass * 2"
+    dlg.deleteLater()
+
+    # ConstraintPropertyEditor displays live name while storing canonical ID.
+    const_editor = ConstraintPropertyEditor(api, {"id": "c1"})
+    expr_cell = const_editor.general_table.cellWidget(1, 1)
+    assert isinstance(expr_cell, ConstraintExpressionCell)
+    assert expr_cell.line_edit.text() == "arka_kanat.mass > 100"
+    assert expr_cell.text() == "lifting_surface_2.mass > 100"
+    const_editor.deleteLater()

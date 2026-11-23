@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 from setuav_studio.model.symbol import (
+    build_component_symbol_map,
     get_available_symbols_metadata,
 )
 from setuav_studio.ui.style.theme import status_color
@@ -82,24 +83,34 @@ class ExpressionLineEdit(QLineEdit):
         self._all_symbols = list(constants) + list(math_funcs)
         self._component_props = {}
 
+        symbol_by_id: dict[str, str] = {}
         for comp in components:
             raw_cid = comp["id"]
-            clean_cid = raw_cid.replace("-", "_")
+            sym = comp.get("symbol") or raw_cid.replace("-", "_")
+            symbol_by_id[raw_cid] = sym
+            symbol_by_id[raw_cid.replace("-", "_")] = sym
+
+        for comp in components:
+            raw_cid = comp["id"]
+            clean_cid = comp.get("symbol") or raw_cid.replace("-", "_")
             props = [p["key"] for p in comp.get("properties", [])]
 
             self._component_props[raw_cid] = props
             self._component_props[clean_cid] = props
 
             self._all_symbols.append(clean_cid)
-            if raw_cid != clean_cid:
-                self._all_symbols.append(raw_cid)
 
             for p in props:
                 self._all_symbols.append(f"{clean_cid}.{p}")
 
             parent_id = comp.get("parent_id")
             if parent_id:
-                clean_parent = str(parent_id).replace("-", "_")
+                clean_parent = symbol_by_id.get(
+                    str(parent_id),
+                    symbol_by_id.get(
+                        str(parent_id).replace("-", "_"), str(parent_id).replace("-", "_")
+                    ),
+                )
                 short_name = clean_cid
                 if clean_cid.startswith(f"{clean_parent}_"):
                     short_name = clean_cid[len(clean_parent) + 1 :]
@@ -271,6 +282,7 @@ class AdvancedExpressionDialog(QDialog):
         self._checker = ConstraintChecker(self._evaluator)
 
         project_data = api.project.data if api.project else {}
+        self._symbol_map = build_component_symbol_map(project_data)
         self._metadata = get_available_symbols_metadata(project_data, api=api)
         self._context = self._metadata.get("context", {})
 
@@ -281,7 +293,7 @@ class AdvancedExpressionDialog(QDialog):
         input_layout = QVBoxLayout(input_group)
 
         self.expr_edit = ExpressionLineEdit(self)
-        self.expr_edit.setText(initial_expression)
+        self.expr_edit.setText(self._symbol_map.to_display(initial_expression))
         placeholder = (
             "e.g. main_wing.planform_area >= 0.25 and main_wing.aspect_ratio <= 10.0"
             if self._is_constraint
@@ -408,7 +420,7 @@ class AdvancedExpressionDialog(QDialog):
                 top_level_comps.append(comp)
 
         def _build_comp_item(comp: dict[str, Any]) -> QTreeWidgetItem:
-            cid = comp["id"]
+            cid = comp.get("symbol") or comp["id"]
             cname = comp["name"]
             ctype = comp["type"]
 
@@ -554,14 +566,15 @@ class AdvancedExpressionDialog(QDialog):
             return
 
         eval_expr = raw_expr.lstrip("=").strip()
+        storage_eval_expr = self._symbol_map.to_storage(eval_expr)
 
         try:
-            val = self._evaluator.evaluate(eval_expr, self._context)
+            val = self._evaluator.evaluate(storage_eval_expr, self._context)
             used_symbols = self._evaluator.extract_symbols(eval_expr)
 
             breakdowns: list[str] = []
             for sym in sorted(used_symbols):
-                sym_val = self._resolve_symbol_value(sym)
+                sym_val = self._resolve_symbol_value(self._symbol_map.to_storage(sym))
                 if sym_val is not None:
                     sym_str = (
                         f"{sym_val:.4g}"
@@ -597,8 +610,8 @@ class AdvancedExpressionDialog(QDialog):
             self.breakdown_label.setText("")
 
     def get_expression(self) -> str:
-        """Return the cleaned expression string."""
-        return self.expr_edit.text().strip()
+        """Return the cleaned canonical expression string (using stable component IDs)."""
+        return self._symbol_map.to_storage(self.expr_edit.text().strip())
 
 
 def _fit_name_column(header: QHeaderView, resize_to_contents: Callable[[int], None]) -> None:

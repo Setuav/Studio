@@ -71,12 +71,33 @@ def to_dot_dict(val: Any) -> Any:
     return val
 
 
+def _populate_extension_scope(scope: dict[str, Any], extensions: Any) -> None:
+    if not isinstance(extensions, dict):
+        return
+    for ext_key, ext_val in extensions.items():
+        if not isinstance(ext_val, dict):
+            continue
+        clean_ext_key = str(ext_key).replace("-", "_")
+        ext_dot = to_dot_dict(ext_val)
+        scope[clean_ext_key] = ext_dot
+        if ext_key != clean_ext_key:
+            scope[ext_key] = ext_dot
+
+        cfg = ext_val.get("configuration")
+        if isinstance(cfg, dict):
+            cfg_id = str(cfg.get("id") or f"{clean_ext_key}_configuration").replace("-", "_")
+            cfg_dot = to_dot_dict(cfg)
+            scope[cfg_id] = cfg_dot
+            scope[f"{clean_ext_key}_configuration"] = cfg_dot
+            ext_dot[cfg_id] = cfg_dot
+
+
 def build_project_base_scope(
     project_data: dict[str, Any] | Any,
     api: Any | None = None,
 ) -> dict[str, Any]:
     """Build the non-parameter project scope (components, extensions, features, mass totals)."""
-    from setuav_studio.model.symbol import build_component_models
+    from setuav_studio.model.symbol import build_component_models, build_component_symbol_map
     from setuav_studio.project.document import ProjectDocument
     from setuav_studio.utilities.mass_balance import resolve_aircraft_total_mass_g
 
@@ -87,6 +108,7 @@ def build_project_base_scope(
 
     # 1. Materialized Components (reading stored evaluated values directly)
     components = p_dict.get("components", [])
+    symbol_map = build_component_symbol_map(p_dict)
     models_list = build_component_models(components, api)
     for model in models_list:
         raw_cid = model.id
@@ -108,26 +130,15 @@ def build_project_base_scope(
             if isinstance(prop_val, (int, float, bool, str)):
                 scope[f"{clean_cid}_{prop_name}"] = prop_val
 
-    # 2. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
-    extensions = p_dict.get("extensions", {})
-    if isinstance(extensions, dict):
-        for ext_key, ext_val in extensions.items():
-            if not isinstance(ext_val, dict):
-                continue
-            clean_ext_key = str(ext_key).replace("-", "_")
-            ext_dot = to_dot_dict(ext_val)
-            scope[clean_ext_key] = ext_dot
-            if ext_key != clean_ext_key:
-                scope[ext_key] = ext_dot
+    # Bind user-facing component name symbols without overriding canonical IDs.
+    for model in models_list:
+        clean_cid = model.id.replace("-", "_") if model.id else ""
+        display_sym = symbol_map.id_to_symbol.get(clean_cid)
+        if display_sym and display_sym not in scope:
+            scope[display_sym] = model
 
-            # Configuration under extension
-            cfg = ext_val.get("configuration")
-            if isinstance(cfg, dict):
-                cfg_id = str(cfg.get("id") or f"{clean_ext_key}_configuration").replace("-", "_")
-                cfg_dot = to_dot_dict(cfg)
-                scope[cfg_id] = cfg_dot
-                scope[f"{clean_ext_key}_configuration"] = cfg_dot
-                ext_dot[cfg_id] = cfg_dot
+    # 2. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
+    _populate_extension_scope(scope, p_dict.get("extensions", {}))
 
     # 3. Plugin features stored on components (e.g. structural skins and ribs)
     for _component_id, feature in extension_features(components):
