@@ -195,7 +195,7 @@ class DriverPlanformTable(QTableWidget):
                     if raw_expr:
                         init_str = raw_expr
                     else:
-                        from setuav_studio.ui.widget.table import format_engineering_value
+                        from setuav_studio.units import format_engineering_value
 
                         init_str = format_engineering_value(val, dec)
 

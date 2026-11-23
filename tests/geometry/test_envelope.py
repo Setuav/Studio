@@ -495,7 +495,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         editor = EnvelopeEditor(api, battery)
         self.addCleanup(editor.deleteLater)
 
-        # 140 x 45 x 30 mm = 189000 mm³ = 0.189 dm³ = 189 cm³.
+        # 140 x 45 x 30 mm = 189000 mm³ = 0.189 dm³ = 189 cm³; 0.001 dm³ is 1 cm³.
         cell = editor._property_cell(editor.definition_table, "volume")
         assert cell is not None
         self.assertTrue(cell.isReadOnly())
@@ -505,7 +505,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         units = get_unit_manager()
         units.set_display_unit("volume", "cm3")
         units.units_changed.emit()
-        self.assertEqual(cell.line_edit.text(), "189.0")
+        self.assertEqual(cell.line_edit.text(), "189")
         self.assertEqual(cell.unit_label.text(), "cm³")
 
     def test_envelope_editor_rejects_invalid_and_clamps_negative_dimensions(self) -> None:

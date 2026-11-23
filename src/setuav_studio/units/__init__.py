@@ -26,6 +26,7 @@ from setuav_studio.units.dimension import (
     WING_LOADING,
     Dimension,
 )
+from setuav_studio.units.format import format_engineering_value
 from setuav_studio.units.manager import (
     UnitManager,
     convert_value,
@@ -71,6 +72,7 @@ __all__ = [
     "UnitDefinition",
     "UnitManager",
     "convert_value",
+    "format_engineering_value",
     "get_quantity_choices",
     "get_quantity_for_unit",
     "get_unit_manager",
