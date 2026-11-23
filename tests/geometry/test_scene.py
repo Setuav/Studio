@@ -263,7 +263,7 @@ def _build_fuselage_component() -> dict:
             viewport.capture_screenshot(1920, 1080, transparent_background=True)
             mock_capture.assert_called_with(1920, 1080, transparent_background=True)
 
-    def test_provider_uniform_signature_and_instance_source_controls(self) -> None:
+    def test_provider_uniform_signature_and_bilateral_mirror_controls(self) -> None:
         from pathlib import Path
 
         from setuav_studio.project import ProjectDocument
@@ -274,6 +274,7 @@ def _build_fuselage_component() -> dict:
             "type": "org.setuav.core:lifting-surface",
             "parameters": {
                 "geometry": {
+                    "mirror": True,
                     "profiles": [
                         {
                             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -285,7 +286,7 @@ def _build_fuselage_component() -> dict:
                             "chord": 150.0,
                             "airfoil": "2412",
                         },
-                    ]
+                    ],
                 }
             },
         }
@@ -305,16 +306,10 @@ def _build_fuselage_component() -> dict:
                 }
             },
         }
-        inst_wing = {
-            "kind": "instance",
-            "id": "wing-inst",
-            "source": "wing-src",
-            "derivation": {"type": "mirror", "plane": "XZ"},
-        }
         doc = ProjectDocument(
-            Path("/tmp/scene-inst.json"),
+            Path("/tmp/scene-bilateral.json"),
             "json",
-            {"components": [wing, source_aileron, inst_wing]},
+            {"components": [wing, source_aileron]},
         )
         seen_calls: list[tuple[str, list[dict]]] = []
 
@@ -329,11 +324,15 @@ def _build_fuselage_component() -> dict:
         )
         self.assertEqual(len(seen_calls), 2)
         self.assertTrue(all(len(ctrls) == 1 for _, ctrls in seen_calls))
-        inst_aileron_loft = next(
-            (loft for loft in scene_geom.lofts if loft.component_id == "wing-inst:src-aileron"),
+        mirrored_aileron_loft = next(
+            (
+                loft
+                for loft in scene_geom.lofts
+                if loft.component_id == "wing-src:mirror:src-aileron"
+            ),
             None,
         )
-        self.assertIsNotNone(inst_aileron_loft)
+        self.assertIsNotNone(mirrored_aileron_loft)
 
 
 class _FakeViewport:

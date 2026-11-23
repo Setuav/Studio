@@ -83,7 +83,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(len(lofts[0].sections[0].points), 64)
         self.assertEqual(len(lofts[0].sections[0].points), len(lofts[0].sections[1].points))
 
-    def test_mirror_instance_reflects_source_geometry(self) -> None:
+    def test_bilateral_mirror_reflects_wing_geometry(self) -> None:
         project = ProjectDocument(
             Path("project.json"),
             "json",
@@ -92,14 +92,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                     {
                         "kind": "component",
                         "id": "wing-left",
-                        "type": "example:wing",
+                        "type": "org.setuav.core:lifting-surface",
                         "transform": {"position": {"x": 10}},
-                    },
-                    {
-                        "kind": "instance",
-                        "id": "wing-right",
-                        "source": "wing-left",
-                        "derivation": {"type": "mirror", "plane": "XZ"},
+                        "parameters": {"geometry": {"mirror": True}},
                     },
                 ]
             },
@@ -117,9 +112,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                 ),
             )
 
-        data = build_project_geometry(project, {"example:wing": provider})
+        data = build_project_geometry(project, {"org.setuav.core:lifting-surface": provider})
         left = next(loft for loft in data.lofts if loft.component_id == "wing-left")
-        right = next(loft for loft in data.lofts if loft.component_id == "wing-right")
+        right = next(loft for loft in data.lofts if loft.component_id == "wing-left:mirror")
         self.assertEqual(left.sections[0].points[0], (10.0, -1.0, 0.0))
         self.assertEqual(right.sections[0].points[0], (10.0, 1.0, 0.0))
 
