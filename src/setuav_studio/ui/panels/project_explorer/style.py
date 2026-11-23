@@ -173,18 +173,9 @@ def format_component_name(component: dict[str, Any]) -> str:
 
 def format_component_type(
     component: dict[str, Any],
-    components: list[dict[str, Any]],
+    _components: list[dict[str, Any]],
     api: StudioAPI,
 ) -> str:
-    if component.get("kind") == "instance":
-        source_id = str(component.get("source") or "")
-        source_name = source_id
-        for candidate in components:
-            if str(candidate.get("id") or "") == source_id:
-                source_name = str(candidate.get("name") or source_id)
-                break
-        return f"Instance of {source_name}" if source_name else "Instance"
-
     ctype = str(component.get("type", ""))
     contribution = api.get_component_type(ctype)
     if contribution is not None and contribution.describe is not None:

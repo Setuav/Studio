@@ -1176,14 +1176,6 @@ class StudioAPI:
         if isinstance(component_kind, str) and component_kind in self._kind_icons:
             return get_icon(self._kind_icons[component_kind])
 
-        if component_kind == "instance":
-            source_id = component.get("source")
-            if source_id and self._project is not None:
-                source = self._project.get_component(str(source_id))
-                if source is not None and source.get("id") != component.get("id"):
-                    return self.get_component_icon(source)
-            return get_icon("instance")
-
         return get_icon("component")
 
     def register_component_model(
@@ -1319,11 +1311,7 @@ class StudioAPI:
         return tuple(items)
 
     def component_deletion_scope(self, component_ids: Iterable[str]) -> frozenset[str]:
-        """``component_ids`` with the components deleted along with them.
-
-        A subpart goes with the component it attaches to, and an instance with its
-        source.
-        """
+        """``component_ids`` with the subparts deleted along with them."""
         deleted = {str(component_id) for component_id in component_ids}
         if self._project is None:
             return frozenset(deleted)
@@ -1337,10 +1325,7 @@ class StudioAPI:
                 if not component_id or component_id in deleted:
                     continue
                 owner = str(component.get("attach_to") or "")
-                source = str(component.get("source") or "")
-                if (component.get("type") in subpart_types and owner in deleted) or (
-                    source in deleted
-                ):
+                if component.get("type") in subpart_types and owner in deleted:
                     deleted.add(component_id)
                     changed = True
         return frozenset(deleted)

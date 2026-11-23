@@ -397,7 +397,6 @@ def _deletion_project(studio_api: StudioAPI) -> ProjectDocument:
             "components": [
                 {"id": "wing", "transform": {"position": {"x": 500.0, "y": 0.0, "z": 50.0}}},
                 {"id": "flap", "type": "org.test:flap", "attach_to": "wing"},
-                {"id": "copy", "kind": "instance", "source": "wing"},
                 {
                     "id": "pod",
                     "attach_to": "wing",
@@ -412,10 +411,10 @@ def _deletion_project(studio_api: StudioAPI) -> ProjectDocument:
     return project
 
 
-def test_component_deletion_scope_includes_subparts_and_instances() -> None:
+def test_component_deletion_scope_includes_subparts() -> None:
     studio_api = StudioAPI()
     _deletion_project(studio_api)
-    assert studio_api.component_deletion_scope(["wing"]) == {"wing", "flap", "copy"}
+    assert studio_api.component_deletion_scope(["wing"]) == {"wing", "flap"}
     assert studio_api.component_deletion_scope(["tail"]) == {"tail"}
 
 
@@ -436,7 +435,6 @@ def test_delete_components_is_one_undoable_edit() -> None:
     assert [c["id"] for c in project.data["components"]] == [
         "wing",
         "flap",
-        "copy",
         "pod",
         "tail",
     ]

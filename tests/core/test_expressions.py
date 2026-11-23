@@ -1064,9 +1064,9 @@ def test_global_parameters_share_universal_scope_and_hyphen_aliases(tmp_path: Pa
                 },
                 {
                     "id": "battery-2",
-                    "name": "Battery Copy",
-                    "kind": "instance",
-                    "source": "battery",
+                    "name": "Aux Battery",
+                    "type": "org.setuav.core:battery",
+                    "mass": 300.0,
                 },
                 {
                     "id": "ballast",
