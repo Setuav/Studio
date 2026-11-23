@@ -240,6 +240,12 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 parsed = float(parsed)
                 if not math.isfinite(parsed):
                     raise ValueError("Numeric value must be finite")
+            else:
+                data = self._get_project_data()
+                if data is not None:
+                    from setuav_studio.model.symbol import build_component_symbol_map
+
+                    parsed = build_component_symbol_map(data).to_storage(parsed)
         error = self._parameter_error(
             self._resolve_parameters({**raw_params, self._param_key: parsed})
         )

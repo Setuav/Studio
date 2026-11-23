@@ -6,11 +6,112 @@ for equations, expressions, and constraints evaluation.
 
 from __future__ import annotations
 
+import keyword
+import re
+import unicodedata
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
 from setuav_studio.model.component import Component, GenericComponent
+from setuav_studio.model.expression import STANDARD_SYMBOLS, rewrite_root_identifiers
 from setuav_studio.model.scope import extension_features
+
+_TURKISH_ASCII = str.maketrans(
+    {
+        "\u0131": "i",
+        "\u0130": "i",
+        "I": "i",
+        "\u011f": "g",
+        "\u011e": "g",
+        "\u015f": "s",
+        "\u015e": "s",
+        "\u00e7": "c",
+        "\u00c7": "c",
+        "\u00f6": "o",
+        "\u00d6": "o",
+        "\u00fc": "u",
+        "\u00dc": "u",
+    }
+)
+
+
+def slugify_identifier(name: str, fallback: str = "component") -> str:
+    """Convert a human-readable component name into a valid ASCII Python identifier."""
+    folded = name.translate(_TURKISH_ASCII)
+    ascii_text = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "_", ascii_text.lower()).strip("_")
+    if not slug:
+        slug = re.sub(r"[^a-z0-9]+", "_", fallback.lower()).strip("_") or "component"
+    if slug[0].isdigit() or keyword.iskeyword(slug):
+        slug = f"c_{slug}"
+    return slug
+
+
+@dataclass(frozen=True)
+class ComponentSymbolMap:
+    """Bijective mapping between canonical stored component IDs and user-facing name symbols."""
+
+    id_to_symbol: dict[str, str]
+    symbol_to_id: dict[str, str]
+
+    def to_display(self, expression: str) -> str:
+        """Translate stored component IDs in ``expression`` to current display symbols."""
+        return rewrite_root_identifiers(expression, self.id_to_symbol)
+
+    def to_storage(self, expression: str) -> str:
+        """Translate display symbols in ``expression`` back to canonical stored component IDs."""
+        return rewrite_root_identifiers(expression, self.symbol_to_id)
+
+
+def build_component_symbol_map(project_data: dict[str, Any] | Any) -> ComponentSymbolMap:
+    """Build deterministic canonical-id <-> display-symbol map from a project's components."""
+    from setuav_studio.project.document import ProjectDocument
+
+    raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
+    p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
+
+    reserved: set[str] = set(STANDARD_SYMBOLS.keys()) | {"total_mass", "mtow"}
+    raw_params = p_dict.get("parameters", {})
+    if isinstance(raw_params, dict):
+        for k in raw_params:
+            reserved.add(str(k))
+            reserved.add(str(k).replace("-", "_"))
+    raw_exts = p_dict.get("extensions", {})
+    if isinstance(raw_exts, dict):
+        for k in raw_exts:
+            reserved.add(str(k))
+            reserved.add(str(k).replace("-", "_"))
+    components = p_dict.get("components", [])
+    for _cid, feature in extension_features(components):
+        fid = str(feature["id"])
+        reserved.add(fid)
+        reserved.add(fid.replace("-", "_"))
+
+    id_to_symbol: dict[str, str] = {}
+    symbol_to_id: dict[str, str] = {}
+    used: set[str] = set(reserved)
+
+    if isinstance(components, list):
+        for comp in components:
+            if not isinstance(comp, dict):
+                continue
+            raw_id = str(comp.get("id") or "")
+            if not raw_id:
+                continue
+            clean_id = raw_id.replace("-", "_")
+            raw_name = str(comp.get("name") or "").strip()
+            base = slugify_identifier(raw_name, fallback=clean_id) if raw_name else clean_id
+            candidate = base
+            suffix = 2
+            while candidate in used:
+                candidate = f"{base}_{suffix}"
+                suffix += 1
+            id_to_symbol[clean_id] = candidate
+            symbol_to_id[candidate] = clean_id
+            used.add(candidate)
+
+    return ComponentSymbolMap(id_to_symbol=id_to_symbol, symbol_to_id=symbol_to_id)
 
 
 def create_model_for_component(
@@ -97,6 +198,7 @@ def get_available_symbols_metadata(  # noqa: C901
         )
 
     # 2. Components and their properties
+    symbol_map = build_component_symbol_map(p_dict)
     components = p_dict.get("components", [])
     if isinstance(components, list):
         for comp in components:
@@ -104,6 +206,7 @@ def get_available_symbols_metadata(  # noqa: C901
                 continue
             raw_id = str(comp.get("id") or "")
             cid = raw_id.replace("-", "_")
+            symbol = symbol_map.id_to_symbol.get(cid, cid)
             cname = str(comp.get("name") or cid)
             # Subparts are listed under the component they are part of.
             target_raw = str(comp.get("attach_to") or "")
@@ -123,7 +226,7 @@ def get_available_symbols_metadata(  # noqa: C901
                             {
                                 "key": pkey,
                                 "value": pval,
-                                "expression": f"{cid}.{pkey}",
+                                "expression": f"{symbol}.{pkey}",
                             }
                         )
                         seen_props.add(pkey)
@@ -137,7 +240,7 @@ def get_available_symbols_metadata(  # noqa: C901
                             {
                                 "key": pkey,
                                 "value": pval,
-                                "expression": f"{cid}.{pkey}",
+                                "expression": f"{symbol}.{pkey}",
                             }
                         )
                         seen_props.add(pkey)
@@ -153,7 +256,7 @@ def get_available_symbols_metadata(  # noqa: C901
                                 {
                                     "key": axis,
                                     "value": pos[axis],
-                                    "expression": f"{cid}.{axis}",
+                                    "expression": f"{symbol}.{axis}",
                                 }
                             )
                             seen_props.add(axis)
@@ -161,6 +264,7 @@ def get_available_symbols_metadata(  # noqa: C901
             components_list.append(
                 {
                     "id": cid,
+                    "symbol": symbol,
                     "raw_id": raw_id,
                     "name": cname,
                     "type": comp.get("type", ""),

@@ -49,15 +49,30 @@ class ConstraintExpressionCell(QWidget):
         layout.setSpacing(2)
 
         self.line_edit = FocusAwareLineEdit(self, api=api)
-        self.line_edit.setText(initial_value)
+        self.line_edit.setText(self._to_display(initial_value))
         self.line_edit.focused_in.connect(self._on_focus_in)
         self.line_edit.focused_out.connect(self._on_focus_out)
         self.line_edit.editingFinished.connect(self._on_editing_finished)
         self.line_edit.returnPressed.connect(self.line_edit.clearFocus)
         layout.addWidget(self.line_edit, 1)
 
+    def _to_display(self, text: str) -> str:
+        if self._api is None or self._api.project is None:
+            return text
+        from setuav_studio.model.symbol import build_component_symbol_map
+
+        return build_component_symbol_map(self._api.project.data).to_display(text)
+
+    def _to_storage(self, text: str) -> str:
+        if self._api is None or self._api.project is None:
+            return text
+        from setuav_studio.model.symbol import build_component_symbol_map
+
+        return build_component_symbol_map(self._api.project.data).to_storage(text)
+
     def _on_focus_in(self) -> None:
         self._is_focused = True
+        self.line_edit._completer = None
         ExpressionFocusTracker.set_active_editor(self)
 
     def _on_focus_out(self) -> None:
@@ -71,31 +86,32 @@ class ConstraintExpressionCell(QWidget):
             ExpressionFocusTracker.set_active_editor(None)
 
     def _on_editing_finished(self) -> None:
-        text = self.line_edit.text().strip()
-        if text != self._committed_text:
-            self._committed_text = text
+        storage_text = self._to_storage(self.line_edit.text().strip())
+        if storage_text != self._committed_text:
+            self._committed_text = storage_text
             if self._on_changed:
-                self._on_changed(text)
+                self._on_changed(storage_text)
 
     def open_assistant(self) -> None:
         self._on_editing_finished()
         if self._on_open_assistant:
-            self._on_open_assistant(self.line_edit.text().strip())
+            self._on_open_assistant(self._committed_text)
 
     def get_expression(self) -> str:
-        return self.line_edit.text().strip()
+        return self._to_storage(self.line_edit.text().strip())
 
     def set_expression(self, text: str) -> None:
-        self.setText(text)
+        storage_text = self._to_storage(text.strip())
+        self.setText(storage_text)
         if self._on_changed:
-            self._on_changed(text)
+            self._on_changed(storage_text)
 
     def setText(self, text: str) -> None:
         self._committed_text = text
-        self.line_edit.setText(text)
+        self.line_edit.setText(self._to_display(text))
 
     def text(self) -> str:
-        return self.line_edit.text().strip()
+        return self._committed_text
 
     def hideEvent(self, event: Any) -> None:
         if ExpressionFocusTracker.get_active_editor() is self:
@@ -283,10 +299,12 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
     def _on_expression_changed(self, new_expr: str) -> None:
         if self._loading:
             return
-        clean_expr = new_expr.strip()
         data = self._get_project_data()
         if not data:
             return
+        from setuav_studio.model.symbol import build_component_symbol_map
+
+        clean_expr = build_component_symbol_map(data).to_storage(new_expr.strip())
         constraints = data.setdefault("constraints", [])
         c = next((item for item in constraints if item.get("id") == self._cid), None)
         if not c or c.get("expression") == clean_expr:
