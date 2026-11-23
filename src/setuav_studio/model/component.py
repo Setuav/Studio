@@ -407,11 +407,18 @@ class Component:
         return [to_dot_dict(x) for x in profs] if isinstance(profs, list) else []
 
     def __getattr__(self, name: str) -> Any:
-        if name in self.parameters:
-            return self.parameters[name]
-        geom = self.parameters.get("geometry")
-        if isinstance(geom, dict) and name in geom:
-            return geom[name]
+        params = self.parameters
+        if name in params:
+            return params[name]
+        hyphen = name.replace("_", "-")
+        if hyphen in params:
+            return params[hyphen]
+        geom = params.get("geometry")
+        if isinstance(geom, dict):
+            if name in geom:
+                return geom[name]
+            if hyphen in geom:
+                return geom[hyphen]
         name_lower = name.lower()
         if hasattr(self, "_children") and name_lower in self._children:
             return self._children[name_lower]

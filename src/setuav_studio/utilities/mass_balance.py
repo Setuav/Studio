@@ -164,6 +164,15 @@ def get_component_intrinsic_mass_g(component: dict[str, Any]) -> float:
     return max(0.0, mass_g)
 
 
+def resolve_aircraft_total_mass_g(project_or_components: Any) -> float:
+    """Return total aircraft mass in grams using effective (instance-resolved) component masses."""
+    components = get_all_components(project_or_components)
+    by_id = {str(c["id"]): c for c in components if c.get("id")}
+    return sum(
+        get_component_intrinsic_mass_g(_effective_component(comp, by_id)) for comp in components
+    )
+
+
 def resolve_component_intrinsic_mass_properties(
     comp_or_id: str | dict[str, Any],
     project_or_components: Any,

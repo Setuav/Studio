@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.model.expression import ExpressionEvaluator, normalize_equation_input
 from setuav_studio.model.parameter import ParameterResolution, ParameterResolver
+from setuav_studio.model.scope import build_project_base_scope
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -202,7 +203,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             self._set_property_value(self.general_table, "unit", active_sym, editable=False)
 
             raw_params = data.get("parameters", {}) if isinstance(data, dict) else {}
-            resolution = self._resolver.resolve_all(raw_params)
+            resolution = self._resolve_parameters(raw_params)
             error = self._parameter_error(resolution)
             res_val = resolution.values.get(self._param_key, "—")
             if error is not None:
@@ -215,6 +216,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             self._set_property_value(self.general_table, "resolved", res_str, editable=False)
         finally:
             self._loading = False
+
+    def _resolve_parameters(self, params: dict[str, Any]) -> ParameterResolution:
+        data = self._get_project_data()
+        base_scope = build_project_base_scope(data, api=self._api) if data is not None else None
+        return self._resolver.resolve_all(params, base_scope=base_scope)
 
     def _validated_value(self, new_val: Any, raw_params: dict[str, Any]) -> Any:
         """Parse editor input and check that it resolves; raise ValueError otherwise."""
@@ -231,7 +237,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 if not math.isfinite(parsed):
                     raise ValueError("Numeric value must be finite")
         error = self._parameter_error(
-            self._resolver.resolve_all({**raw_params, self._param_key: parsed})
+            self._resolve_parameters({**raw_params, self._param_key: parsed})
         )
         if error is not None:
             raise ValueError(error)

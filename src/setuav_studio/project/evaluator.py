@@ -16,7 +16,7 @@ from setuav_studio.model.expression import (
     ExpressionEvaluator,
     get_expression,
 )
-from setuav_studio.model.parameter import ParameterResolver
+from setuav_studio.model.scope import build_universal_scope_with_diagnostics
 
 if TYPE_CHECKING:
     from setuav_studio.project.document import ProjectDocument
@@ -41,19 +41,13 @@ def recompute_project_expressions(
         return []
 
     evaluator = ExpressionEvaluator()
-    raw_params = project.data.get("parameters", {})
-    parameter_diagnostics = (
-        ParameterResolver(evaluator).resolve_all(raw_params).diagnostics
-        if isinstance(raw_params, dict)
-        else []
-    )
-
     originals: dict[tuple[int, str], Any] = {}
     passes = 0
     while True:
+        scope, parameter_diagnostics = build_universal_scope_with_diagnostics(project.data, api=api)
         current = _Pass(
             evaluator=evaluator,
-            scope=project.get_scope(api=api),
+            scope=scope,
             diagnostics=list(parameter_diagnostics),
             originals=originals,
         )

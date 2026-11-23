@@ -71,36 +71,23 @@ def to_dot_dict(val: Any) -> Any:
     return val
 
 
-def build_universal_scope(  # noqa: C901
+def build_project_base_scope(
     project_data: dict[str, Any] | Any,
     api: Any | None = None,
 ) -> dict[str, Any]:
-    """Build the universal evaluation scope containing resolved parameters, models, and extensions."""
-    from setuav_studio.model.parameter import ParameterResolver
+    """Build the non-parameter project scope (components, extensions, features, mass totals)."""
     from setuav_studio.model.symbol import build_component_models
     from setuav_studio.project.document import ProjectDocument
+    from setuav_studio.utilities.mass_balance import resolve_aircraft_total_mass_g
 
     raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
     p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
 
-    resolver = ParameterResolver()
-    raw_params = p_dict.get("parameters", {})
-    resolved_params = (
-        resolver.resolve_all(raw_params).values if isinstance(raw_params, dict) else {}
-    )
-
     scope: dict[str, Any] = {}
 
-    # 1. Project Global Parameters & Constants
-    for k, v in resolved_params.items():
-        clean_k = k.replace("-", "_")
-        scope[k] = v
-        if clean_k != k:
-            scope[clean_k] = v
-
-    # 2. Materialized Components (reading stored evaluated values directly)
-    models_list = build_component_models(p_dict.get("components", []), api)
-    total_mass = 0.0
+    # 1. Materialized Components (reading stored evaluated values directly)
+    components = p_dict.get("components", [])
+    models_list = build_component_models(components, api)
     for model in models_list:
         raw_cid = model.id
         if not raw_cid:
@@ -121,9 +108,7 @@ def build_universal_scope(  # noqa: C901
             if isinstance(prop_val, (int, float, bool, str)):
                 scope[f"{clean_cid}_{prop_name}"] = prop_val
 
-        total_mass += model.mass
-
-    # 3. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
+    # 2. Generic Plugin Extensions (e.g. Propulsion, Structures, etc.)
     extensions = p_dict.get("extensions", {})
     if isinstance(extensions, dict):
         for ext_key, ext_val in extensions.items():
@@ -144,17 +129,59 @@ def build_universal_scope(  # noqa: C901
                 scope[f"{clean_ext_key}_configuration"] = cfg_dot
                 ext_dot[cfg_id] = cfg_dot
 
-    # 4. Plugin features stored on components (e.g. structural skins and ribs)
-    for _component_id, feature in extension_features(p_dict.get("components", [])):
+    # 3. Plugin features stored on components (e.g. structural skins and ribs)
+    for _component_id, feature in extension_features(components):
         feature_id = str(feature["id"])
         feature_dot = to_dot_dict(feature["parameters"])
         scope[feature_id.replace("-", "_")] = feature_dot
         scope[feature_id] = feature_dot
 
-    # 5. Project level totals
+    # 4. Project level mass totals (single source of truth from mass_balance)
+    total_mass = resolve_aircraft_total_mass_g(p_dict)
     scope["total_mass"] = total_mass
-    scope["mtow"] = resolved_params.get("mtow", total_mass)
+    scope["mtow"] = total_mass
 
+    return scope
+
+
+def build_universal_scope_with_diagnostics(
+    project_data: dict[str, Any] | Any,
+    api: Any | None = None,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """Build the universal evaluation scope and return any global-parameter diagnostics."""
+    from setuav_studio.model.parameter import ParameterResolver
+    from setuav_studio.project.document import ProjectDocument
+
+    raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
+    p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
+
+    scope = build_project_base_scope(p_dict, api=api)
+
+    resolver = ParameterResolver()
+    raw_params = p_dict.get("parameters", {})
+    if isinstance(raw_params, dict):
+        resolution = resolver.resolve_all(raw_params, base_scope=scope)
+        resolved_params = resolution.values
+        diagnostics = resolution.diagnostics
+    else:
+        resolved_params = {}
+        diagnostics = []
+
+    for k, v in resolved_params.items():
+        clean_k = k.replace("-", "_")
+        scope[k] = v
+        if clean_k != k:
+            scope[clean_k] = v
+
+    return scope, diagnostics
+
+
+def build_universal_scope(
+    project_data: dict[str, Any] | Any,
+    api: Any | None = None,
+) -> dict[str, Any]:
+    """Build the universal evaluation scope containing resolved parameters, models, and extensions."""
+    scope, _ = build_universal_scope_with_diagnostics(project_data, api=api)
     return scope
 
 
@@ -183,7 +210,9 @@ def extension_features(components: Any) -> list[tuple[str, dict[str, Any]]]:
 
 __all__ = [
     "DotDict",
+    "build_project_base_scope",
     "build_universal_scope",
+    "build_universal_scope_with_diagnostics",
     "extension_features",
     "to_dot_dict",
 ]
