@@ -92,9 +92,8 @@ class _StudioHost:
         api = self._api
         api._project = project
         # Opening evaluated the formulas without the plugins' component models;
-        # evaluate them again with the models, then derive the components.
+        # run the convergent evaluate + derive pipeline with plugins active.
         api.recompute_project_expressions()
-        api.derive_components()
         api._undo_stack.clear()
         api._undo_stack.setClean()
         project.modified = False

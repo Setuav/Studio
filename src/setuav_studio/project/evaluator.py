@@ -40,6 +40,17 @@ def recompute_project_expressions(
     if project is None:
         return []
 
+    derive_fn = getattr(api, "derive_components", None) if api is not None else None
+    last_derive_failures: list[str] = []
+
+    def _run_derive(*, report_errors: bool = False) -> None:
+        nonlocal last_derive_failures
+        if callable(derive_fn):
+            res = derive_fn(project, report_errors=report_errors)
+            last_derive_failures = res if isinstance(res, list) else []
+
+    _run_derive(report_errors=False)
+
     evaluator = ExpressionEvaluator()
     originals: dict[tuple[int, str], Any] = {}
     passes = 0
@@ -56,14 +67,20 @@ def recompute_project_expressions(
         # A dependency chain over N expression fields settles within N passes.
         if not current.changed or passes > current.evaluated:
             break
+        _run_derive(report_errors=False)
 
-    for changed in current.changed:
-        original = originals[(id(changed.node), changed.key)]
-        if original is _MISSING:
-            changed.node.pop(changed.key, None)
-        else:
-            changed.node[changed.key] = original
-        current.diagnostics.append(changed.diagnostic(CIRCULAR_DEPENDENCY_MESSAGE))
+    if current.changed:
+        for changed in current.changed:
+            original = originals[(id(changed.node), changed.key)]
+            if original is _MISSING:
+                changed.node.pop(changed.key, None)
+            else:
+                changed.node[changed.key] = original
+            current.diagnostics.append(changed.diagnostic(CIRCULAR_DEPENDENCY_MESSAGE))
+        _run_derive(report_errors=False)
+
+    if last_derive_failures and api is not None and callable(getattr(api, "show_status", None)):
+        api.show_status("Cannot update " + "; ".join(last_derive_failures), "error", 8000)
 
     project.expression_diagnostics = list(current.diagnostics)
     return current.diagnostics

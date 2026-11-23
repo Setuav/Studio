@@ -1105,3 +1105,66 @@ def test_global_parameters_share_universal_scope_and_hyphen_aliases(tmp_path: Pa
     diagnostics = recompute_project_expressions(proj, api=api)
     assert any("Circular" in d["message"] for d in diagnostics)
     assert proj.data["components"][3]["mass"] == before_mass
+
+
+def test_recompute_converges_with_component_derivers_and_detects_deriver_cycles(
+    tmp_path: Path,
+) -> None:
+    from collections.abc import Mapping
+    from typing import Any
+
+    from setuav_studio.api import StudioAPI
+
+    def _derive_pack_mass(comp: dict[str, Any], _by_id: Mapping[str, dict[str, Any]]) -> None:
+        comp["mass"] = float(comp["parameters"]["cells"]) * 50.0
+
+    proj = ProjectDocument(
+        tmp_path / "deriver_converge.json",
+        "json",
+        {
+            "parameters": {"n_cells": 3.0},
+            "components": [
+                {
+                    "id": "pack",
+                    "type": "test:pack",
+                    "mass": 0.0,
+                    "parameters": {"cells": 3.0, "_expressions": {"cells": "= n_cells"}},
+                },
+                {
+                    "id": "ballast",
+                    "type": "test:mass",
+                    "mass": 0.0,
+                    "_expressions": {"mass": "= pack.mass * 0.2"},
+                },
+            ],
+        },
+    )
+    api = StudioAPI()
+    api.register_component_deriver("test:pack", _derive_pack_mass)
+    api._host.set_project(proj)
+
+    # Initial open converges: cells=3 -> derived pack.mass=150 -> ballast.mass=30.
+    assert math.isclose(proj.data["components"][0]["mass"], 150.0)
+    assert math.isclose(proj.data["components"][1]["mass"], 30.0)
+
+    # Formula-driven input change settles both deriver and downstream formula in one edit.
+    api.edit_project("Change n_cells", lambda: proj.data["parameters"].update({"n_cells": 6.0}))
+    assert math.isclose(proj.data["components"][0]["mass"], 300.0)
+    assert math.isclose(proj.data["components"][1]["mass"], 60.0)
+
+    # Direct numeric edit (no formula on cells) also derives before downstream formula evaluates.
+    def _set_direct_cells() -> None:
+        params = proj.data["components"][0]["parameters"]
+        params.pop("_expressions", None)
+        params["cells"] = 4.0
+
+    api.edit_project("Direct cells", _set_direct_cells)
+    assert math.isclose(proj.data["components"][0]["mass"], 200.0)
+    assert math.isclose(proj.data["components"][1]["mass"], 40.0)
+
+    # Cycle passing through a deriver rolls back input and restores matching derived value.
+    proj.data["components"][0]["parameters"]["_expressions"] = {"cells": "= pack.mass / 50 + 1"}
+    diagnostics = api.recompute_project_expressions()
+    assert any("Circular" in d["message"] for d in diagnostics)
+    assert math.isclose(proj.data["components"][0]["parameters"]["cells"], 4.0)
+    assert math.isclose(proj.data["components"][0]["mass"], 200.0)
