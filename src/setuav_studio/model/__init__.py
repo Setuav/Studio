@@ -16,6 +16,8 @@ from setuav_studio.model.expression import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
     get_expression,
+    rewrite_project_expression_identifiers,
+    rewrite_root_identifiers,
     set_expression,
 )
 from setuav_studio.model.mass import (
@@ -30,13 +32,18 @@ from setuav_studio.model.parameter import (
 )
 from setuav_studio.model.scope import (
     DotDict,
+    build_project_base_scope,
     build_universal_scope,
+    build_universal_scope_with_diagnostics,
     to_dot_dict,
 )
 from setuav_studio.model.symbol import (
+    ComponentSymbolMap,
+    build_component_symbol_map,
     build_evaluation_context,
     create_model_for_component,
     get_available_symbols_metadata,
+    slugify_identifier,
 )
 from setuav_studio.solver.base import SolverConfig
 
@@ -44,6 +51,7 @@ __all__ = [
     "Atmosphere",
     "Component",
     "ComponentMassProperties",
+    "ComponentSymbolMap",
     "ConstraintChecker",
     "ConstraintResult",
     "DotDict",
@@ -57,11 +65,17 @@ __all__ = [
     "ParameterResolver",
     "SolverConfig",
     "Vector3",
+    "build_component_symbol_map",
     "build_evaluation_context",
+    "build_project_base_scope",
     "build_universal_scope",
+    "build_universal_scope_with_diagnostics",
     "create_model_for_component",
     "get_available_symbols_metadata",
     "get_expression",
+    "rewrite_project_expression_identifiers",
+    "rewrite_root_identifiers",
     "set_expression",
+    "slugify_identifier",
     "to_dot_dict",
 ]
