@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from copy import deepcopy
 from typing import Any, cast
 
 from setuav_studio.model.mass import (
@@ -165,12 +164,9 @@ def get_component_intrinsic_mass_g(component: dict[str, Any]) -> float:
 
 
 def resolve_aircraft_total_mass_g(project_or_components: Any) -> float:
-    """Return total aircraft mass in grams using effective (instance-resolved) component masses."""
+    """Return total aircraft mass in grams across all project components."""
     components = get_all_components(project_or_components)
-    by_id = {str(c["id"]): c for c in components if c.get("id")}
-    return sum(
-        get_component_intrinsic_mass_g(_effective_component(comp, by_id)) for comp in components
-    )
+    return sum(get_component_intrinsic_mass_g(comp) for comp in components)
 
 
 def resolve_component_intrinsic_mass_properties(
@@ -195,24 +191,23 @@ def resolve_component_intrinsic_mass_properties(
             component_type="",
         )
 
-    effective = _effective_component(comp, by_id)
-    comp_type = str(effective.get("type") or "").lower()
-    mass_g = get_component_intrinsic_mass_g(effective)
+    comp_type = str(comp.get("type") or "").lower()
+    mass_g = get_component_intrinsic_mass_g(comp)
     mass_kg = mass_g / 1000.0
 
-    cg_local_mm = resolve_component_local_cg(effective)
+    cg_local_mm = resolve_component_local_cg(comp)
     cg_local_m: Vector3 = (
         cg_local_mm[0] / 1000.0,
         cg_local_mm[1] / 1000.0,
         cg_local_mm[2] / 1000.0,
     )
-    inertia_local = resolve_component_local_inertia(effective, mass_kg)
+    inertia_local = resolve_component_local_inertia(comp, mass_kg)
 
     world_pos_mm, world_rot_deg = resolve_world_transform(comp_id, by_id)
     rx, ry, rz = rotate_vector(cg_local_mm, world_rot_deg)
     cg_body_mm = (world_pos_mm[0] + rx, world_pos_mm[1] + ry, world_pos_mm[2] + rz)
 
-    mirror_frame = _mirror_frame(effective, by_id)
+    mirror_frame = _mirror_frame(comp, by_id)
     if mirror_frame is not None:
         # The mass covers both halves; the mirrored half is reflected in the XZ
         # plane of the frame the surface is attached in, so the pair's CG lies in
@@ -231,7 +226,7 @@ def resolve_component_intrinsic_mass_properties(
 
     return ComponentMassProperties(
         component_id=comp_id,
-        component_name=str(effective.get("name") or comp_id),
+        component_name=str(comp.get("name") or comp_id),
         mass_kg=mass_kg,
         cg_local_m=cg_local_m,
         cg_body_m=cg_body_m,
@@ -488,7 +483,7 @@ def _mirror_frame(
         if str(geometry.get("symmetry_mode") or "auto").lower() == "none":
             return None
         surface = by_id.get(str(component.get("attach_to") or ""))
-        if surface is None or not _geometry_mirror(_effective_component(surface, by_id)):
+        if surface is None or not _geometry_mirror(surface):
             return None
         mirrored = surface
     frame_id = str(mirrored.get("attach_to") or "")
@@ -501,27 +496,3 @@ def _geometry_mirror(component: dict[str, Any]) -> bool:
     parameters = component.get("parameters")
     geometry = parameters.get("geometry") if isinstance(parameters, dict) else None
     return isinstance(geometry, dict) and bool(geometry.get("mirror"))
-
-
-def _effective_component(
-    component: dict[str, Any],
-    by_id: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
-    if component.get("kind") != "instance":
-        return deepcopy(component)
-    source_id = str(component.get("source") or "")
-    source = by_id.get(source_id)
-    if source is None:
-        return deepcopy(component)
-    effective = deepcopy(source)
-    for key in ("id", "name", "kind", "source", "attach_to", "derivation"):
-        if key in component:
-            effective[key] = deepcopy(component[key])
-    if "mass" in component:
-        effective["mass"] = component["mass"]
-    overrides = component.get("parameter_overrides")
-    if isinstance(overrides, dict):
-        parameters = effective.setdefault("parameters", {})
-        if isinstance(parameters, dict):
-            parameters.update(overrides)
-    return effective

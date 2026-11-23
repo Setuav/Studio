@@ -299,8 +299,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
     def _load_component(self, component: dict[str, Any]) -> None:
         self._loading = True
         try:
-            source = self._source_component(component)
-            mass = _number(component.get("mass", source.get("mass", 0.0)))
+            mass = _number(component.get("mass", 0.0))
             _show(self.mass_g, mass, get_expression(component, "mass"))
 
             cg = resolve_component_local_cg(component)
@@ -363,13 +362,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         if viewport is not None:
             viewport.update_component_cg()
             viewport.update_aircraft_cg()
-
-    def _source_component(self, component: dict[str, Any]) -> dict[str, Any]:
-        if component.get("kind") != "instance" or self._api.project is None:
-            return component
-        source_id = component.get("source")
-        source = self._api.project.get_component(str(source_id or ""))
-        return source if source is not None else component
 
 
 def _number(value: object) -> float:

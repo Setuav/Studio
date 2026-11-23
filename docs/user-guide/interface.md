@@ -57,8 +57,8 @@ Every component is drawn in its own color, gray by default. To change it,
 open the component's **Transform** tab and click the color under
 **Appearance**, or right-click the component in the Project Explorer and
 choose **Set Color…**. **Default** or **Reset Color** returns to gray. A
-mirrored half and an instance are drawn in the color of the component they
-copy. The monochrome button of the 3D Viewer draws every part in one color.
+mirrored half is drawn in the color of the component it copies. The monochrome
+button of the 3D Viewer draws every part in one color.
 
 ## Analyses
 

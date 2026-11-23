@@ -17,23 +17,15 @@ from tests.core.test_viewport import MockRenderer
 
 
 class ComponentColorModelTests(unittest.TestCase):
-    def test_default_own_and_instance_colors(self) -> None:
+    def test_default_and_own_component_colors(self) -> None:
         wing = {"id": "wing", "color": "#3366cc"}
-        copy = {"id": "copy", "kind": "instance", "source": "wing", "color": "#000000"}
         plain = {"id": "plain"}
-        components = {"wing": wing, "copy": copy, "plain": plain}
+        components = {"wing": wing, "plain": plain}
 
         self.assertEqual(component_color(plain, components), DEFAULT_COMPONENT_COLOR)
         self.assertEqual(component_color(wing, components), "#3366CC")
-        self.assertEqual(component_color(copy, components), "#3366CC")
         with self.assertRaises(ValueError):
             component_color({"id": "bad", "color": "red"}, components)
-
-        # Cyclic instance references must raise ValueError instead of RecursionError.
-        cyc_a = {"id": "a", "kind": "instance", "source": "b"}
-        cyc_b = {"id": "b", "kind": "instance", "source": "a"}
-        with self.assertRaises(ValueError):
-            component_color(cyc_a, {"a": cyc_a, "b": cyc_b})
 
 
 class SurfaceColorTests(unittest.TestCase):

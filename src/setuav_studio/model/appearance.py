@@ -1,7 +1,7 @@
 """The display color of project components.
 
 A component may carry ``"color": "#RRGGBB"``; without one it is drawn in
-:data:`DEFAULT_COMPONENT_COLOR`. An instance is drawn in its source's color.
+:data:`DEFAULT_COMPONENT_COLOR`.
 """
 
 from __future__ import annotations
@@ -27,28 +27,16 @@ def hex_to_rgb(color: str) -> tuple[float, float, float]:
     return (int(color[1:3], 16) / 255.0, int(color[3:5], 16) / 255.0, int(color[5:7], 16) / 255.0)
 
 
-def component_color(component: Mapping[str, Any], components: Mapping[str, Any]) -> str:
-    """The ``#RRGGBB`` color ``component`` is drawn in.
-
-    ``components`` maps component IDs to components, for an instance's source.
-    """
-    current: Mapping[str, Any] = component
-    seen: set[int] = {id(current)}
-    while current.get("kind") == "instance":
-        source = components.get(str(current.get("source") or ""))
-        if not isinstance(source, Mapping):
-            break
-        if id(source) in seen:
-            raise ValueError(
-                f"Component {component.get('id')!r} has a cyclic instance source reference"
-            )
-        seen.add(id(source))
-        current = source
-    color = current.get("color")
+def component_color(
+    component: Mapping[str, Any],
+    _components: Mapping[str, Any] | None = None,
+) -> str:
+    """The ``#RRGGBB`` color ``component`` is drawn in."""
+    color = component.get("color")
     if color is None:
         return DEFAULT_COMPONENT_COLOR
     if not is_hex_color(color):
-        raise ValueError(f"Component {current.get('id')!r} has an invalid color {color!r}")
+        raise ValueError(f"Component {component.get('id')!r} has an invalid color {color!r}")
     return str(color).upper()
 
 
