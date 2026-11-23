@@ -104,14 +104,14 @@ jobs:
           SETUAV_DESKTOP_SMOKE_TIMEOUT: "180"
         shell: bash
         run: |
-          python scripts/verify_desktop_resources.py dist/setuav-studio
+          uv run --locked --group desktop python scripts/verify_desktop_resources.py dist/setuav-studio
           python scripts/desktop_startup_smoke_test.py dist/setuav-studio
       - name: Verify macOS bundle
         if: runner.os == 'macOS'
         env:
           SETUAV_DESKTOP_SMOKE_TIMEOUT: "180"
         run: |
-          python scripts/verify_desktop_resources.py "dist/Setuav Studio.app"
+          uv run --locked --group desktop python scripts/verify_desktop_resources.py "dist/Setuav Studio.app"
           python scripts/desktop_startup_smoke_test.py "dist/Setuav Studio.app"
       - name: Package Linux release
         if: runner.os == 'Linux'

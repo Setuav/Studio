@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+from PyInstaller.archive.readers import CArchiveReader
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_PACKAGE_ROOT = PROJECT_ROOT / "src" / "setuav_studio"
 RESOURCE_DIRECTORIES = ("assets", "data")
 # Source-only folders inside the resource directories: the icon generator.
 SOURCE_ONLY = (Path("assets") / "icons" / "tools",)
+# Packages the plugins import on first use, so startup never touches them.
+FIRST_USE_MODULES = ("aerosandbox", "aerosandbox.numpy", "neuralfoil", "casadi")
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -23,6 +28,18 @@ def _internal_roots(bundle: Path) -> tuple[Path, ...]:
         contents = bundle / "Contents"
         return contents / "Frameworks", contents / "Resources"
     return (bundle / "_internal",)
+
+
+def _executable_path(bundle: Path) -> Path:
+    if bundle.suffix == ".app":
+        return bundle / "Contents" / "MacOS" / "setuav-studio"
+    suffix = ".exe" if os.name == "nt" else ""
+    return bundle / f"setuav-studio{suffix}"
+
+
+def _bundled_modules(bundle: Path) -> set[str]:
+    archive = CArchiveReader(str(_executable_path(bundle)))
+    return set(archive.open_embedded_archive("PYZ.pyz").toc)
 
 
 def main() -> int:
@@ -59,6 +76,10 @@ def main() -> int:
         f"plugins/{resource}"
         for resource in sorted(expected_plugin_resources)
         if not any((root / "plugins" / resource).is_file() for root in internal_roots)
+    )
+    bundled_modules = _bundled_modules(bundle)
+    missing.extend(
+        f"module {module}" for module in FIRST_USE_MODULES if module not in bundled_modules
     )
     if missing:
         formatted = "\n  - ".join(missing)

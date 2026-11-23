@@ -118,6 +118,6 @@ jobs:
       - name: Build one-folder application
         run: uv run --locked --group desktop pyinstaller --noconfirm --clean packaging/setuav-studio.spec
       - name: Verify bundled resources
-        run: python scripts/verify_desktop_resources.py dist/setuav-studio
+        run: uv run --locked --group desktop python scripts/verify_desktop_resources.py dist/setuav-studio
       - name: Verify desktop startup
         run: xvfb-run -a python scripts/desktop_startup_smoke_test.py dist/setuav-studio
