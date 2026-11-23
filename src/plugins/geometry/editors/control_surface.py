@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.style.theme import tokens
@@ -81,9 +81,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.addWidget(scroll)
 
-        from setuav_studio.units import get_unit_manager
-
-        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
 
         self_ref = weakref.ref(self)
 
@@ -106,7 +104,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             return
         self.load_component(self._component)
 
-    def _on_units_changed(self) -> None:
+    def _on_units_changed(self, _payload: object = None) -> None:
         if self._component is not None:
             self._load_properties()
 

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api import StudioEvents
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
@@ -94,10 +95,25 @@ class DriverPlanformTable(QTableWidget):
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.setItem(row, 2, val_item)
 
-        from setuav_studio.units import get_unit_manager
+        if self._api is not None and hasattr(self._api, "subscribe"):
+            self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
+        else:
+            from setuav_studio.units import get_unit_manager
 
-        get_unit_manager().units_changed.connect(self._refresh_table_widgets)
+            get_unit_manager().units_changed.connect(self._on_units_changed)
+            self.destroyed.connect(self._disconnect_units_changed)
         self._update_checkbox_states()
+
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._on_units_changed)
+        except (RuntimeError, TypeError):
+            pass
+
+    def _on_units_changed(self, _payload: object = None) -> None:
+        self._refresh_table_widgets()
 
     def set_parameters(
         self,

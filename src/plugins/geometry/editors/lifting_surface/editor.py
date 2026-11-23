@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import (
@@ -85,9 +85,7 @@ class LiftingSurfaceEditor(
         self._create_airfoil_shaping_section()
         self._content_layout.addStretch()
 
-        from setuav_studio.units import get_unit_manager
-
-        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self._api.subscribe(StudioEvents.UNITS_CHANGED, self._on_units_changed)
 
         self_ref = weakref.ref(self)
 
@@ -110,7 +108,7 @@ class LiftingSurfaceEditor(
             return
         self._load_component(preserve_selection=True)
 
-    def _on_units_changed(self) -> None:
+    def _on_units_changed(self, _payload: object = None) -> None:
         self._populate_sections()
         self._populate_control_surfaces()
         if self._control_surface_index >= 0:
