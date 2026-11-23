@@ -289,13 +289,9 @@ def _selected_propulsor(api: StudioAPI, selection: dict[str, Any]) -> dict[str, 
 
 def _derive_propulsor_mass(component: dict[str, Any], _components: Mapping[str, Any]) -> None:
     """Set the propulsor's mass to its motor and propeller masses."""
-    if component.get("kind") == "instance":
-        return
     component["mass"] = propulsor_mass(component["parameters"])
 
 
 def _derive_battery_mass(component: dict[str, Any], _components: Mapping[str, Any]) -> None:
     """Set the battery's mass to its pack mass."""
-    if component.get("kind") == "instance":
-        return
     component["mass"] = battery_pack(component["parameters"]).mass_g

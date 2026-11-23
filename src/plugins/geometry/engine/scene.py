@@ -45,15 +45,11 @@ def build_project_geometry(
     world_matrix = _WorldMatrixResolver(items)
     lofts: list[LoftGeometry] = []
     for item_id, item in items.items():
-        source = _geometry_source(item, items)
-        if source is None:
-            continue
-        controls = _child_control_surfaces(item, source, item_id, items)
+        controls = _child_control_surfaces(item, item_id, items)
         _append_component_geometry(
             lofts,
             item_id,
             item,
-            source,
             controls,
             providers,
             world_matrix,
@@ -62,8 +58,7 @@ def build_project_geometry(
 
     envelopes: list[EnvelopeWireGeometry] = []
     for item_id, item in items.items():
-        source = _geometry_source(item, items) or item
-        env_geom = _build_component_envelope_geometry(item_id, item, source, world_matrix, items)
+        env_geom = _build_component_envelope_geometry(item_id, item, world_matrix, items)
         if env_geom is not None:
             envelopes.append(env_geom)
 
@@ -105,52 +100,10 @@ class _WorldMatrixResolver:
             if isinstance(target_id, str)
             else identity_matrix()
         )
-        local = self._local_matrix(item)
+        local = transform_matrix(item.get("transform"))
         result = multiply_matrix(target, local)
         self.cache[item_id] = result
         return result
-
-    def _local_matrix(self, item: dict[str, Any]) -> Matrix4:
-        local = transform_matrix(item.get("transform"))
-        if item.get("kind") != "instance":
-            return local
-        source_id = item.get("source")
-        source = self.items.get(source_id) if isinstance(source_id, str) else None
-        source_transform = (
-            transform_matrix(source.get("transform"))
-            if isinstance(source, dict)
-            else identity_matrix()
-        )
-        derivation = derivation_matrix(item.get("derivation"))
-        return multiply_matrix(local, multiply_matrix(derivation, source_transform))
-
-
-def _geometry_source(
-    item: dict[str, Any],
-    items: dict[str, dict[str, Any]],
-) -> dict[str, Any] | None:
-    source = deepcopy(item)
-    if item.get("kind") != "instance":
-        return source
-    source_id = item.get("source")
-    candidate = items.get(source_id) if isinstance(source_id, str) else None
-    if not isinstance(candidate, dict):
-        return None
-    source = deepcopy(candidate)
-    overrides = item.get("parameter_overrides")
-    if isinstance(overrides, dict):
-        parameters = source.get("parameters")
-        if not isinstance(parameters, dict):
-            parameters = {}
-            source["parameters"] = parameters
-        _merge(parameters, overrides)
-    return source
-
-
-def _is_xz_mirror(derivation: Any) -> bool:
-    if not isinstance(derivation, dict) or derivation.get("type") != "mirror":
-        return False
-    return derivation.get("plane", "XZ") in ("XZ", "1", None)
 
 
 def _mirrored_deflection(control: dict[str, Any]) -> float | None:
@@ -183,23 +136,16 @@ def _mirrored_controls(controls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _child_control_surfaces(
     item: dict[str, Any],
-    source: dict[str, Any],
     item_id: str,
     items: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    if source.get("type") != "org.setuav.core:lifting-surface":
+    if item.get("type") != "org.setuav.core:lifting-surface" or not item_id:
         return []
-    owner_id = item.get("source") if item.get("kind") == "instance" else item_id
-    if not isinstance(owner_id, str) or not owner_id:
-        return []
-    controls = [
+    return [
         control
         for child in items.values()
-        if (control := _child_control_surface(child, owner_id)) is not None
+        if (control := _child_control_surface(child, item_id)) is not None
     ]
-    if _is_xz_mirror(item.get("derivation")):
-        return _mirrored_controls(controls)
-    return controls
 
 
 def _child_control_surface(
@@ -226,27 +172,22 @@ def _append_component_geometry(
     lofts: list[LoftGeometry],
     item_id: str,
     item: dict[str, Any],
-    source: dict[str, Any],
     controls: list[dict[str, Any]],
     providers: dict[str, GeometryProvider],
     world_matrix: Callable[[str], Matrix4],
 ) -> None:
-    component_type = source.get("type")
+    component_type = item.get("type")
     provider = providers.get(component_type) if isinstance(component_type, str) else None
     if provider is None:
         return
     matrix = world_matrix(item_id)
-    source_lofts = provider(source, controls)
-    source_id = str(source["id"])
-    lofts.extend(
-        _transform_loft(loft, matrix, item_id, source_id, item_id) for loft in source_lofts
-    )
-    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
+    source_lofts = provider(item, controls)
+    lofts.extend(_transform_loft(loft, matrix, item_id, item_id, item_id) for loft in source_lofts)
+    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(item):
         _append_mirrored_geometry(
             lofts,
             item_id,
             item,
-            source,
             controls,
             provider,
             world_matrix,
@@ -265,7 +206,6 @@ def _append_mirrored_geometry(
     lofts: list[LoftGeometry],
     item_id: str,
     item: dict[str, Any],
-    source: dict[str, Any],
     controls: list[dict[str, Any]],
     provider: GeometryProvider,
     world_matrix: Callable[[str], Matrix4],
@@ -278,9 +218,9 @@ def _append_mirrored_geometry(
         target_matrix,
         multiply_matrix(mirror, local_matrix),
     )
-    mirrored_lofts = provider(source, _mirrored_controls(controls))
+    mirrored_lofts = provider(item, _mirrored_controls(controls))
     lofts.extend(
-        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror", str(source["id"]), item_id)
+        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror", item_id, item_id)
         for loft in mirrored_lofts
     )
 
@@ -312,14 +252,6 @@ def _transform_loft(
     )
 
 
-def _merge(target: dict[str, Any], overrides: dict[str, Any]) -> None:
-    for key, value in overrides.items():
-        if isinstance(value, dict) and isinstance(target.get(key), dict):
-            _merge(target[key], value)
-        else:
-            target[key] = deepcopy(value)
-
-
 def _build_lifting_surface_root_stubs(
     items: dict[str, Any],
     providers: dict[str, GeometryProvider],
@@ -340,12 +272,12 @@ def _build_lifting_surface_root_stubs(
         for item_id, item in items.items():
             if item.get("attach_to") != fuselage_id:
                 continue
-            wing = _lifting_surface_root_geometry(item, items, provider)
+            wing = _lifting_surface_root_geometry(item, provider)
             if wing is None:
                 continue
-            source, root_section = wing
+            root_section = wing
             matrices = [world_matrix_fn(item_id)]
-            if _is_bilateral(source):
+            if _is_bilateral(item):
                 matrices.append(_mirrored_root_matrix(item, world_matrix_fn))
             for matrix in matrices:
                 stub = _build_root_stub(sections, fuselage_id, root_section, matrix)
@@ -355,15 +287,14 @@ def _build_lifting_surface_root_stubs(
 
 
 def _lifting_surface_root_geometry(
-    item: dict[str, Any], items: dict[str, Any], provider: GeometryProvider
-) -> tuple[dict[str, Any], Section] | None:
-    source = _geometry_source(item, items)
-    if source is None or source.get("type") != "org.setuav.core:lifting-surface":
+    item: dict[str, Any], provider: GeometryProvider
+) -> Section | None:
+    if item.get("type") != "org.setuav.core:lifting-surface":
         return None
-    lofts = provider(source, [])
+    lofts = provider(item, [])
     if not lofts or not lofts[0].sections:
         return None
-    return source, lofts[0].sections[0]
+    return lofts[0].sections[0]
 
 
 def _fuselage_items(items: dict[str, Any]) -> list[dict[str, Any]]:
@@ -539,25 +470,23 @@ def _project_point_to_fuselage(
 def _build_component_envelope_geometry(
     item_id: str,
     item: dict[str, Any],
-    source: dict[str, Any],
     world_matrix: Callable[[str], Matrix4],
     items: dict[str, dict[str, Any]],
 ) -> EnvelopeWireGeometry | None:
-    """Build the wireframe of the envelope stored on the component's geometry source.
+    """Build the wireframe of the envelope stored on the component.
 
     Geometry envelopes are kept on the component by ``sync_component_envelope``;
     the wireframe draws exactly the envelope that mass properties are derived from.
     """
-    component_type = source.get("type")
+    component_type = item.get("type")
     if component_type not in GEOMETRY_COMPONENT_TYPES:
         return None
-    envelope = source.get("envelope")
+    envelope = item.get("envelope")
     if not isinstance(envelope, dict) or not envelope:
         return None
 
     target_id = _attach_target(item)
-    target_item = items.get(str(target_id)) if target_id else None
-    target_source = _geometry_source(target_item, items) if target_item else None
+    target_source = items.get(str(target_id)) if target_id else None
 
     matrix = world_matrix(item_id)
     lines: list[tuple[Point3D, Point3D]] = []
@@ -565,7 +494,7 @@ def _build_component_envelope_geometry(
     cs_deflection = 0.0
     cs_geometry: dict[str, Any] = {}
     if component_type == "org.setuav.core:control-surface":
-        params = source.get("parameters") if isinstance(source, dict) else {}
+        params = item.get("parameters")
         geom = params.get("geometry") if isinstance(params, dict) else {}
         if isinstance(geom, dict):
             cs_geometry = geom
@@ -579,9 +508,9 @@ def _build_component_envelope_geometry(
     _append_envelope_lines(lines, env_to_draw, matrix)
 
     if component_type == "org.setuav.core:lifting-surface":
-        _append_lifting_surface_tip_envelope_lines(lines, source, matrix)
+        _append_lifting_surface_tip_envelope_lines(lines, item, matrix)
 
-    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
+    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(item):
         target_frame_id = _attach_target(item)
         target_matrix = (
             world_matrix(target_frame_id) if isinstance(target_frame_id, str) else identity_matrix()
@@ -593,7 +522,7 @@ def _build_component_envelope_geometry(
             multiply_matrix(mirror, local_matrix),
         )
         _append_envelope_lines(lines, envelope, mirrored_matrix)
-        _append_lifting_surface_tip_envelope_lines(lines, source, mirrored_matrix)
+        _append_lifting_surface_tip_envelope_lines(lines, item, mirrored_matrix)
 
     mirrored_deflection = _mirrored_deflection(cs_geometry)
     if (
@@ -602,13 +531,11 @@ def _build_component_envelope_geometry(
         and _is_bilateral(target_source)
         and mirrored_deflection is not None
     ):
-        outer_target_id = _attach_target(target_item) if target_item else None
+        outer_target_id = _attach_target(target_source)
         pp_matrix = (
             world_matrix(outer_target_id) if isinstance(outer_target_id, str) else identity_matrix()
         )
-        target_local_matrix = (
-            transform_matrix(target_item.get("transform")) if target_item else identity_matrix()
-        )
+        target_local_matrix = transform_matrix(target_source.get("transform"))
         cs_local_matrix = transform_matrix(item.get("transform"))
         mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
         mirrored_matrix = multiply_matrix(

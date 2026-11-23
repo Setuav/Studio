@@ -163,18 +163,14 @@ def _derive_envelope(component: dict[str, Any], components: Mapping[str, dict[st
 def _derive_lifting_surface(
     component: dict[str, Any], components: Mapping[str, dict[str, Any]]
 ) -> None:
-    """Build the profiles from the wing's sections, then derive its envelope.
-
-    An instance draws its source's geometry and has no sections of its own.
-    """
+    """Build the profiles from the wing's sections, then derive its envelope."""
     from setuav_studio.utilities.transform import get_local_transform
 
     from .engine.lifting_surface_layout import derive_profiles
 
-    if component.get("kind") != "instance":
-        geometry = component["parameters"]["geometry"]
-        (_x, y_offset, _z), _rotation = get_local_transform(component)
-        derive_profiles(geometry, symmetric=geometry.get("mirror") is True, y_offset=y_offset)
+    geometry = component["parameters"]["geometry"]
+    (_x, y_offset, _z), _rotation = get_local_transform(component)
+    derive_profiles(geometry, symmetric=geometry.get("mirror") is True, y_offset=y_offset)
     _derive_envelope(component, components)
 
 

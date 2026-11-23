@@ -93,22 +93,18 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         te_deflected_z = cs_loft.sections[0].points[te_idx][2]
         self.assertLess(te_deflected_z, te_neutral_z - 5.0)
 
-        # Test Mirrored Instance (anti-symmetric roll deflection for aileron)
+        # Test Mirrored Bilateral Wing (anti-symmetric roll deflection for aileron)
+        bilateral_wing = deepcopy(wing_component)
+        bilateral_wing["parameters"]["geometry"]["mirror"] = True
         proj_data = {
             "components": [
-                wing_component,
+                bilateral_wing,
                 {
                     "kind": "component",
                     "id": "aileron_1",
                     "type": "org.setuav.core:control-surface",
                     "attach_to": "test-wing",
                     "parameters": {"geometry": cs_geom},
-                },
-                {
-                    "kind": "instance",
-                    "id": "test-wing-mirrored",
-                    "source": "test-wing",
-                    "derivation": {"type": "mirror", "plane": "XZ"},
                 },
             ]
         }
@@ -122,7 +118,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             loft for loft in scene_geom.lofts if loft.component_id == "test-wing:aileron_1"
         )
         cs_mirror = next(
-            loft for loft in scene_geom.lofts if loft.component_id == "test-wing-mirrored:aileron_1"
+            loft for loft in scene_geom.lofts if loft.component_id == "test-wing:mirror:aileron_1"
         )
 
         te_src_z = max(cs_source.sections[0].points, key=lambda p: p[0])[2]
