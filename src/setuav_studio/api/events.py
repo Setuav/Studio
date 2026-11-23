@@ -22,7 +22,6 @@ class StudioEvents(StrEnum):
     GEOMETRY_VIEWER_SETTINGS_CHANGED = "geometry.viewer.settings.changed"
 
     # Analysis & Results
-    ANALYSIS_PLOT_UPDATED = "analysis.plot_updated"
     ANALYSIS_PLOT_ACTION = "analysis.plot_action"
     ANALYSIS_ADD_TO_VIEW = "analysis.add_to_view"
 

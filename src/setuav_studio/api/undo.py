@@ -128,6 +128,8 @@ class _ProjectEditCommand(QUndoCommand):
         for path, old_val, new_val in items:
             val = new_val if forward else old_val
             apply_diff(self._project.data, path, val)
+        if any(path[:1] == ("solver_results",) for path, _, _ in items):
+            self._project.discard_cached_solver_results()
 
 
 __all__ = [

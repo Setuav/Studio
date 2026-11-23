@@ -56,7 +56,7 @@ class ResultPanel(QWidget):
         self._init_ui()
         self._api.on_selection_changed(self._on_selection_changed)
         self._api.on_project_changed(self._on_project_changed)
-        self._api.subscribe(str(StudioEvents.ANALYSIS_PLOT_UPDATED), self._on_plot_updated)
+        self._api.on_project_content_changed(self._on_project_content_changed)
         self._api.subscribe(str(StudioEvents.ANALYSIS_PLOT_ACTION), self._on_plot_action)
         self._api.subscribe(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), self._on_add_to_view)
 
@@ -305,26 +305,25 @@ class ResultPanel(QWidget):
                 return widget
         return None
 
-    def _on_plot_updated(self, payload: Any) -> None:
-        """Handle plot definition modifications from property editors."""
-        if not isinstance(payload, dict):
-            return
-        result_id = str(payload.get("result_id", ""))
-        plot_id = str(payload.get("plot_id", ""))
-        key = f"plot:{result_id}:{plot_id}"
-        if key in self._panes:
-            dock = self._panes[key]
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        """Redraw the open plots from the project, after an edit or its undo."""
+        for key, dock in self._panes.items():
+            kind, _, ids = key.partition(":")
+            if kind != "plot":
+                continue
+            result_id, _, plot_id = ids.partition(":")
             res = self._api.get_solver_result(result_id)
-            if res and plot_id in res.plots:
-                plot = res.plots[plot_id]
-                dock.setWindowTitle(plot.title or plot.id)
-                chart = dock.widget()
-                if isinstance(chart, AnalysisChartPanel):
-                    table = res.tables.get(plot.table_id)
-                    chart._current_plot = plot
-                    if table is not None:
-                        chart._current_table = table
-                    chart.reload_plot()
+            if res is None or plot_id not in res.plots:
+                continue
+            plot = res.plots[plot_id]
+            dock.setWindowTitle(plot.title or plot.id)
+            chart = dock.widget()
+            if isinstance(chart, AnalysisChartPanel):
+                table = res.tables.get(plot.table_id)
+                chart._current_plot = plot
+                if table is not None:
+                    chart._current_table = table
+                chart.reload_plot()
 
     def _handle_reset_action(
         self,

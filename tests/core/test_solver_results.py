@@ -589,6 +589,79 @@ def test_analysis_plot_editor_updates_default_label_when_y_column_changes() -> N
         editor.deleteLater()
 
 
+def test_analysis_plot_edits_are_undoable() -> None:
+    from PySide6.QtWidgets import QLineEdit
+
+    api = StudioAPI()
+    project = ProjectDocument(Path("plot.json"), "json", {"components": []})
+    api._host.set_project(project)
+    table = TableDefinition(
+        id="sweep",
+        columns=[
+            TableColumn(key="alpha", label="Angle of Attack"),
+            TableColumn(key="cl", label="Lift Coefficient"),
+        ],
+        data={"alpha": [0.0, 2.0], "cl": [0.1, 0.3]},
+    )
+    plot = PlotDefinition(
+        id="polar",
+        title="Polar",
+        table_id="sweep",
+        x_column="alpha",
+        series=[PlotSeriesDef(y_column="cl", label="Lift")],
+    )
+    result = SolverResult(
+        solver_id="org.setuav.aero",
+        config=SolverConfig(solver_id="org.setuav.aero"),
+        tables={"sweep": table},
+        plots={"polar": plot},
+    )
+    project.add_solver_result(result)
+    panel = ResultPanel(api)
+    panel.show_plot(result, plot, table)
+    editor = AnalysisPlotPropertyEditor(
+        api, {"kind": "analysis_plot", "result_id": result.id, "plot_id": "polar"}
+    )
+
+    def stored() -> PlotDefinition:
+        current = api.get_solver_result(result.id)
+        assert current is not None
+        return current.plots["polar"]
+
+    def label_edit() -> QLineEdit:
+        layout_item = editor._series_layout.itemAt(0)
+        card = layout_item.widget() if layout_item is not None else None
+        assert card is not None
+        return card.findChildren(QLineEdit)[0]
+
+    try:
+        editor._set_property_value(editor.details_table, "title", "Renamed", editable=True)
+        assert stored().title == "Renamed"
+        assert project.data["solver_results"][result.id]["plots"]["polar"]["title"] == "Renamed"
+
+        label_edit().setText("Lift Coefficient CL")
+        assert stored().series[0].label == "Lift"
+        label_edit().editingFinished.emit()
+        assert stored().series[0].label == "Lift Coefficient CL"
+
+        api.undo()
+        assert stored().series[0].label == "Lift"
+        assert label_edit().text() == "Lift"
+
+        api.undo()
+        assert stored().title == "Polar"
+        assert editor._property_text(editor.details_table, 0) == "Polar"
+        assert panel._panes[f"plot:{result.id}:polar"].windowTitle() == "Polar"
+        assert not api._host.undo_stack.canUndo()
+
+        api.redo()
+        assert stored().title == "Renamed"
+        assert panel._panes[f"plot:{result.id}:polar"].windowTitle() == "Renamed"
+    finally:
+        editor.deleteLater()
+        panel.deleteLater()
+
+
 def test_chart_panel_reload_syncs_x_combo_and_units() -> None:
     from setuav_studio.units import get_unit_manager
 

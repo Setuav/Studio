@@ -86,6 +86,10 @@ class ProjectDocument:
                 self._solver_results_cache[str(res_id)] = SolverResult.from_dict(res_data)
         return self._solver_results_cache
 
+    def discard_cached_solver_results(self) -> None:
+        """Rebuild the SolverResult objects from the project data on next access."""
+        self._solver_results_cache.clear()
+
     def add_solver_result(self, result: SolverResult) -> None:
         """Add or update a SolverResult in the project data."""
         self._solver_results_cache[result.id] = result
