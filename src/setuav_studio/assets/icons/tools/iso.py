@@ -1508,6 +1508,67 @@ def icon_manufacturing_hardware_catalog():
     return sc
 
 
+def icon_manufacturing_fits_cuts():
+    """Fits & Cuts: interlocking tongue-and-groove mating joint showing fit clearance."""
+    sc = Scene(fit=21.5, body="m")
+    # Back-left steel U-socket (bottom jaw, back spine, top jaw)
+    sc.box(-1.05, -0.82, -0.78, -0.05, 0.82, -0.32, "m", layer=0)
+    sc.box(-1.05, -0.82, -0.32, -0.52, 0.82, 0.32, "m", layer=0)
+    # Center sliding tenon (wing-yellow/gold) fitting into the socket with visible clearance
+    sc.box(-0.34, -0.78, -0.22, 0.98, 0.78, 0.22, "w", layer=1)
+    # Front-right flange of the mating tenon part
+    sc.box(0.45, -0.82, -0.78, 1.05, 0.82, 0.78, "w", layer=2)
+    # Top jaw of the steel U-socket rendered over the tenon
+    sc.box(-1.05, -0.82, 0.32, -0.05, 0.82, 0.78, "m", layer=3)
+    return sc
+
+
+def icon_manufacturing_fasteners_inserts():
+    """Fasteners & Inserts: an ISO 4762 cap screw paired beside a brass heat-set insert."""
+    sc = Scene((("z", -12),), fit=22.0, body="m")
+    # Back-left: steel socket-head cap screw
+    sx, sy = -0.68, -0.42
+    r_major, r_minor, pitch, length = 0.28, 0.21, 0.24, 1.35
+    rings = []
+    steps = int(length / (pitch / 2))
+    for i in range(steps + 1):
+        z = -length + i * pitch / 2
+        r = r_major if i % 2 else r_minor
+        rings.append(ring((sx, sy, z), "z", r, 20))
+    sc.loft(rings, "m", layer=0)
+    cylinder(sc, (sx, sy, 0.0), "z", 0.52, 0.48, "m", n=24, layer=1)
+    sc.face(ring((sx, sy, 0.485), "z", 0.27, 6), "k", layer=2)
+
+    # Front-right: brass heat-set insert with dual knurl bands and dark center bore
+    ix, iy = 0.56, 0.36
+    profile = [
+        (-1.10, 0.44),
+        (-0.88, 0.52),
+        (-0.82, 0.64),
+        (-0.56, 0.64),
+        (-0.50, 0.52),
+        (-0.34, 0.52),
+        (-0.28, 0.64),
+        (-0.02, 0.64),
+        (0.05, 0.56),
+    ]
+    sc.loft([ring((ix, iy, z), "z", r, 24) for z, r in profile], "u", layer=3)
+    sc.face(ring((ix, iy, 0.055), "z", 0.32, 24), "k", layer=4)
+    return sc
+
+
+def icon_manufacturing_cut_planes():
+    """Cut planes: a fuselage block sliced cleanly by an overhanging red cut plane."""
+    sc = Scene(fit=22.0, body="f")
+    # Rear half of the fuselage block
+    sc.box(-1.10, -0.68, -0.55, -0.14, 0.68, 0.55, "f", layer=0)
+    # Vivid red cut plane extending past the part silhouette
+    sc.box(-0.06, -1.05, -0.92, 0.06, 1.05, 0.92, "a", layer=1)
+    # Front half of the fuselage block
+    sc.box(0.14, -0.68, -0.55, 1.10, 0.68, 0.55, "f", layer=2)
+    return sc
+
+
 # --- 3D view ------------------------------------------------------------------
 CUBE = (-1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
 
