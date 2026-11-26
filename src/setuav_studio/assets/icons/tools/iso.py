@@ -1451,6 +1451,63 @@ def icon_manufacturing_printer():
     return sc
 
 
+def icon_manufacturing_hw_fastener():
+    """An ISO 4762 socket-head cap screw: threaded shank, round cap head, hex recess."""
+    sc = Scene((("y", 18), ("z", -20)), body="m")
+    r_major, r_minor, pitch, length = 0.30, 0.22, 0.22, 1.9
+    rings = []
+    steps = int(length / (pitch / 2))
+    for i in range(steps + 1):
+        z = -length + i * pitch / 2
+        r = r_major if i % 2 else r_minor
+        if z < -length + 0.25:
+            r *= max((z + length) / 0.25, 0.25)
+        rings.append(ring((0, 0, z), "z", r, 24))
+    sc.loft(rings, "m")
+    cylinder(sc, (0, 0, 0.0), "z", 0.56, 0.54, "m", n=24, layer=1)
+    sc.face(ring((0, 0, 0.545), "z", 0.30, 6), "k", layer=2)
+    return sc
+
+
+def icon_manufacturing_hw_insert():
+    """A brass heat-set insert: tapered pilot base, dual knurl bands, dark bore."""
+    sc = Scene(fit=21.0, body="u")
+    profile = [
+        (0.0, 0.56),
+        (0.28, 0.66),
+        (0.36, 0.80),
+        (0.68, 0.80),
+        (0.76, 0.66),
+        (0.96, 0.66),
+        (1.04, 0.80),
+        (1.36, 0.80),
+        (1.44, 0.72),
+    ]
+    rings = [ring((0, 0, z), "z", r, 24) for z, r in profile]
+    sc.loft(rings, "u", layer=0)
+    sc.face(ring((0, 0, 1.445), "z", 0.42, 24), "k", layer=1)
+    return sc
+
+
+def icon_manufacturing_hw_nut():
+    """An ISO 4032 hex nut: six-sided chamfered steel body with a dark center bore."""
+    sc = Scene((("z", -15),), fit=21.0, body="m")
+    sc.loft([ring((0, 0, 0.0), "z", 1.0, 6), ring((0, 0, 0.62), "z", 1.0, 6)], "m", layer=0)
+    sc.loft([ring((0, 0, 0.62), "z", 1.0, 6), ring((0, 0, 0.72), "z", 0.88, 6)], "m", layer=1)
+    sc.face(ring((0, 0, 0.725), "z", 0.48, 24), "k", layer=2)
+    return sc
+
+
+def icon_manufacturing_hardware_catalog():
+    """Hardware catalog: stacked steel catalog disks topped with a brass hex nut."""
+    sc = Scene(fit=21.5, body="m")
+    cylinder(sc, (0, 0, 0.0), "z", 1.02, 0.34, "c", n=32, layer=0)
+    cylinder(sc, (0, 0, 0.48), "z", 1.02, 0.34, "m", n=32, layer=1)
+    sc.loft([ring((0, 0, 0.94), "z", 0.72, 6), ring((0, 0, 1.38), "z", 0.72, 6)], "u", layer=2)
+    sc.face(ring((0, 0, 1.385), "z", 0.34, 24), "k", layer=3)
+    return sc
+
+
 # --- 3D view ------------------------------------------------------------------
 CUBE = (-1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
 
