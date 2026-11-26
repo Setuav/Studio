@@ -960,25 +960,25 @@ def icon_manufacturing_add_feature():
 
 
 def icon_manufacturing_generate():
-    """Printed layers with a play triangle in front: generate the parts."""
-    sc = Scene(fit=22.0)
-    for i in range(4):
-        z0 = i * 0.32
-        sc.box(-0.75 - 0.02 * i, -0.75, z0 + 0.1, 0.75, 0.75 + 0.02 * i, z0 + 0.32, "a")
-    d = 0.3
-    tri = [(-0.35, -1.35), (1.35, -0.3), (-0.35, 0.75)]
-    shift = (0.6, 0.6, 0.05)
-
-    def gp(u, v, w):
-        p = glyph_point(u, v, w)
-        return (p[0] + shift[0], p[1] + shift[1], p[2] + shift[2])
-
-    back = [gp(u, v, 0.4) for u, v in tri]
-    front = [gp(u, v, 0.4 + d) for u, v in tri]
-    for j in range(3):
-        k = (j + 1) % 3
-        sc.face([back[j], back[k], front[k], front[j]], "e", layer=2, two_sided=True)
-    sc.face(front, "e", layer=3, two_sided=True)
+    """Dark print bed with blue/red build layers and a green play badge."""
+    col = "#{:02x}{:02x}{:02x}".format(*COLORS["e"])
+    cx, cy, size = 17.8, 17.4, 5.0
+    pts = (
+        f"{cx - size * 0.55:.2f},{cy - size * 0.85:.2f} "
+        f"{cx + size * 0.92:.2f},{cy:.2f} "
+        f"{cx - size * 0.55:.2f},{cy + size * 0.85:.2f}"
+    )
+    overlay = (
+        f'<polygon points="{pts}" fill="{OUTLINE}" stroke="{OUTLINE}" '
+        'stroke-width="2.6" stroke-linejoin="round"/>'
+        f'<polygon points="{pts}" fill="{col}" stroke="{col}" '
+        'stroke-width="0.4" stroke-linejoin="round"/>'
+    )
+    sc = Scene(fit=21.2, body="m", overlay=overlay)
+    sc.box(-1.05, -1.05, -0.20, 1.05, 1.05, 0.0, "k", layer=0)
+    sc.box(-0.72, -0.72, 0.02, 0.72, 0.72, 0.40, "f", layer=1)
+    sc.box(-0.72, -0.72, 0.46, 0.72, 0.72, 0.84, "f", layer=1)
+    sc.box(-0.72, -0.72, 0.90, 0.72, 0.72, 1.28, "a", layer=2)
     return sc
 
 
@@ -1499,12 +1499,49 @@ def icon_manufacturing_hw_nut():
 
 
 def icon_manufacturing_hardware_catalog():
-    """Hardware catalog: stacked steel catalog disks topped with a brass hex nut."""
-    sc = Scene(fit=21.5, body="m")
-    cylinder(sc, (0, 0, 0.0), "z", 1.02, 0.34, "c", n=32, layer=0)
-    cylinder(sc, (0, 0, 0.48), "z", 1.02, 0.34, "m", n=32, layer=1)
-    sc.loft([ring((0, 0, 0.94), "z", 0.72, 6), ring((0, 0, 1.38), "z", 0.72, 6)], "u", layer=2)
-    sc.face(ring((0, 0, 1.385), "z", 0.34, 24), "k", layer=3)
+    """Hardware catalog: trio of a steel cap screw, brass heat-set insert, and steel hex nut."""
+    sc = Scene((("z", -14),), fit=22.4, body="m")
+
+    # Back-left: steel ISO 4762 socket-head cap screw
+    sx, sy, z0, length = -0.78, -0.58, -0.65, 1.35
+    steps = int(length / 0.12)
+    rings = []
+    for i in range(steps + 1):
+        z = z0 + i * (length / steps)
+        r = (0.28 if i % 2 else 0.20) * (0.65 if i == 0 else 1.0)
+        rings.append(ring((sx, sy, z), "z", r, 18))
+    sc.loft(rings, "m", layer=0)
+    z_head = z0 + length
+    cylinder(sc, (sx, sy, z_head), "z", 0.52, 0.46, "m", n=22, layer=1)
+    sc.face(ring((sx, sy, z_head + 0.465), "z", 0.27, 6), "k", layer=2)
+
+    # Back-right: brass heat-set insert with dual knurl bands
+    ix, iy, iz0, isc = 0.62, -0.52, -0.60, 1.08
+    profile = [
+        (0.0, 0.36),
+        (0.18, 0.42),
+        (0.24, 0.52),
+        (0.46, 0.52),
+        (0.52, 0.42),
+        (0.66, 0.42),
+        (0.72, 0.52),
+        (0.94, 0.52),
+        (1.00, 0.46),
+    ]
+    sc.loft([ring((ix, iy, iz0 + z * isc), "z", r * isc, 20) for z, r in profile], "u", layer=3)
+    sc.face(ring((ix, iy, iz0 + 1.005 * isc), "z", 0.27 * isc, 20), "k", layer=4)
+
+    # Front-center: steel ISO 4032 chamfered hex nut
+    nx, ny, nz0, nr, nh = 0.08, 0.68, -0.62, 0.66, 0.48
+    sc.loft(
+        [ring((nx, ny, nz0), "z", nr, 6), ring((nx, ny, nz0 + nh * 0.84), "z", nr, 6)], "m", layer=6
+    )
+    sc.loft(
+        [ring((nx, ny, nz0 + nh * 0.84), "z", nr, 6), ring((nx, ny, nz0 + nh), "z", nr * 0.88, 6)],
+        "m",
+        layer=7,
+    )
+    sc.face(ring((nx, ny, nz0 + nh + 0.005), "z", nr * 0.48, 20), "k", layer=8)
     return sc
 
 
