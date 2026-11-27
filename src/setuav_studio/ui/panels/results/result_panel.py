@@ -306,14 +306,21 @@ class ResultPanel(QWidget):
         return None
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
-        """Redraw the open plots from the project, after an edit or its undo."""
-        for key, dock in self._panes.items():
+        """Close panes for removed results/plots/tables and redraw remaining open plots."""
+        for key, dock in list(self._panes.items()):
             kind, _, ids = key.partition(":")
+            if kind == "table":
+                result_id, _, table_id = ids.partition(":")
+                res = self._api.get_solver_result(result_id)
+                if res is None or table_id not in res.tables:
+                    self.close_pane(key)
+                continue
             if kind != "plot":
                 continue
             result_id, _, plot_id = ids.partition(":")
             res = self._api.get_solver_result(result_id)
             if res is None or plot_id not in res.plots:
+                self.close_pane(key)
                 continue
             plot = res.plots[plot_id]
             dock.setWindowTitle(plot.title or plot.id)
