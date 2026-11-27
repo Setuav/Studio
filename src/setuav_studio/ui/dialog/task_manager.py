@@ -71,7 +71,7 @@ class TaskManagerDialog(QDialog):
 
         self._btn_cancel_all = QPushButton("Cancel All")
         self._btn_cancel_all.setIcon(get_icon("cancel"))
-        self._btn_cancel_all.clicked.connect(self._tm.cancel_all)
+        self._btn_cancel_all.clicked.connect(self._on_cancel_all_clicked)
         top_layout.addWidget(self._btn_cancel_all)
 
         self._btn_clear_history = QPushButton("Clear History")
@@ -166,6 +166,7 @@ class TaskManagerDialog(QDialog):
 
     def _refresh_active_tasks(self) -> None:
         active = self._tm.active_tasks
+        self._btn_cancel_all.setEnabled(any(not h.is_cancelled for h in active))
         self._active_table.setRowCount(len(active))
         for row, handle in enumerate(active):
             # 0: Name
@@ -188,7 +189,10 @@ class TaskManagerDialog(QDialog):
                 prog_widget.setTextVisible(True)
                 self._active_table.setCellWidget(row, 2, prog_widget)
 
-            if handle.progress is not None:
+            if handle.is_cancelled:
+                prog_widget.setRange(0, 0)
+                prog_widget.setFormat("Cancelling...")
+            elif handle.progress is not None:
                 prog_widget.setRange(0, handle.progress.total)
                 prog_widget.setValue(handle.progress.current)
                 msg = handle.progress.message
@@ -212,6 +216,11 @@ class TaskManagerDialog(QDialog):
                 cancel_btn.clicked.connect(self._on_cancel_row_clicked)
                 self._active_table.setCellWidget(row, 4, cancel_btn)
             cancel_btn.setProperty("task_id", handle.id)
+            cancel_btn.setEnabled(not handle.is_cancelled)
+
+    def _on_cancel_all_clicked(self) -> None:
+        self._tm.cancel_all()
+        self._refresh_active_tasks()
 
     def _on_cancel_row_clicked(self) -> None:
         sender = self.sender()
@@ -220,6 +229,7 @@ class TaskManagerDialog(QDialog):
         task_id = sender.property("task_id")
         if isinstance(task_id, str) and task_id:
             self._tm.cancel(task_id)
+            self._refresh_active_tasks()
 
     def _refresh_history_table(self) -> None:
         recent = self._tm.recent_tasks()

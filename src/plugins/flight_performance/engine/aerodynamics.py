@@ -26,6 +26,7 @@ def aerobuildup_model(
     alpha_max: float,
     alpha_step: float,
     progress_callback: Callable[[int, int, str], None] | None = None,
+    check_cancelled: Callable[[], None] | None = None,
 ) -> AerodynamicModel:
     """Return the aircraft's aerodynamic model from an AeroBuildup alpha sweep.
 
@@ -45,6 +46,7 @@ def aerobuildup_model(
         method=AnalysisMethod.AERO_BUILDUP,
         progress_callback=progress_callback,
         include_stability=False,
+        check_cancelled=check_cancelled,
     )
     area_m2 = result.reference.s_ref
     if area_m2 <= 0.0:

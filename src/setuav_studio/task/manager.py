@@ -344,6 +344,8 @@ class TaskManager(QObject):
         if handle is not None and handle.status == TaskStatus.PENDING:
             handle._status = TaskStatus.RUNNING
             handle._started_at = time.time()
+            if handle.is_cancelled:
+                return
             self.task_started.emit(task_id, handle.name)
             self._publish_event(
                 StudioEvents.TASK_STARTED,
@@ -359,7 +361,7 @@ class TaskManager(QObject):
         message: str,
     ) -> None:
         handle = self._handles.get(task_id)
-        if handle is None or handle.status != TaskStatus.RUNNING:
+        if handle is None or handle.status != TaskStatus.RUNNING or handle.is_cancelled:
             return
         prog = TaskProgress(current=current, total=total, message=message)
         handle._progress = prog

@@ -62,6 +62,11 @@ class BasePropulsionSolver(AbstractSolver):
             return _MISSING_POWERTRAIN
         return None
 
+    def _check_cancelled(self, message: str = "Propulsion analysis cancelled.") -> None:
+        if self.is_cancel_requested:
+            self.status = SolverStatus.CANCELLED
+            raise TaskCancelledError(message)
+
     def _powertrain(self) -> Powertrain:
         project = self.project
         if project is None:
@@ -197,20 +202,19 @@ class BasePropulsionSolver(AbstractSolver):
         feasibles = [p[1].feasible for p in points_data]
         feasible = [i for i, ok in enumerate(feasibles) if ok]
         has_reserve = powertrain.state_of_charge > _ENDURANCE_FINAL_SOC
-        endurances = (
-            [
-                round(
-                    powertrain.discharge_time_s(
-                        power_w=point.battery_power_w, final_soc=_ENDURANCE_FINAL_SOC
+        endurances: list[float] = []
+        if has_reserve:
+            for _, point in points_data:
+                self._check_cancelled()
+                endurances.append(
+                    round(
+                        powertrain.discharge_time_s(
+                            power_w=point.battery_power_w, final_soc=_ENDURANCE_FINAL_SOC
+                        )
+                        / 60.0,
+                        2,
                     )
-                    / 60.0,
-                    2,
                 )
-                for _, point in points_data
-            ]
-            if has_reserve
-            else []
-        )
 
         table_columns = [
             TableColumn(
@@ -439,11 +443,10 @@ class ThrottleSweepSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested:
-            self.status = SolverStatus.CANCELLED
-            raise TaskCancelledError("Analysis cancelled before execution.")
+        self._check_cancelled("Analysis cancelled before execution.")
 
         powertrain = self._powertrain()
+        self._check_cancelled("Analysis cancelled before execution.")
 
         rho = self._air_density()
         v_fixed = self._airspeed("airspeed")
@@ -458,9 +461,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
         points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, t_val in enumerate(t_list):
-            if self.is_cancel_requested:
-                self.status = SolverStatus.CANCELLED
-                raise TaskCancelledError("Analysis cancelled during sweep.")
+            self._check_cancelled("Analysis cancelled during sweep.")
 
             if self.token is not None:
                 pct = int((idx + 1) / total_points * 100)
@@ -567,11 +568,10 @@ class AirspeedSweepSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested:
-            self.status = SolverStatus.CANCELLED
-            raise TaskCancelledError("Analysis cancelled before execution.")
+        self._check_cancelled("Analysis cancelled before execution.")
 
         powertrain = self._powertrain()
+        self._check_cancelled("Analysis cancelled before execution.")
 
         rho = self._air_density()
         throttle = self._throttle_pct("throttle") / 100.0
@@ -586,9 +586,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
         points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, v_val in enumerate(v_list):
-            if self.is_cancel_requested:
-                self.status = SolverStatus.CANCELLED
-                raise TaskCancelledError("Analysis cancelled during sweep.")
+            self._check_cancelled("Analysis cancelled during sweep.")
 
             if self.token is not None:
                 pct = int((idx + 1) / total_points * 100)
@@ -671,11 +669,10 @@ class OperatingPointSolver(BasePropulsionSolver):
     ]
 
     def run(self) -> SolverResult:
-        if self.is_cancel_requested:
-            self.status = SolverStatus.CANCELLED
-            raise TaskCancelledError("Analysis cancelled before execution.")
+        self._check_cancelled("Analysis cancelled before execution.")
 
         powertrain = self._powertrain()
+        self._check_cancelled("Analysis cancelled before execution.")
 
         rho = self._air_density()
         v_val = self._airspeed("airspeed")
@@ -684,7 +681,9 @@ class OperatingPointSolver(BasePropulsionSolver):
         if self.token is not None:
             self.token.report_progress(1, 1, f"Operating Point (V={v_val:.1f} m/s)")
 
+        self._check_cancelled("Analysis cancelled before solve.")
         op = powertrain.solve(rho=rho, airspeed_mps=v_val, throttle=t_pct / 100.0)
+        self._check_cancelled("Analysis cancelled after solve.")
 
         return self._build_result(
             plot_x_col="airspeed",

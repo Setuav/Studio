@@ -8,6 +8,8 @@ from typing import Any
 
 import numpy as np
 
+from setuav_studio.task.types import TaskCancelledError
+
 from .aerosandbox_module import asb
 from .base import (
     AeroAnalysisError,
@@ -41,6 +43,7 @@ class StabilityAnalysisEngine:
         cg_source: str = "unknown",
         *,
         solver_factory: Callable[[Any, Any], Any],
+        check_cancelled: Callable[[], None] = lambda: None,
     ) -> StabilityDerivatives:
         """Compute full 6-DoF linear stability derivatives and trim equilibrium.
 
@@ -56,7 +59,7 @@ class StabilityAnalysisEngine:
         Returns:
             StabilityDerivatives object with all aerodynamic derivatives and trim solution.
         """
-
+        check_cancelled()
         vel = max(float(condition.velocity), 0.1)
         alt = max(float(condition.altitude), 0.0)
         ref_a = float(condition.alpha)
@@ -74,9 +77,12 @@ class StabilityAnalysisEngine:
         )
 
         # Native AeroSandbox stability derivatives run
+        check_cancelled()
         analysis = solver_factory(airplane, op_base)
         try:
             res = analysis.run_with_stability_derivatives()
+        except TaskCancelledError:
+            raise
         except Exception as err:
             raise RuntimeError(
                 f"{method.value} native stability derivatives failed: {err}"
@@ -121,6 +127,7 @@ class StabilityAnalysisEngine:
             # Analyze canonical pilot channels. Individual surface tags are
             # geometry details and must not become separate control analyses.
             for ctrl_tag in control_channels_for_components(components):
+                check_cancelled()
                 d_delta = 2.0  # deg
                 controls_p = dict(condition.control_deflections)
                 controls_m = dict(condition.control_deflections)
@@ -143,9 +150,13 @@ class StabilityAnalysisEngine:
                 )
 
                 plane_p = builder_fn(components, cond_p)
-                plane_m = builder_fn(components, cond_m)
+                check_cancelled()
                 res_c_p = solver_factory(plane_p, op_base).run()
+                check_cancelled()
+                plane_m = builder_fn(components, cond_m)
+                check_cancelled()
                 res_c_m = solver_factory(plane_m, op_base).run()
+                check_cancelled()
 
                 def delta(
                     key: str,

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCharts import QLineSeries, QValueAxis
 from PySide6.QtCore import QPointF, Qt
@@ -48,6 +48,9 @@ from setuav_studio.ui.widget.spinbox import NumericSpinBox
 
 from .engine.aerosandbox_engine import AeroSandboxEngine
 from .engine.airfoil_engine import AirfoilAnalysisEngine
+
+if TYPE_CHECKING:
+    from setuav_studio.task.types import CancellationToken
 
 
 class SingleChartWidget(StudioChartWidget):
@@ -393,9 +396,16 @@ class AirfoilAnalysisToolWindow(QDialog):
         self.status_label.setText("Analysis running…")
 
         self._running = True
+
+        def _run_request(token: CancellationToken) -> dict[str, Any]:
+            token.check_cancelled()
+            result = analyze_airfoil_request(request)
+            token.check_cancelled()
+            return result
+
         self._api.tasks.submit(
             "Airfoil analysis",
-            lambda _token: analyze_airfoil_request(request),
+            _run_request,
             on_finished=self._analysis_completed,
             on_error=self._analysis_failed,
             on_cancelled=self._analysis_cancelled,

@@ -181,7 +181,11 @@ _THROTTLE_SAMPLES = tuple(float(value) for value in np.linspace(0.05, 1.0, 20))
 
 
 def feasible_throttle_range(
-    powertrain: Powertrain, *, rho: float, airspeed_mps: float
+    powertrain: Powertrain,
+    *,
+    rho: float,
+    airspeed_mps: float,
+    check_cancelled: Callable[[], None] = lambda: None,
 ) -> tuple[float, float] | None:
     """Return the throttle interval with valid operating points, or ``None``.
 
@@ -190,6 +194,7 @@ def feasible_throttle_range(
     """
 
     def feasible(throttle: float) -> bool:
+        check_cancelled()
         return powertrain.solve(rho=rho, airspeed_mps=airspeed_mps, throttle=throttle).feasible
 
     flags = [feasible(throttle) for throttle in _THROTTLE_SAMPLES]
@@ -225,6 +230,7 @@ def throttle_for_thrust(
     airspeed_mps: float,
     thrust_n: float,
     throttle_range: tuple[float, float] | None,
+    check_cancelled: Callable[[], None] = lambda: None,
 ) -> tuple[float, PowertrainPoint | None]:
     """Return (throttle, operating point) delivering ``thrust_n`` inside ``throttle_range``.
 
@@ -237,6 +243,7 @@ def throttle_for_thrust(
     low, high = throttle_range
 
     def point(throttle: float) -> PowertrainPoint:
+        check_cancelled()
         return powertrain.solve(rho=rho, airspeed_mps=airspeed_mps, throttle=throttle)
 
     if point(high).thrust_n < thrust_n:
@@ -281,12 +288,14 @@ def level_flight_envelope(
     powertrain: Powertrain | None,
     reserve_soc: float,
     progress: Callable[[float], None] = lambda _fraction: None,
+    check_cancelled: Callable[[], None] = lambda: None,
 ) -> PerformanceEnvelope:
     """Solve steady level flight across ``velocities``.
 
     Endurance and range are the time and distance flown at constant battery power
     from the powertrain's state of charge down to ``reserve_soc``.
     """
+    check_cancelled()
     weight_n = mass_kg * G0
     dynamic_force = 0.5 * rho * velocities**2 * aero.area_m2
     cl = weight_n / dynamic_force
@@ -298,12 +307,23 @@ def level_flight_envelope(
     propulsion = None
     rate_of_climb = climb_angle = endurance = range_km = np.array([])
     if powertrain is not None:
-        propulsion = _propulsion_sweep(powertrain, rho, velocities, drag, progress)
+        propulsion = _propulsion_sweep(
+            powertrain,
+            rho,
+            velocities,
+            drag,
+            lambda fraction: progress(0.8 * fraction),
+            check_cancelled,
+        )
         excess = np.maximum(0.0, propulsion.power_available - power_required)
         rate_of_climb = np.where(propulsion.feasible, excess / weight_n, 0.0)
         climb_angle = np.degrees(np.arcsin(np.clip(rate_of_climb / velocities, 0.0, 1.0)))
         hours = np.zeros_like(velocities)
-        for index in np.flatnonzero(propulsion.feasible & (propulsion.electrical_power > 0.0)):
+        feasible_indices = np.flatnonzero(propulsion.feasible & (propulsion.electrical_power > 0.0))
+        discharge_count = len(feasible_indices)
+        for done, index in enumerate(feasible_indices):
+            check_cancelled()
+            progress(0.8 + 0.2 * (done / max(discharge_count, 1)))
             hours[index] = (
                 powertrain.discharge_time_s(
                     power_w=float(propulsion.electrical_power[index]), final_soc=reserve_soc
@@ -335,6 +355,7 @@ def _propulsion_sweep(
     velocities: np.ndarray,
     drag: np.ndarray,
     progress: Callable[[float], None],
+    check_cancelled: Callable[[], None] = lambda: None,
 ) -> PropulsionSweep:
     count = len(velocities)
     thrust_available = np.zeros(count)
@@ -343,10 +364,14 @@ def _propulsion_sweep(
     current = np.zeros(count)
     feasible = np.zeros(count, dtype=bool)
     for index, velocity in enumerate(velocities):
+        check_cancelled()
         progress(index / count)
         v = float(velocity)
-        throttle_range = feasible_throttle_range(powertrain, rho=rho, airspeed_mps=v)
+        throttle_range = feasible_throttle_range(
+            powertrain, rho=rho, airspeed_mps=v, check_cancelled=check_cancelled
+        )
         if throttle_range is not None:
+            check_cancelled()
             thrust_available[index] = powertrain.solve(
                 rho=rho, airspeed_mps=v, throttle=throttle_range[1]
             ).thrust_n
@@ -356,6 +381,7 @@ def _propulsion_sweep(
             airspeed_mps=v,
             thrust_n=float(drag[index]),
             throttle_range=throttle_range,
+            check_cancelled=check_cancelled,
         )
         throttle_pct[index] = throttle * 100.0
         if point is not None:
