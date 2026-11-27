@@ -62,19 +62,40 @@ class AirframeCreationController:
         self,
         component: dict[str, Any],
     ) -> tuple[ComponentMenuItemContribution, ...]:
-        if component.get("type") != _LIFTING_SURFACE_TYPE or component.get("kind") == "instance":
+        if component.get("kind") == "instance":
             return ()
-        surface_id = str(component.get("id") or "")
-        if not surface_id:
+        comp_id = str(component.get("id") or "")
+        if not comp_id:
             return ()
-        return (
-            ComponentMenuItemContribution(
-                title="Add Control Surface",
-                icon="geometry_add_control_surface",
-                callback=lambda: self.add_control_surface(surface_id),
-                enabled=self._can_edit_project(),
-            ),
-        )
+        comp_type = component.get("type")
+        if comp_type == _LIFTING_SURFACE_TYPE:
+            return (
+                ComponentMenuItemContribution(
+                    title="Add Control Surface",
+                    icon="geometry_add_control_surface",
+                    callback=lambda: self.add_control_surface(comp_id),
+                    enabled=self._can_edit_project(),
+                ),
+            )
+        if comp_type == _FUSELAGE_TYPE:
+            return (
+                ComponentMenuItemContribution(
+                    title="Scale Fuselage…",
+                    icon="fa6s.up-right-and-down-left-from-center",
+                    callback=lambda: self.scale_fuselage(comp_id),
+                    enabled=self._can_edit_project(),
+                ),
+            )
+        return ()
+
+    def scale_fuselage(self, fuselage_id: str) -> None:
+        """Open the fuselage scaling dialog for the given fuselage component."""
+        component = self._find_component(fuselage_id)
+        if component is None or component.get("type") != _FUSELAGE_TYPE:
+            return
+        from .editors.fuselage.scale_dialog import open_scale_fuselage_dialog
+
+        open_scale_fuselage_dialog(self._api, component)
 
     def add_fuselage(self) -> None:
         if not self._require_editable_project():

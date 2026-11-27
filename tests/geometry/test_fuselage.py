@@ -723,6 +723,119 @@ class FuselageGeometryTests(unittest.TestCase):
         self.assertFalse(api.can_undo)
         self.assertFalse(doc.modified)
 
+    def test_scale_fuselage_geometry_scales_all_profiles_radii_and_expressions(self) -> None:
+        from plugins.geometry.engine.fuselage_geometry import (
+            fuselage_extents,
+            scale_fuselage_geometry,
+        )
+        from setuav_studio.model.expression import get_expression, set_expression
+
+        comp: dict[str, Any] = {
+            "id": "fuse",
+            "name": "Fuse",
+            "type": "org.setuav.core:fuselage",
+            "parameters": {
+                "geometry": {
+                    "segments": [
+                        {
+                            "tag": "main",
+                            "loft": {"method": "smooth"},
+                            "sections": [
+                                {
+                                    "position": {"x": 10.0, "y": 0.0, "z": 5.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {"type": "circle", "diameter": 100.0},
+                                },
+                                {
+                                    "position": {"x": 110.0, "y": 4.0, "z": -10.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {
+                                        "type": "rectangle",
+                                        "width": 120.0,
+                                        "height": 80.0,
+                                        "corner_radius": 20.0,
+                                    },
+                                },
+                                {
+                                    "position": {"x": 210.0, "y": 0.0, "z": 0.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {
+                                        "type": "polygon",
+                                        "vertices": [
+                                            {"y": -40.0, "z": -20.0, "radius": 6.0},
+                                            {"y": 40.0, "z": -20.0, "radius": 6.0},
+                                            {"y": 0.0, "z": 30.0, "radius": 4.0},
+                                        ],
+                                    },
+                                },
+                            ],
+                        }
+                    ]
+                }
+            },
+        }
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        set_expression(sections[1]["profile"], "width", "=base_w")
+
+        length, width, height, min_x = fuselage_extents(comp)
+        self.assertAlmostEqual(length, 200.0, places=1)
+        self.assertAlmostEqual(width, 120.0, places=1)
+        self.assertAlmostEqual(height, 105.0, places=1)
+        self.assertAlmostEqual(min_x, 10.0, places=1)
+
+        changed = scale_fuselage_geometry(
+            comp, scale_x=1.5, scale_y=0.5, scale_z=0.75, scale_radius=0.5
+        )
+        self.assertTrue(changed)
+
+        # Nose stays anchored at x=10.0; other X positions scale around it.
+        self.assertAlmostEqual(sections[0]["position"]["x"], 10.0)
+        self.assertAlmostEqual(sections[1]["position"]["x"], 160.0)
+        self.assertAlmostEqual(sections[2]["position"]["x"], 310.0)
+        self.assertAlmostEqual(sections[1]["position"]["y"], 2.0)
+        self.assertAlmostEqual(sections[1]["position"]["z"], -7.5)
+
+        # Non-uniform circle converts to ellipse with scaled width/height.
+        self.assertEqual(sections[0]["profile"]["type"], "ellipse")
+        self.assertAlmostEqual(sections[0]["profile"]["width"], 50.0)
+        self.assertAlmostEqual(sections[0]["profile"]["height"], 75.0)
+
+        # Rectangle width, height, corner_radius, and stored formula all scale.
+        self.assertAlmostEqual(sections[1]["profile"]["width"], 60.0)
+        self.assertAlmostEqual(sections[1]["profile"]["height"], 60.0)
+        self.assertAlmostEqual(sections[1]["profile"]["corner_radius"], 10.0)
+        self.assertEqual(get_expression(sections[1]["profile"], "width"), "=(base_w) * 0.5")
+
+        # Polygon vertices and vertex radii scale cleanly.
+        verts = sections[2]["profile"]["vertices"]
+        self.assertAlmostEqual(verts[0]["y"], -20.0)
+        self.assertAlmostEqual(verts[0]["z"], -15.0)
+        self.assertAlmostEqual(verts[0]["radius"], 3.0)
+
+    def test_scale_fuselage_dialog_syncs_scale_and_target_dimensions(self) -> None:
+        from plugins.geometry.editors.fuselage.scale_dialog import ScaleFuselageDialog
+
+        comp = _build_fuselage_component()
+        dlg = ScaleFuselageDialog(comp)
+        self.addCleanup(dlg.deleteLater)
+
+        # Uniform mode: editing width target scales all 4 factors equally.
+        dlg.target_y_spin.setValue(60.0)  # current max width is 120 mm -> 0.5x
+        sx, sy, sz, sr = dlg.scale_factors()
+        self.assertAlmostEqual(sx, 0.5, places=3)
+        self.assertAlmostEqual(sy, 0.5, places=3)
+        self.assertAlmostEqual(sz, 0.5, places=3)
+        self.assertAlmostEqual(sr, 0.5, places=3)
+
+        # Non-uniform mode: editing height does not alter length or width.
+        dlg.uniform_checkbox.setChecked(False)
+        dlg.scale_z_spin.setValue(0.8)
+        sx2, sy2, sz2, sr2 = dlg.scale_factors()
+        self.assertAlmostEqual(sx2, 0.5, places=3)
+        self.assertAlmostEqual(sy2, 0.5, places=3)
+        self.assertAlmostEqual(sz2, 0.8, places=3)
+        self.assertAlmostEqual(sr2, 0.5, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()

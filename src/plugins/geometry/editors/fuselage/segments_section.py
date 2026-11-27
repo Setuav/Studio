@@ -11,10 +11,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QTableWidgetItem,
+    QWidget,
 )
 
 from ...engine.fuselage_geometry import create_default_segment
 from .host import FuselageEditorHost
+from .scale_dialog import open_scale_fuselage_dialog
 
 
 class SegmentsSectionMixin(FuselageEditorHost):
@@ -51,6 +53,11 @@ class SegmentsSectionMixin(FuselageEditorHost):
         self.delete_segment_button = self._action_button(
             "remove", "Delete segment", self._delete_segment
         )
+        self.scale_fuselage_button = self._action_button(
+            "fa6s.up-right-and-down-left-from-center",
+            "Scale fuselage…",
+            self._scale_fuselage,
+        )
         for button in (
             self.add_segment_button,
             self.duplicate_segment_button,
@@ -60,6 +67,7 @@ class SegmentsSectionMixin(FuselageEditorHost):
         ):
             segment_actions.addWidget(button)
         segment_actions.addStretch()
+        segment_actions.addWidget(self.scale_fuselage_button)
         layout.addLayout(segment_actions)
 
     def _populate_segments(self) -> None:
@@ -243,6 +251,10 @@ class SegmentsSectionMixin(FuselageEditorHost):
             self._update_section_actions()
         self._update_segment_actions()
 
+    def _scale_fuselage(self) -> None:
+        parent = self if isinstance(self, QWidget) else None
+        open_scale_fuselage_dialog(self._api, self._component, parent=parent)
+
     def _update_segment_actions(self) -> None:
         segments = self._segments()
         index = self._segment_index
@@ -252,6 +264,7 @@ class SegmentsSectionMixin(FuselageEditorHost):
         self.move_segment_up_button.setEnabled(has_segment and index > 0)
         self.move_segment_down_button.setEnabled(has_segment and index < len(segments) - 1)
         self.delete_segment_button.setEnabled(has_segment and len(segments) > 1)
+        self.scale_fuselage_button.setEnabled(bool(segments))
 
     @classmethod
     def _new_segment(cls, segments: list[dict[str, Any]]) -> dict[str, Any]:
