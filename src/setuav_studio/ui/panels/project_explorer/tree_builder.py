@@ -33,8 +33,14 @@ class ProjectTreeBuilder:
         self._tree = tree
         self._api = api
 
-    def rebuild_project(self, project: ProjectDocument) -> None:
+    def rebuild_project(
+        self,
+        project: ProjectDocument,
+        *,
+        preserve_expansion: bool = True,
+    ) -> None:
         selection_id = self._tree._selected_id()
+        expanded_state = self._capture_expansion_state() if preserve_expansion else None
         fresh_selection: dict[str, Any] | None = None
         self._tree.blockSignals(True)
         try:
@@ -49,7 +55,7 @@ class ProjectTreeBuilder:
             self.create_analysis_configs_group(top_level, project)
             for contribution in self._api.project_tree_nodes(project):
                 self.append_project_contribution(top_level, contribution)
-            self._tree.expandAll()
+            self._apply_expansion_state(expanded_state)
             fresh_selection = self._tree._restore_tree_selection(selection_id)
         finally:
             self._tree.blockSignals(False)
@@ -60,6 +66,51 @@ class ProjectTreeBuilder:
             and self._api.current_selection is not fresh_selection
         ):
             self._api.set_selection(fresh_selection)
+
+    def _item_key(self, item: QTreeWidgetItem) -> str | None:
+        key = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(key, str) and key:
+            return key
+        element = self._tree._element_map.get(item)
+        if isinstance(element, dict):
+            element_id = element.get("id")
+            if isinstance(element_id, str) and element_id:
+                return element_id
+        return None
+
+    def _capture_expansion_state(self) -> dict[str, bool]:
+        state: dict[str, bool] = {}
+
+        def visit(parent: QTreeWidgetItem) -> None:
+            for index in range(parent.childCount()):
+                child = parent.child(index)
+                assert child is not None
+                if child.childCount() > 0:
+                    key = self._item_key(child)
+                    if key is not None:
+                        state[key] = child.isExpanded()
+                    visit(child)
+
+        visit(self._tree.invisibleRootItem())
+        return state
+
+    def _default_expanded(self, _item: QTreeWidgetItem) -> bool:
+        return True
+
+    def _apply_expansion_state(self, expanded_state: dict[str, bool] | None) -> None:
+        def apply(parent: QTreeWidgetItem) -> None:
+            for index in range(parent.childCount()):
+                child = parent.child(index)
+                assert child is not None
+                if child.childCount() > 0:
+                    key = self._item_key(child)
+                    if expanded_state is not None and key is not None and key in expanded_state:
+                        child.setExpanded(expanded_state[key])
+                    else:
+                        child.setExpanded(self._default_expanded(child))
+                    apply(child)
+
+        apply(self._tree.invisibleRootItem())
 
     def reset_project_tree(self) -> None:
         self._tree.clear()
@@ -112,6 +163,7 @@ class ProjectTreeBuilder:
             const_group = QTreeWidgetItem(["Constants"])
             const_group.setIcon(0, get_icon("constant"))
             const_group.setToolTip(0, "Constants")
+            const_group.setData(0, Qt.ItemDataRole.UserRole, "group:constants")
             self._tree._parameters_group_item = const_group
             top_level.addChild(const_group)
 
@@ -148,6 +200,7 @@ class ProjectTreeBuilder:
             eq_group = QTreeWidgetItem(["Equations"])
             eq_group.setIcon(0, get_icon("equation"))
             eq_group.setToolTip(0, "Project Formulas & Equations")
+            eq_group.setData(0, Qt.ItemDataRole.UserRole, "group:equations")
             top_level.addChild(eq_group)
 
             for k, v in equations.items():
@@ -178,6 +231,7 @@ class ProjectTreeBuilder:
         constraint_group = QTreeWidgetItem(["Constraints"])
         constraint_group.setIcon(0, get_icon("constraint"))
         constraint_group.setToolTip(0, "Constraints")
+        constraint_group.setData(0, Qt.ItemDataRole.UserRole, "group:constraints")
         self._tree._constraints_group_item = constraint_group
         top_level.addChild(constraint_group)
 
@@ -211,6 +265,7 @@ class ProjectTreeBuilder:
         analysis_group = QTreeWidgetItem(["Analyses"])
         analysis_group.setIcon(0, get_icon("run_analysis"))
         analysis_group.setToolTip(0, "Analysis Configurations")
+        analysis_group.setData(0, Qt.ItemDataRole.UserRole, "group:analyses")
         self._tree._analysis_group_item = analysis_group
         top_level.addChild(analysis_group)
 
@@ -305,8 +360,6 @@ class ProjectTreeBuilder:
                         self._tree._element_map[p_item] = p_payload
                         self._tree._item_map[p_payload["id"]] = p_item
                         plots_group.addChild(p_item)
-
-                item.setExpanded(True)
 
     def create_component_items(
         self,
