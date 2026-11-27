@@ -249,7 +249,9 @@ class FlightPerformanceSolver(AbstractSolver):
             progress_callback=lambda current, total, _message: self._report(
                 int(40 * current / max(total, 1)), "Aerodynamic polar"
             ),
+            check_cancelled=self._check_cancelled,
         )
+        self._check_cancelled()
         powertrain = self._powertrain(components)
         velocities = velocity_sweep(
             v_min=float(params["v_min"]),
@@ -266,6 +268,7 @@ class FlightPerformanceSolver(AbstractSolver):
             powertrain=powertrain,
             reserve_soc=float(params["reserve_soc"]) / 100.0,
             progress=lambda fraction: self._report(40 + int(55 * fraction), "Level flight"),
+            check_cancelled=self._check_cancelled,
         )
         self._report(100, "Done")
         return self._result(mass_kg, rho, aero, powertrain, envelope)

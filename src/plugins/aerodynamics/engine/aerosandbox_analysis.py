@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import numpy as onp
 
+from setuav_studio.task.types import TaskCancelledError
 from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
 from .aerosandbox_module import asb, np
@@ -73,12 +75,16 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         progress_callback: Any | None = None,
         *,
         include_stability: bool = True,
+        check_cancelled: Callable[[], None] | None = None,
     ) -> AeroResult:
+        cancel_check = check_cancelled or (lambda: None)
+        cancel_check()
         method = method if isinstance(method, AnalysisMethod) else AnalysisMethod.from_value(method)
         solver_settings = self._solver_settings(
             method, DEFAULT_SOLVER_SETTINGS if settings is None else settings
         )
         setup = self._prepare_analysis(components, condition, solver_settings["control_encoding"])
+        cancel_check()
         self._validate_control_sweep(components, condition)
         sweep_vals, eval_states = self._build_evaluation_states(condition)
         polar_points, oswald_values = self._evaluate_states(
@@ -89,7 +95,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             setup,
             eval_states,
             progress_callback,
+            cancel_check,
         )
+        cancel_check()
         converged_points = self._require_converged_points(polar_points, method)
         summary = self._polar_summary(converged_points, oswald_values)
         sweep_result = self._build_sweep_result(condition, eval_states, sweep_vals, polar_points)
@@ -103,6 +111,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 setup,
                 len(eval_states),
                 progress_callback,
+                cancel_check,
             )
             if include_stability
             else (None, None)
@@ -235,17 +244,25 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         setup: dict[str, Any],
         eval_states: list[dict[str, Any]],
         progress_callback: Any | None,
+        check_cancelled: Callable[[], None] = lambda: None,
     ) -> tuple[list[PolarPoint], list[float]]:
         if method == AnalysisMethod.AERO_BUILDUP and all(
             dict(state["controls"]) == condition.control_deflections for state in eval_states
         ):
             return self._evaluate_aero_buildup_sweep(
-                components, condition, solver_settings, setup, eval_states, progress_callback
+                components,
+                condition,
+                solver_settings,
+                setup,
+                eval_states,
+                progress_callback,
+                check_cancelled,
             )
         points: list[PolarPoint] = []
         oswald_values: list[float] = []
         total_steps = len(eval_states) + 1
         for index, eval_state in enumerate(eval_states, start=1):
+            check_cancelled()
             point, oswald = self._evaluate_state(
                 components,
                 condition,
@@ -256,6 +273,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 index,
                 total_steps,
                 progress_callback,
+                check_cancelled,
             )
             points.append(point)
             if oswald is not None:
@@ -270,20 +288,23 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         setup: dict[str, Any],
         eval_states: list[dict[str, Any]],
         progress_callback: Any | None,
+        check_cancelled: Callable[[], None] = lambda: None,
     ) -> tuple[list[PolarPoint], list[float]]:
         """Evaluate states that share one airplane in a single vectorized AeroBuildup run.
 
         AeroBuildup evaluates every angle in closed form, so one run over arrays of
         alpha and beta gives the same coefficients as one run per state.
         """
+        check_cancelled()
+        count = len(eval_states)
+        total_steps = count + 1
+        if progress_callback:
+            progress_callback(0, total_steps, f"AeroBuildup over {count} states")
         contexts = [
             self._point_context(components, condition, solver_settings, setup, state)
             for state in eval_states
         ]
-        count = len(contexts)
-        total_steps = count + 1
-        if progress_callback:
-            progress_callback(0, total_steps, f"AeroBuildup over {count} states")
+        check_cancelled()
         first = contexts[0]
         operating_point = asb.OperatingPoint(
             atmosphere=first["op"].atmosphere,
@@ -298,6 +319,8 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             result = self._run_solver(
                 AnalysisMethod.AERO_BUILDUP, setup["airplane"], operating_point, solver_settings
             )
+        except TaskCancelledError:
+            raise
         except Exception as err:
             logger.warning("AeroBuildup failed for the sweep: %s", err)
             return [self._failed_polar_point(context, err) for context in contexts], []
@@ -306,6 +329,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         points: list[PolarPoint] = []
         oswald_values: list[float] = []
         for index, (state, context) in enumerate(zip(eval_states, contexts, strict=True)):
+            check_cancelled()
             state_result = {key: _state_value(value, index, count) for key, value in result.items()}
             points.append(self._polar_point_from_result(state_result, condition, state, context))
             if wings:
@@ -326,7 +350,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         index: int,
         total_steps: int,
         progress_callback: Any | None,
+        check_cancelled: Callable[[], None] = lambda: None,
     ) -> tuple[PolarPoint, float | None]:
+        check_cancelled()
         point_context = self._point_context(
             components, condition, solver_settings, setup, eval_state
         )
@@ -336,6 +362,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 total_steps,
                 self._progress_message(condition, eval_state, point_context, index, total_steps),
             )
+        check_cancelled()
         try:
             result = self._run_solver(
                 method, point_context["airplane"], point_context["op"], solver_settings
@@ -344,6 +371,8 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             wing_components = result.get("wing_aero_components", [])
             oswald = float(wing_components[0].oswalds_efficiency) if wing_components else None
             return point, oswald
+        except TaskCancelledError:
+            raise
         except Exception as err:
             logger.warning(
                 "Solver %s failed for point alpha=%.1f, beta=%.1f: %s",
@@ -493,7 +522,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         setup: dict[str, Any],
         point_count: int,
         progress_callback: Any | None,
+        check_cancelled: Callable[[], None] = lambda: None,
     ) -> tuple[Any | None, str | None]:
+        check_cancelled()
         total_steps = point_count + 1
         if progress_callback:
             progress_callback(point_count, total_steps, "Stability")
@@ -514,8 +545,11 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
                 solver_factory=lambda airplane, op_point: self._solver(
                     method, airplane, op_point, solver_settings
                 ),
+                check_cancelled=check_cancelled,
             )
             error = None
+        except TaskCancelledError:
+            raise
         except Exception as err:
             logger.warning("Stability derivatives computation failed: %s", err)
             stability = None

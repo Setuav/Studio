@@ -109,11 +109,14 @@ class BaseAerodynamicsSolver(AbstractSolver):
             int(params["spanwise_resolution"]), int(params["chordwise_resolution"])
         )
 
+    def _check_cancelled(self) -> None:
+        if self.is_cancel_requested:
+            self.status = SolverStatus.CANCELLED
+            raise TaskCancelledError("Aerodynamic analysis cancelled by user.")
+
     def _create_progress_callback(self):
         def progress_cb(current: int, total: int, message: str) -> None:
-            if self.is_cancel_requested:
-                self.status = SolverStatus.CANCELLED
-                raise TaskCancelledError("Aerodynamic analysis cancelled by user.")
+            self._check_cancelled()
             if self.token is not None:
                 self.token.report_progress(current, total, message)
 
@@ -256,6 +259,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             method=self._method(),
             settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
+            check_cancelled=self._check_cancelled,
         )
 
         return self._build_result(aero_result)
@@ -533,6 +537,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
             method=self._method(),
             settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
+            check_cancelled=self._check_cancelled,
         )
 
         return self._build_result(aero_result)
@@ -818,6 +823,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             progress_callback=self._create_progress_callback(),
             # The control analysis shows no stability results.
             include_stability=False,
+            check_cancelled=self._check_cancelled,
         )
 
         return self._build_result(aero_result, surface_id, surface_name)
@@ -1074,6 +1080,7 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
             method=self._method(),
             settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
+            check_cancelled=self._check_cancelled,
         )
 
         return self._build_result(aero_result, alpha, beta, velocity)

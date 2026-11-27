@@ -274,7 +274,7 @@ class StatusBarManager:
         self._check_hide_cancel_button()
 
     def _check_hide_cancel_button(self) -> None:
-        if not self._api.tasks.active_tasks:
+        if not any(not h.is_cancelled for h in self._api.tasks.active_tasks):
             self.cancel_button.hide()
             self.progress_bar.hide()
         else:
@@ -283,6 +283,7 @@ class StatusBarManager:
     def _on_cancel_tasks_clicked(self) -> None:
         self._api.tasks.cancel_all()
         self.cancel_button.hide()
+        self.progress_bar.hide()
         self.show_status_message("Background task cancelled", "warning", 3000)
 
     def show_status_message(
