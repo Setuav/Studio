@@ -101,15 +101,20 @@ class ProjectExplorer(QTreeWidget):
 
     def set_project(self, project: ProjectDocument) -> None:
         self._capture_saved_state(project)
-        self._rebuild_project(project)
+        self._rebuild_project(project, preserve_expansion=False)
 
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
         current_project = project or self._api.project
         if current_project is not None:
-            self._rebuild_project(current_project)
+            self._rebuild_project(current_project, preserve_expansion=True)
 
-    def _rebuild_project(self, project: ProjectDocument) -> None:
-        self._builder.rebuild_project(project)
+    def _rebuild_project(
+        self,
+        project: ProjectDocument,
+        *,
+        preserve_expansion: bool = True,
+    ) -> None:
+        self._builder.rebuild_project(project, preserve_expansion=preserve_expansion)
 
     def _selected_id(self) -> str | None:
         current_selection = self._api.current_selection
