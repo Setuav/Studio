@@ -432,3 +432,201 @@ def compute_section_metrics(points: tuple[tuple[float, float], ...]) -> dict[str
         "aspect_ratio": aspect_ratio,
         "hydraulic_diam": dh,
     }
+
+
+def fuselage_extents(component: dict[str, Any]) -> tuple[float, float, float, float]:
+    """Return ``(length_mm, width_mm, height_mm, min_x_mm)`` across all fuselage segments."""
+    lofts = build_fuselage_geometry(component)
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = []
+    for loft in lofts:
+        for section in loft.sections:
+            for x, y, z in section.points:
+                xs.append(x)
+                ys.append(y)
+                zs.append(z)
+    if xs:
+        min_x = min(xs)
+        return (max(xs) - min_x, max(ys) - min(ys), max(zs) - min(zs), min_x)
+    return (0.0, 0.0, 0.0, 0.0)
+
+
+def _format_scale_factor(factor: float) -> str:
+    return f"{factor:.6g}"
+
+
+def _scale_numeric_field(
+    node: dict[str, Any],
+    key: str,
+    factor: float,
+    *,
+    offset: float = 0.0,
+    min_value: float | None = None,
+    max_value: float | None = None,
+) -> float:
+    from setuav_studio.model.expression import (
+        ExpressionEvaluator,
+        get_expression,
+        set_expression,
+    )
+
+    old_val = float(node.get(key) or 0.0)
+    scaled = offset + (old_val - offset) * factor
+    if min_value is not None:
+        scaled = max(min_value, scaled)
+    if max_value is not None:
+        scaled = min(max_value, scaled)
+    rounded = round(scaled, 4)
+    node[key] = rounded
+
+    expr = get_expression(node, key)
+    if expr is not None and abs(factor - 1.0) > 1e-9:
+        inner = ExpressionEvaluator.strip_prefix(expr)
+        f_str = _format_scale_factor(factor)
+        if abs(offset) > 1e-9:
+            o_str = _format_scale_factor(offset)
+            set_expression(node, key, f"={o_str} + (({inner}) - {o_str}) * {f_str}")
+        else:
+            set_expression(node, key, f"=({inner}) * {f_str}")
+    return rounded
+
+
+def _scale_profile(
+    profile: dict[str, Any],
+    scale_y: float,
+    scale_z: float,
+    scale_radius: float,
+) -> None:
+    from setuav_studio.model.expression import (
+        ExpressionEvaluator,
+        get_expression,
+        set_expression,
+    )
+
+    ptype = profile.get("type")
+    if ptype == "circle":
+        if abs(scale_y - scale_z) <= 1e-9:
+            _scale_numeric_field(profile, "diameter", scale_y, min_value=1e-3)
+            return
+        old_d = float(profile.get("diameter") or 0.0)
+        old_expr = get_expression(profile, "diameter")
+        profile["type"] = "ellipse"
+        profile.pop("diameter", None)
+        set_expression(profile, "diameter", None)
+        profile["width"] = round(max(1e-3, old_d * scale_y), 4)
+        profile["height"] = round(max(1e-3, old_d * scale_z), 4)
+        if old_expr is not None:
+            inner = ExpressionEvaluator.strip_prefix(old_expr)
+            for key, factor in (("width", scale_y), ("height", scale_z)):
+                expr = (
+                    f"=({inner}) * {_format_scale_factor(factor)}"
+                    if abs(factor - 1.0) > 1e-9
+                    else f"={inner}"
+                )
+                set_expression(profile, key, expr)
+    elif ptype == "ellipse":
+        _scale_numeric_field(profile, "width", scale_y, min_value=1e-3)
+        _scale_numeric_field(profile, "height", scale_z, min_value=1e-3)
+    elif ptype == "rectangle":
+        new_w = _scale_numeric_field(profile, "width", scale_y, min_value=1e-3)
+        new_h = _scale_numeric_field(profile, "height", scale_z, min_value=1e-3)
+        _scale_numeric_field(
+            profile,
+            "corner_radius",
+            scale_radius,
+            min_value=0.0,
+            max_value=0.5 * min(new_w, new_h),
+        )
+    elif ptype == "trapezoid":
+        new_top = _scale_numeric_field(profile, "top_width", scale_y, min_value=1e-3)
+        new_bot = _scale_numeric_field(profile, "bottom_width", scale_y, min_value=1e-3)
+        new_h = _scale_numeric_field(profile, "height", scale_z, min_value=1e-3)
+        _scale_numeric_field(
+            profile,
+            "corner_radius",
+            scale_radius,
+            min_value=0.0,
+            max_value=0.5 * min(max(new_top, new_bot), new_h),
+        )
+    elif ptype == "triangle":
+        new_base = _scale_numeric_field(profile, "base_width", scale_y, min_value=1e-3)
+        new_h = _scale_numeric_field(profile, "height", scale_z, min_value=1e-3)
+        _scale_numeric_field(
+            profile,
+            "corner_radius",
+            scale_radius,
+            min_value=0.0,
+            max_value=0.5 * min(new_base, new_h),
+        )
+    elif ptype == "polygon":
+        vertices = profile.get("vertices")
+        if isinstance(vertices, list):
+            for vertex in vertices:
+                if isinstance(vertex, dict):
+                    _scale_numeric_field(vertex, "y", scale_y)
+                    _scale_numeric_field(vertex, "z", scale_z)
+                    _scale_numeric_field(vertex, "radius", scale_radius, min_value=0.0)
+
+
+def scale_fuselage_geometry(
+    component: dict[str, Any],
+    *,
+    scale_x: float = 1.0,
+    scale_y: float = 1.0,
+    scale_z: float = 1.0,
+    scale_radius: float | None = None,
+    anchor_x: float | None = None,
+) -> bool:
+    """Scale all segments, sections, positions, profiles, and radii of a fuselage in place.
+
+    Circles scaled non-uniformly (``scale_y != scale_z``) are converted to ellipses so
+    the requested width and height scaling is preserved exactly. Existing expressions
+    on scaled fields are wrapped with the scale factor.
+    """
+    eff_radius = min(scale_y, scale_z) if scale_radius is None else scale_radius
+    for label, factor in (("scale_x", scale_x), ("scale_y", scale_y), ("scale_z", scale_z)):
+        if not math.isfinite(factor) or factor <= 0.0:
+            raise ValueError(f"{label} must be a positive finite number, got {factor!r}")
+    if not math.isfinite(eff_radius) or eff_radius < 0.0:
+        raise ValueError(f"scale_radius must be a non-negative finite number, got {eff_radius!r}")
+
+    if all(abs(f - 1.0) <= 1e-9 for f in (scale_x, scale_y, scale_z, eff_radius)):
+        return False
+
+    parameters = component.get("parameters")
+    geometry = parameters.get("geometry") if isinstance(parameters, dict) else None
+    segments = geometry.get("segments") if isinstance(geometry, dict) else None
+    if not isinstance(segments, list) or not segments:
+        return False
+
+    all_sections = [
+        section
+        for segment in segments
+        if isinstance(segment, dict) and isinstance(sections := segment.get("sections"), list)
+        for section in sections
+        if isinstance(section, dict)
+    ]
+    if not all_sections:
+        return False
+
+    if anchor_x is None:
+        xs = [
+            float(pos.get("x") or 0.0)
+            for section in all_sections
+            if isinstance(pos := section.get("position"), dict)
+        ]
+        anchor_x = min(xs) if xs else 0.0
+
+    for section in all_sections:
+        pos = section.get("position")
+        if isinstance(pos, dict):
+            _scale_numeric_field(pos, "x", scale_x, offset=anchor_x)
+            _scale_numeric_field(pos, "y", scale_y)
+            _scale_numeric_field(pos, "z", scale_z)
+
+        profile = section.get("profile")
+        if isinstance(profile, dict):
+            _scale_profile(profile, scale_y, scale_z, eff_radius)
+
+    return True
