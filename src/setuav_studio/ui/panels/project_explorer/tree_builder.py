@@ -94,8 +94,16 @@ class ProjectTreeBuilder:
         visit(self._tree.invisibleRootItem())
         return state
 
-    def _default_expanded(self, _item: QTreeWidgetItem) -> bool:
-        return True
+    def _default_expanded(self, item: QTreeWidgetItem) -> bool:
+        element = self._tree._element_map.get(item)
+        return not (
+            isinstance(element, dict)
+            and element.get("kind")
+            in (
+                "analysis_tables_group",
+                "analysis_plots_group",
+            )
+        )
 
     def _apply_expansion_state(self, expanded_state: dict[str, bool] | None) -> None:
         def apply(parent: QTreeWidgetItem) -> None:
