@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from setuav_studio.api import StudioAPI, ToolbarContribution
+from setuav_studio.api import ComponentMenuItemContribution, StudioAPI, ToolbarContribution
 
 from .engine.fuselage_geometry import create_default_section
 from .engine.lifting_surface_layout import DEFAULT_ACTIVE_DRIVERS, build_profiles
@@ -55,6 +55,24 @@ class AirframeCreationController:
                 enabled_when=self._can_add_control_surface,
                 group="model",
                 order=120,
+            ),
+        )
+
+    def component_menu_items(
+        self,
+        component: dict[str, Any],
+    ) -> tuple[ComponentMenuItemContribution, ...]:
+        if component.get("type") != _LIFTING_SURFACE_TYPE or component.get("kind") == "instance":
+            return ()
+        surface_id = str(component.get("id") or "")
+        if not surface_id:
+            return ()
+        return (
+            ComponentMenuItemContribution(
+                title="Add Control Surface",
+                icon="geometry_add_control_surface",
+                callback=lambda: self.add_control_surface(surface_id),
+                enabled=self._can_edit_project(),
             ),
         )
 
@@ -140,11 +158,15 @@ class AirframeCreationController:
         }
         self._append_component(component, "Add lifting surface")
 
-    def add_control_surface(self) -> None:
-        """Add an aileron to the selected lifting surface, to be customized."""
+    def add_control_surface(self, surface_id: str | None = None) -> None:
+        """Add an aileron to the given or selected lifting surface, to be customized."""
         if not self._require_editable_project():
             return
-        surface = self._selected_lifting_surface()
+        surface = (
+            self._lifting_surface_by_id(surface_id)
+            if surface_id is not None
+            else self._selected_lifting_surface()
+        )
         if surface is None:
             self._api.show_status(
                 "Select a lifting surface before adding a control surface",
@@ -266,6 +288,12 @@ class AirframeCreationController:
                 component_id = component.get("id")
                 if isinstance(component_id, str) and component_id:
                     return component_id
+        return None
+
+    def _lifting_surface_by_id(self, surface_id: str) -> dict[str, Any] | None:
+        component = self._find_component(surface_id)
+        if component is not None and component.get("type") == _LIFTING_SURFACE_TYPE:
+            return component
         return None
 
     def _selected_lifting_surface(self) -> dict[str, Any] | None:

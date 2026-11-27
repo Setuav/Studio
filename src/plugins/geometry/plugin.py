@@ -40,6 +40,10 @@ class AirframeDesignPlugin:
         self._creation_controller = AirframeCreationController(api)
         for contribution in self._creation_controller.contributions():
             api.register_toolbar_item(contribution)
+        api.register_component_menu_provider(
+            self.id,
+            self._creation_controller.component_menu_items,
+        )
 
         # Settings
         api.register_settings_page(
@@ -118,6 +122,7 @@ class AirframeDesignPlugin:
 
     def deactivate(self, api: StudioAPI) -> None:
         if self._creation_controller is not None:
+            api.unregister_component_menu_provider(self.id)
             for contribution_id in self._creation_controller.toolbar_ids:
                 api.unregister_toolbar_item(contribution_id)
             self._creation_controller = None
