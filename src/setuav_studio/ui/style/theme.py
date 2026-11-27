@@ -371,11 +371,18 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
         app.setStyle("Fusion")
     if current_theme_mode() in QT_THEME_NAMES:
         palette = _create_named_theme_palette(current_theme_mode())
+        stylesheet = ""
     else:
         palette = _create_dark_palette()
-    if app.styleSheet():
-        app.setStyleSheet("")
+        stylesheet = (
+            "QTableView {"
+            " selection-background-color: #3a3a3a;"
+            f" selection-color: {DARK_TOKENS['text']};"
+            " }"
+        )
     app.setPalette(palette)
+    if app.styleSheet() != stylesheet:
+        app.setStyleSheet(stylesheet)
     application_font = _application_font(DEFAULT_FONT_SIZE)
     if app.font() != application_font:
         app.setFont(application_font)
