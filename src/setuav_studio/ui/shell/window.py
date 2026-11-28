@@ -126,9 +126,9 @@ class MainWindow(QMainWindow):
         dock.visibilityChanged.connect(
             lambda _visible=False, pid=contribution.id: self.action_manager.sync_panel_action(pid)
         )
-        dock.dockLocationChanged.connect(self.layout_manager.schedule_layout_save)
-        dock.topLevelChanged.connect(self.layout_manager.schedule_layout_save)
-        dock.visibilityChanged.connect(self.layout_manager.schedule_layout_save)
+        dock.dockLocationChanged.connect(self._on_dock_layout_changed)
+        dock.topLevelChanged.connect(self._on_dock_layout_changed)
+        dock.visibilityChanged.connect(self._on_dock_layout_changed)
         dock.installEventFilter(self)
         self.action_manager.panel_actions[contribution.id] = action
         self.action_manager.update_panel_action_icon(contribution.id)
@@ -186,28 +186,42 @@ class MainWindow(QMainWindow):
     def _is_normal_state(self) -> bool:
         return not (self.isMaximized() or self.isFullScreen() or self.isMinimized())
 
-    def _capture_normal_state(self) -> None:
+    def capture_normal_state(self) -> None:
+        """Snapshot current window geometry and dock state when in normal window mode."""
         if self._is_normal_state():
             self._normal_geometry = self.saveGeometry()
             self._normal_dock_state = self.saveState(LayoutManager.LAYOUT_VERSION)
 
+    def _capture_normal_state(self) -> None:
+        if not self.layout_manager.restoring_layout:
+            self.capture_normal_state()
+
+    def _on_dock_layout_changed(self, *_args: object) -> None:
+        self.layout_manager.schedule_layout_save()
+        if self._is_normal_state() and not self.layout_manager.restoring_layout:
+            self._normal_capture.start()
+
     def _restore_normal_state(self) -> None:
         if not self._is_normal_state():
             return
-        if self._normal_geometry is not None:
-            self.restoreGeometry(self._normal_geometry)
-        if self._normal_dock_state is not None:
-            self.restoreState(self._normal_dock_state, LayoutManager.LAYOUT_VERSION)
+        self.layout_manager.restoring_layout = True
+        try:
+            if self._normal_geometry is not None:
+                self.restoreGeometry(self._normal_geometry)
+            if self._normal_dock_state is not None:
+                self.restoreState(self._normal_dock_state, LayoutManager.LAYOUT_VERSION)
+        finally:
+            self.layout_manager.restoring_layout = False
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
-        if self._is_normal_state():
+        if self._is_normal_state() and not self.layout_manager.restoring_layout:
             self._normal_capture.start()
         self.layout_manager.schedule_layout_save()
 
     def moveEvent(self, event: Any) -> None:
         super().moveEvent(event)
-        if self._is_normal_state():
+        if self._is_normal_state() and not self.layout_manager.restoring_layout:
             self._normal_capture.start()
 
     def changeEvent(self, event: QEvent) -> None:
@@ -223,11 +237,8 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event: Any) -> None:
         super().showEvent(event)
-        if not self.isMaximized() and not self.isFullScreen():
-            if self._normal_geometry is None:
-                self._normal_geometry = self.saveGeometry()
-            if self._normal_dock_state is None:
-                self._normal_dock_state = self.saveState(LayoutManager.LAYOUT_VERSION)
+        if self._is_normal_state() and self._normal_geometry is None:
+            self._normal_geometry = self.saveGeometry()
         if not self.layout_manager.layout_persistence_enabled:
             QTimer.singleShot(0, self.layout_manager.enable_layout_persistence)
 
@@ -236,7 +247,7 @@ class MainWindow(QMainWindow):
             QEvent.Type.Resize,
             QEvent.Type.Move,
         ):
-            self.layout_manager.schedule_layout_save()
+            self._on_dock_layout_changed()
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:

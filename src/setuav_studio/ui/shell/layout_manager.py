@@ -45,6 +45,7 @@ class LayoutManager:
                 self.apply_default_layout()
         finally:
             self.restoring_layout = False
+        self._window.capture_normal_state()
 
     def _check_version_reset(self, settings: QSettings) -> None:
         """Clear saved dock state when layout version upgrades."""
@@ -127,7 +128,12 @@ class LayoutManager:
         """Reset the dock layout to the standard default configuration."""
         settings = QSettings()
         settings.remove("main_window/state")
-        self.apply_default_layout()
+        self.restoring_layout = True
+        try:
+            self.apply_default_layout()
+        finally:
+            self.restoring_layout = False
+        self._window.capture_normal_state()
         self.save_layout()
 
     def dock(self, panel_id: str) -> QDockWidget | None:

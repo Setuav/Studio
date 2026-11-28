@@ -98,6 +98,38 @@ class TestWorkbenchAndTools(unittest.TestCase):
                 self.assertLessEqual(left - right, 8)
             self.assertGreaterEqual(spans[-1][1], win.width() - 1)
 
+    def test_fullscreen_roundtrip_preserves_restored_dock_layout(self) -> None:
+        from PySide6.QtCore import Qt
+
+        win = MainWindow(StudioAPI())
+        self.addCleanup(win.close)
+        win.resize(1280, 720)
+        # Mirror __main__.py: show() runs before restore_dock_layout().
+        win.show()
+        get_qapp().processEvents()
+        win.layout_manager.reset_layout()
+        for _ in range(10):
+            get_qapp().processEvents()
+
+        tree = win.layout_manager.dock("studio:project-explorer")
+        view = win.layout_manager.dock("studio:viewer-3d")
+        prop = win.layout_manager.dock("studio:properties")
+        assert tree is not None and view is not None and prop is not None
+        before_tops = (tree.geometry().top(), view.geometry().top(), prop.geometry().top())
+
+        # Enter fullscreen and return to normal state without resizing first.
+        win.setWindowState(Qt.WindowState.WindowFullScreen)
+        get_qapp().processEvents()
+        win.setWindowState(Qt.WindowState.WindowNoState)
+        for _ in range(15):
+            get_qapp().processEvents()
+
+        after_tops = (tree.geometry().top(), view.geometry().top(), prop.geometry().top())
+        self.assertEqual(after_tops, before_tops)
+        # All three columns remain side by side rather than stacked vertically.
+        self.assertLess(tree.geometry().left(), view.geometry().left())
+        self.assertLess(view.geometry().left(), prop.geometry().left())
+
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
         from PySide6.QtCore import QTimer
         from PySide6.QtGui import QPalette
