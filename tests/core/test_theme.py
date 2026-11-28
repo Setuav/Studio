@@ -71,22 +71,41 @@ class ThemeTests(unittest.TestCase):
         set_theme_mode("native")
 
     def test_application_palette_and_existing_icons_follow_theme(self) -> None:
+        from PySide6.QtWidgets import QLabel, QMainWindow, QTableWidget, QTreeWidget
+
         from setuav_studio.ui.style.theme import apply_theme, tokens
 
         app = get_qapp()
 
         apply_theme(app, "native")
+        self.assertEqual(app.styleSheet(), "")
         self.assertEqual(
             app.palette().color(QPalette.ColorRole.Window).name(),
             tokens()["window"],
         )
 
-        apply_theme(app, "nord")
+        win = QMainWindow()
+        tree = QTreeWidget(win)
+        table = QTableWidget(1, 1, win)
+        label = QLabel("Test", win)
+        menu_bar = win.menuBar()
+        menu_bar.addMenu("File")
         self.assertEqual(
-            app.palette().color(QPalette.ColorRole.Window).name(),
-            tokens()["window"],
+            app.palette("QTableView").color(QPalette.ColorRole.Highlight).name(),  # type: ignore[call-overload]
+            "#3a3a3a",
         )
 
+        for mode in ("blender", "nord", "native"):
+            apply_theme(app, mode)
+            self.assertEqual(
+                app.palette().color(QPalette.ColorRole.Window).name(),
+                tokens()["window"],
+            )
+            for widget in (win, menu_bar, tree, table, label):
+                self.assertEqual(widget.font().family(), app.font().family())
+                self.assertEqual(widget.font().pointSize(), DEFAULT_FONT_SIZE)
+
+        win.deleteLater()
         apply_theme(app, "native")
 
     def test_chart_series_and_axes_are_rethemed(self) -> None:

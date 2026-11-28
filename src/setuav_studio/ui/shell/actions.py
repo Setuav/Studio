@@ -305,8 +305,9 @@ class ActionManager:
         clear_action.triggered.connect(self._window.project_controller.clear_recent_projects)
 
     def open_settings(self) -> None:
+        previous = StudioSettings.load()
         dialog = SettingsDialog(
-            StudioSettings.load(),
+            previous,
             self._window,
             pages=self._host.settings_pages(),
         )
@@ -316,7 +317,8 @@ class ActionManager:
         values.save()
         dialog.apply_plugin_pages()
         dialog.apply_units()
-        self.switch_theme(values.theme_mode)
+        if values.theme_mode != previous.theme_mode:
+            self.switch_theme(values.theme_mode)
         self._window.project_controller.trim_recent_projects(values.recent_project_limit)
         self.update_recent_menu()
 

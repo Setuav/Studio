@@ -362,27 +362,35 @@ def _create_named_theme_palette(mode: str) -> QPalette:
     return palette
 
 
+def _create_table_palette(base_palette: QPalette) -> QPalette:
+    """Return a QTableView palette with subtle gray selection for the native theme."""
+    palette = QPalette(base_palette)
+    selection_bg = QColor("#3a3a3a")
+    selection_fg = QColor(DARK_TOKENS["text"])
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        palette.setColor(group, QPalette.ColorRole.Highlight, selection_bg)
+        palette.setColor(group, QPalette.ColorRole.HighlightedText, selection_fg)
+    return palette
+
+
 def apply_theme(app: QApplication, mode: str | None = None) -> None:
     """Pure 100% native Qt Fusion styling with instant dynamic palette."""
     if mode is not None:
         set_theme_mode(mode)
 
+    if app.styleSheet():
+        app.setStyleSheet("")
     if app.style().objectName().lower() != "fusion":
         app.setStyle("Fusion")
     if current_theme_mode() in QT_THEME_NAMES:
         palette = _create_named_theme_palette(current_theme_mode())
-        stylesheet = ""
+        table_palette = palette
     else:
         palette = _create_dark_palette()
-        stylesheet = (
-            "QTableView {"
-            " selection-background-color: #3a3a3a;"
-            f" selection-color: {DARK_TOKENS['text']};"
-            " }"
-        )
+        table_palette = _create_table_palette(palette)
     app.setPalette(palette)
-    if app.styleSheet() != stylesheet:
-        app.setStyleSheet(stylesheet)
+    # PySide6 stubs declare className as bytes, but runtime requires str.
+    app.setPalette(table_palette, "QTableView")  # type: ignore[arg-type]
     application_font = _application_font(DEFAULT_FONT_SIZE)
     if app.font() != application_font:
         app.setFont(application_font)
