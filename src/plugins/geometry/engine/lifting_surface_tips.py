@@ -339,10 +339,27 @@ def build_winglet_loft(
     tip_chord_scale = winglet.tip_chord_scale
     tip_thickness_scale = winglet.tip_thickness_scale
 
+    n_upper, n_lower, n_wall = 28, 28, 7
+    global_x_upper = [0.5 * (1.0 + math.cos(math.pi * i / (n_upper - 1))) for i in range(n_upper)]
+    global_x_lower = [0.5 * (1.0 - math.cos(math.pi * i / (n_lower - 1))) for i in range(n_lower)]
+    global_z_upper = [interp_branch_z(upper_b, x_rel) for x_rel in global_x_upper]
+    global_z_lower = [interp_branch_z(lower_b, x_rel) for x_rel in global_x_lower]
+    z_le = interp_branch_z(upper_b, 0.0)
+    z_te_u = interp_branch_z(upper_b, 1.0)
+    z_te_l = interp_branch_z(lower_b, 1.0)
+
+    h_upper = max(global_z_upper) * tip_chord
+    h_lower = abs(min(global_z_lower)) * tip_chord
+    h_in_total = h_upper if winglet.cant_tip >= 0.0 else h_lower
+    min_blend_arc = 1.2 * h_in_total * abs(math.radians(winglet.cant_tip)) * (math.pi * 0.5)
+    effective_blend = (
+        max(winglet.blend_radius, min_blend_arc) if winglet.blend_radius > 0.0 else 0.0
+    )
+
     n_pts = max(n_stations, 20)
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
     cant_angles_rad = winglet_cant_angles(
-        u_vals, winglet.cant_root, winglet.cant_tip, winglet.blend_radius, winglet_height
+        u_vals, winglet.cant_root, winglet.cant_tip, effective_blend, winglet_height
     )
 
     y_offsets: list[float] = [0.0]
@@ -350,7 +367,9 @@ def build_winglet_loft(
 
     for i in range(1, n_pts):
         du = u_vals[i] - u_vals[i - 1]
-        ds = winglet_height * du
+        d_cant = cant_angles_rad[i] - cant_angles_rad[i - 1]
+        h_in = h_upper if (cant_angles_rad[i] + cant_angles_rad[i - 1]) >= 0.0 else h_lower
+        ds = max(winglet_height * du, 1.15 * h_in * abs(d_cant))
         avg_cos = 0.5 * (math.cos(cant_angles_rad[i - 1]) + math.cos(cant_angles_rad[i]))
         avg_sin = 0.5 * (math.sin(cant_angles_rad[i - 1]) + math.sin(cant_angles_rad[i]))
         y_offsets.append(y_offsets[-1] + ds * avg_cos * span_dir)
@@ -365,10 +384,6 @@ def build_winglet_loft(
     k0_te = winglet_height * math.tan(math.radians(te_s_root))
     k1_te = winglet_height * math.tan(math.radians(te_s_tip))
     x_te_tip = x_le_tip + c1
-
-    n_upper, n_lower, n_wall = 28, 28, 7
-    global_x_upper = [0.5 * (1.0 + math.cos(math.pi * i / (n_upper - 1))) for i in range(n_upper)]
-    global_x_lower = [0.5 * (1.0 - math.cos(math.pi * i / (n_lower - 1))) for i in range(n_lower)]
 
     sections: list[Section] = []
 
@@ -403,7 +418,9 @@ def build_winglet_loft(
             cos_cant = math.cos(cant_rad)
             sin_cant = math.sin(cant_rad)
 
-            toe_deg = t_root + (t_tip - t_root) * u
+            toe_deg = (
+                2.0 * (1.0 - u) * u * t_root + (u**2) * t_tip if abs(t_root) > 1e-6 else t_tip * u
+            )
             toe_rad = math.radians(toe_deg)
             cos_toe = math.cos(toe_rad)
             sin_toe = math.sin(toe_rad)
@@ -439,24 +456,17 @@ def build_winglet_loft(
         pts: list[Point3D] = []
 
         # Upper surface (TE -> LE)
-        for i in range(n_upper):
-            x_rel = global_x_upper[i]
-            z_val = interp_branch_z(upper_b, x_rel)
+        for x_rel, z_val in zip(global_x_upper, global_z_upper, strict=True):
             pts.append(_calc_pt(x_rel, z_val))
 
         # LE point
-        z_le = interp_branch_z(upper_b, 0.0)
         pts.append(_calc_pt(0.0, z_le))
 
         # Lower surface (LE -> TE)
-        for i in range(n_lower):
-            x_rel = global_x_lower[i]
-            z_val = interp_branch_z(lower_b, x_rel)
+        for x_rel, z_val in zip(global_x_lower, global_z_lower, strict=True):
             pts.append(_calc_pt(x_rel, z_val))
 
         # TE closure
-        z_te_u = interp_branch_z(upper_b, 1.0)
-        z_te_l = interp_branch_z(lower_b, 1.0)
         for j in range(1, n_wall + 1):
             fj = j / n_wall
             z_wall = z_te_u + fj * (z_te_l - z_te_u)
@@ -505,13 +515,16 @@ def winglet_cant_angles(
             angles.append(0.0)
             continue
         if blend_radius <= 0.0:
-            angle = root_angle + (tip_angle - root_angle) * station
-        elif station > blend_end:
-            angle = tip_angle
+            t = station
+        elif station >= blend_end:
+            t = 1.0
         else:
             ratio = station / blend_end
-            weight = ratio**3 * (ratio * (ratio * 6.0 - 15.0) + 10.0)
-            angle = root_angle + (tip_angle - root_angle) * weight
+            t = 0.5 * (1.0 - math.cos(math.pi * ratio))
+        if abs(root_angle) > 1e-6 and abs(tip_angle) > 1e-6:
+            angle = 2.0 * (1.0 - t) * t * root_angle + (t * t) * tip_angle
+        else:
+            angle = tip_angle * t
         angles.append(math.radians(angle))
     return angles
 
